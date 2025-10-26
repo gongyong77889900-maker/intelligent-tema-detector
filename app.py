@@ -895,11 +895,45 @@ def run_perfect_coverage_analysis(df):
             '五分六合彩', '三分六合彩', '香港⑥合彩', '分分六合彩'
         ]
         
+        # 检查必要列是否存在
+        required_cols = ['会员账号', '期号', '彩种', '玩法分类', '内容']
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        
+        if missing_cols:
+            st.error(f"❌ 特码分析缺少必要列: {missing_cols}")
+            return
+        
+        # 数据清理 - 修复：确保列存在且是Series
+        for col in required_cols:
+            if col in df.columns:
+                # 检查是否有重复索引
+                if df.index.duplicated().any():
+                    st.warning("发现重复索引，正在重置索引...")
+                    df = df.reset_index(drop=True)
+                
+                # 确保列是Series且转换为字符串
+                try:
+                    df[col] = df[col].astype(str).str.strip()
+                except Exception as e:
+                    st.error(f"❌ 列 '{col}' 数据处理失败: {str(e)}")
+                    return
+        
         # 筛选目标彩种和特码玩法
-        df_target = df[
-            (df['彩种'].isin(target_lotteries)) & 
-            (df['玩法分类'] == '特码')
-        ]
+        # 修复：避免重复索引问题
+        try:
+            df_target = df[
+                (df['彩种'].isin(target_lotteries)) & 
+                (df['玩法分类'] == '特码')
+            ].copy().reset_index(drop=True)  # 重置索引避免重复
+        except Exception as e:
+            st.error(f"❌ 数据筛选失败: {str(e)}")
+            st.error("可能存在重复索引问题，正在尝试修复...")
+            # 尝试重置索引后重新筛选
+            df = df.reset_index(drop=True)
+            df_target = df[
+                (df['彩种'].isin(target_lotteries)) & 
+                (df['玩法分类'] == '特码')
+            ].copy()
         
         st.write(f"✅ 特码玩法数据行数: {len(df_target):,}")
         
@@ -928,7 +962,8 @@ def run_perfect_coverage_analysis(df):
                 valid_periods += 1
             
             # 更新进度条
-            progress_bar.progress((i + 1) / total_groups)
+            if total_groups > 0:
+                progress_bar.progress((i + 1) / total_groups)
         
         st.success(f"✅ 分析完成！共分析 {valid_periods} 个有效期数")
         
@@ -1169,18 +1204,12 @@ def main():
                                 if column_mapping:
                                     df_original = df_original.rename(columns=column_mapping)
                                 
+                                # 重置索引，避免重复索引问题
+                                df_original = df_original.reset_index(drop=True)
+                                
                                 # 检查必要列
                                 required_cols = ['会员账号', '期号', '彩种', '玩法分类', '内容']
                                 if all(col in df_original.columns for col in required_cols):
-                                    # 数据清理 - 修复：对Series使用字符串方法
-                                    for col in required_cols:
-                                        if col in df_original.columns:
-                                            # 确保是Series才使用字符串方法
-                                            if isinstance(df_original[col], pd.Series):
-                                                df_original[col] = df_original[col].astype(str).str.strip()
-                                            else:
-                                                st.error(f"列 '{col}' 不是Series，无法使用字符串方法")
-                                    
                                     run_perfect_coverage_analysis(df_original)
                                 else:
                                     missing_cols = [col for col in required_cols if col not in df_original.columns]
