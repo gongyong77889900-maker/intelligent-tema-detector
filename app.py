@@ -116,6 +116,7 @@ class WashTradeDetector:
         used_columns = set()
         
         for df_col in df.columns:
+            # 修复：对单个列名使用字符串方法，而不是整个DataFrame
             df_col_clean = str(df_col).strip()
             
             if df_col_clean in reverse_mapping:
@@ -166,6 +167,7 @@ class WashTradeDetector:
             df_clean = df_mapped[['会员账号', '期号', '内容', '金额', '彩种']].copy()
             df_clean = df_clean.dropna(subset=['会员账号', '期号', '内容', '金额'])
             
+            # 修复：对Series使用字符串方法，而不是DataFrame
             for col in ['会员账号', '期号', '内容', '彩种']:
                 if col in df_clean.columns:
                     df_clean[col] = df_clean[col].astype(str).str.strip()
@@ -215,6 +217,7 @@ class WashTradeDetector:
             if pd.isna(amount_text):
                 return 0
             
+            # 修复：对单个值使用字符串方法
             text = str(amount_text).strip()
             
             try:
@@ -270,6 +273,7 @@ class WashTradeDetector:
             if pd.isna(content):
                 return ""
             
+            # 修复：对单个值使用字符串方法
             content_str = str(content).strip().lower()
             
             for direction, patterns in self.config.direction_patterns.items():
@@ -757,6 +761,7 @@ def extract_bet_amount_perfect_coverage(amount_text):
         if pd.isna(amount_text):
             return 0
         
+        # 修复：对单个值使用字符串方法
         text = str(amount_text).strip()
         
         # 先尝试直接转换
@@ -801,6 +806,7 @@ def find_correct_columns_perfect_coverage(df):
     used_standard_cols = set()
     
     for col in df.columns:
+        # 修复：对单个列名使用字符串方法
         col_str = str(col).lower().strip()
         
         # 会员账号列
@@ -838,6 +844,7 @@ def find_correct_columns_perfect_coverage(df):
 def extract_numbers_from_content(content):
     """从内容中提取所有1-49的数字"""
     numbers = []
+    # 修复：对单个值使用字符串方法
     content_str = str(content)
     
     # 使用正则表达式提取所有数字
@@ -1136,17 +1143,29 @@ def main():
                         # 特码完美覆盖分析（可选）
                         if enable_perfect_coverage:
                             # 重新读取原始数据进行特码分析
-                            df_original = pd.read_excel(uploaded_file)
-                            column_mapping = find_correct_columns_perfect_coverage(df_original)
-                            if column_mapping:
-                                df_original = df_original.rename(columns=column_mapping)
-                            
-                            # 检查必要列
-                            required_cols = ['会员账号', '期号', '彩种', '玩法分类', '内容']
-                            if all(col in df_original.columns for col in required_cols):
-                                run_perfect_coverage_analysis(df_original)
-                            else:
-                                st.error("❌ 特码分析缺少必要列，请确保文件包含：会员账号、期号、彩种、玩法分类、内容")
+                            try:
+                                if uploaded_file.name.endswith('.csv'):
+                                    df_original = pd.read_csv(uploaded_file, encoding='utf-8')
+                                else:
+                                    df_original = pd.read_excel(uploaded_file)
+                                
+                                column_mapping = find_correct_columns_perfect_coverage(df_original)
+                                if column_mapping:
+                                    df_original = df_original.rename(columns=column_mapping)
+                                
+                                # 检查必要列
+                                required_cols = ['会员账号', '期号', '彩种', '玩法分类', '内容']
+                                if all(col in df_original.columns for col in required_cols):
+                                    # 数据清理
+                                    for col in required_cols:
+                                        if col in df_original.columns:
+                                            df_original[col] = df_original[col].astype(str).str.strip()
+                                    
+                                    run_perfect_coverage_analysis(df_original)
+                                else:
+                                    st.error("❌ 特码分析缺少必要列，请确保文件包含：会员账号、期号、彩种、玩法分类、内容")
+                            except Exception as e:
+                                st.error(f"❌ 特码分析失败: {str(e)}")
                     else:
                         st.error("❌ 数据解析失败，请检查文件格式和内容")
             
