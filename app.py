@@ -193,8 +193,8 @@ if uploaded_file is not None:
     if len(available_columns) >= 5:
         df_clean = df[available_columns].copy()
         
-        # 移除空值
-        df_clean = df_clean.dropna(subset=required_columns)
+        # 移除空值并重置索引
+        df_clean = df_clean.dropna(subset=required_columns).reset_index(drop=True)
         
         # 修复的数据类型转换 - 安全处理字符串转换
         for col in available_columns:
@@ -231,11 +231,45 @@ if uploaded_file is not None:
             '五分六合彩', '三分六合彩', '香港⑥合彩', '分分六合彩'
         ]
         
-        # 筛选特码数据
-        df_target = df_clean[
-            (df_clean['彩种'].isin(target_lotteries)) & 
-            (df_clean['玩法分类'] == '特码')
-        ]
+        # 修复的数据筛选 - 避免索引重复问题
+        def safe_data_filter(df, condition1, condition2):
+            """安全的数据筛选，避免索引重复问题"""
+            try:
+                # 方法1：使用 & 操作符，但确保索引唯一
+                result = df[condition1 & condition2].copy()
+                return result.reset_index(drop=True)
+            except:
+                try:
+                    # 方法2：分别应用条件
+                    mask1 = condition1
+                    mask2 = condition2
+                    result = df[mask1 & mask2].copy()
+                    return result.reset_index(drop=True)
+                except:
+                    # 方法3：使用 query 方法
+                    try:
+                        # 构建查询字符串
+                        lottery_condition = "彩种 in " + str(target_lotteries)
+                        play_condition = "玩法分类 == '特码'"
+                        query_str = f"{lottery_condition} and {play_condition}"
+                        result = df.query(query_str).copy()
+                        return result.reset_index(drop=True)
+                    except:
+                        # 方法4：逐行筛选
+                        mask = []
+                        for idx, row in df.iterrows():
+                            lottery_ok = row['彩种'] in target_lotteries
+                            play_ok = row['玩法分类'] == '特码'
+                            mask.append(lottery_ok and play_ok)
+                        result = df[mask].copy()
+                        return result.reset_index(drop=True)
+        
+        # 筛选特码数据 - 使用安全筛选方法
+        df_target = safe_data_filter(
+            df_clean, 
+            df_clean['彩种'].isin(target_lotteries),
+            df_clean['玩法分类'] == '特码'
+        )
         
         if len(df_target) == 0:
             st.error("❌ 未找到特码玩法数据，请检查数据格式")
@@ -506,20 +540,24 @@ if uploaded_file is not None:
         
         # 进度条
         total_groups = len(grouped)
-        progress_bar = st.progress(0, text="正在分析各期数据...")
-        
-        for idx, ((period, lottery), group) in enumerate(grouped):
-            if len(group) < 10:
-                continue
+        if total_groups > 0:
+            progress_bar = st.progress(0, text="正在分析各期数据...")
             
-            result = analyze_period_lottery_combination(group, period, lottery)
-            if result:
-                all_period_results[(period, lottery)] = result
-                valid_periods += 1
+            for idx, ((period, lottery), group) in enumerate(grouped):
+                if len(group) < 10:
+                    continue
+                
+                result = analyze_period_lottery_combination(group, period, lottery)
+                if result:
+                    all_period_results[(period, lottery)] = result
+                    valid_periods += 1
+                
+                progress_bar.progress((idx + 1) / total_groups, text=f"正在分析各期数据... ({idx+1}/{total_groups})")
             
-            progress_bar.progress((idx + 1) / total_groups, text=f"正在分析各期数据... ({idx+1}/{total_groups})")
-        
-        progress_bar.empty()
+            progress_bar.empty()
+        else:
+            st.warning("❌ 没有足够的数据进行分组分析")
+            st.stop()
         
         # 显示结果
         if all_period_results:
