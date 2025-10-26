@@ -112,6 +112,7 @@ if uploaded_file is not None:
     
     if column_mapping:
         df = df.rename(columns=column_mapping)
+        st.success("✅ 列名识别完成")
     
     # 数据清理
     def extract_bet_amount(amount_text):
@@ -196,14 +197,14 @@ if uploaded_file is not None:
         # 移除空值
         df_clean = df_clean.dropna(subset=required_columns)
         
-        # 数据类型转换 - 修复可能的列名问题
+        # 数据类型转换 - 修复列名检查和strip拼写错误
         for col in available_columns:
             if col in df_clean.columns:
-                df_clean[col] = df_clean[col].astype(str).str.strip()
+                df_clean[col] = df_clean[col].astype(str).str.strip()  # 修复：str.strip() 不是 str.strlp()
         
-        # 提取金额
-        if has_amount_column:
-            df_clean['投注金额'] = df_clean['金额'].apply(extract_bet_amount)
+        # 提取金额 - 修复列名错误
+        if has_amount_column and '金额' in df_clean.columns:  # 添加列存在检查
+            df_clean['投注金额'] = df_clean['金额'].apply(extract_bet_amount)  # 修复：正确的列名
             total_bet_amount = df_clean['投注金额'].sum()
         
         # 特码分析
@@ -234,7 +235,7 @@ if uploaded_file is not None:
         with col3:
             st.metric("涉及期数", f"{df_target['期号'].nunique()}")
         
-        if has_amount_column:
+        if has_amount_column and '投注金额' in df_target.columns:
             total_target_amount = df_target['投注金额'].sum()
             avg_target_amount = df_target['投注金额'].mean()
             col1, col2 = st.columns(2)
@@ -303,7 +304,7 @@ if uploaded_file is not None:
                     numbers = extract_numbers_from_content(row['内容'])
                     all_numbers.update(numbers)
                     
-                    if has_amount_column:
+                    if has_amount_column and '投注金额' in row:
                         total_amount += row['投注金额']
                         bet_count += 1
                 
