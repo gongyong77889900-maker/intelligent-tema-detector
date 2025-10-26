@@ -54,7 +54,7 @@ if uploaded_file is not None:
         df = pd.read_excel(uploaded_file)
         st.success(f"✅ 成功读取文件: {uploaded_file.name}")
         
-        # 显示基本信息 - 隐藏详细预览
+        # 显示基本信息
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("数据行数", f"{len(df):,}")
@@ -67,7 +67,7 @@ if uploaded_file is not None:
         st.error(f"❌ 读取文件失败: {e}")
         st.stop()
     
-    # 智能列识别 - 隐藏详细显示
+    # 智能列识别
     def find_correct_columns(df):
         """找到正确的列 - 兼容多种格式"""
         column_mapping = {}
@@ -113,7 +113,7 @@ if uploaded_file is not None:
     if column_mapping:
         df = df.rename(columns=column_mapping)
     
-    # 数据清理 - 隐藏详细显示
+    # 数据清理
     def extract_bet_amount(amount_text):
         """从复杂文本中提取投注金额 - 修复版，支持多种格式"""
         try:
@@ -124,7 +124,7 @@ if uploaded_file is not None:
             
             # 先尝试直接转换数字
             try:
-                # 移除常见的非数字字符
+                # 移除常见的非数字字符，但保留小数点
                 cleaned_text = re.sub(r'[^\d.]', '', text)
                 if cleaned_text:
                     amount = float(cleaned_text)
@@ -142,8 +142,20 @@ if uploaded_file is not None:
             except:
                 pass
             
+            # 处理"投注：2.000 抵用：0 中奖：0.000"格式
+            try:
+                if '投注' in text:
+                    # 提取投注部分
+                    bet_match = re.search(r'投注[:：]\s*(\d+\.?\d*)', text)
+                    if bet_match:
+                        bet_amount = float(bet_match.group(1))
+                        return bet_amount
+            except:
+                pass
+            
             # 多种金额提取模式
             patterns = [
+                r'投注[:：]\s*(\d+\.?\d*)',  # 专门匹配"投注：2.000"格式
                 r'投注[:：]?\s*(\d+[,，]?\d*\.?\d*)',
                 r'投注\s*(\d+[,，]?\d*\.?\d*)',
                 r'金额[:：]?\s*(\d+[,，]?\d*\.?\d*)',
@@ -177,8 +189,6 @@ if uploaded_file is not None:
             available_columns.append(col)
 
     has_amount_column = '金额' in df.columns
-    if has_amount_column:
-        available_columns.append('金额')
 
     if len(available_columns) >= 5:
         df_clean = df[available_columns].copy()
@@ -186,9 +196,10 @@ if uploaded_file is not None:
         # 移除空值
         df_clean = df_clean.dropna(subset=required_columns)
         
-        # 数据类型转换
+        # 数据类型转换 - 修复可能的列名问题
         for col in available_columns:
-            df_clean[col] = df_clean[col].astype(str).str.strip()
+            if col in df_clean.columns:
+                df_clean[col] = df_clean[col].astype(str).str.strip()
         
         # 提取金额
         if has_amount_column:
@@ -463,14 +474,16 @@ if uploaded_file is not None:
                                     st.write(f"**总投注金额**: {result_data['total_amount']:,.2f} 元")
                                     st.write(f"**金额匹配度**: {result_data['similarity']:.2f}% {result_data['similarity_indicator']}")
                                 
-                                # 修改这里：去掉空行，连续显示账户信息
+                                # 修改这里：使用紧凑的显示格式，减少行间距
                                 for account in accounts:
                                     numbers_count = len([x for x in result_data['numbers'] if x in set(result_data['bet_contents'][account].split(', '))])
                                     amount_info = result_data['individual_amounts'][account]
                                     avg_info = result_data['individual_avg_per_number'][account]
                                     
-                                    # 使用连续的write语句，不添加空行
-                                    st.write(f"**{account}**: {numbers_count}个数字 | 总投注: {amount_info:,.2f}元 | 平均每号: {avg_info:,.2f}元  **投注内容**: {result_data['bet_contents'][account]}")
+                                    # 使用紧凑格式显示账户信息
+                                    st.write(f"**{account}**: {numbers_count}个数字 | 总投注: {amount_info:,.2f}元 | 平均每号: {avg_info:,.2f}元")
+                                    # 投注内容单独一行，但减少间距
+                                    st.write(f"**投注内容**: {result_data['bet_contents'][account]}")
                                 
                                 st.markdown("---")
         
