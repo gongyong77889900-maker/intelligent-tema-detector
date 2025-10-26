@@ -1,1 +1,1 @@
-# 🎯 智能特码对刷分析系统 (Intelligent Tema Wash Trade Detector)
+# 🎯 特码完美覆盖分析系统 (Intelligent Tema Wash Trade Detector)
