@@ -66,15 +66,12 @@ if uploaded_file is not None:
         # 显示数据预览
         with st.expander("📊 数据预览", expanded=True):
             st.dataframe(df.head(10), use_container_width=True)
-            st.write("原始列名:", list(df.columns))
         
     except Exception as e:
         st.error(f"❌ 读取文件失败: {e}")
         st.stop()
     
-    # 智能列识别
-    st.header("🔍 步骤2：智能列识别")
-    
+    # 智能列识别 - 隐藏详细显示
     def find_correct_columns(df):
         """找到正确的列 - 兼容多种格式"""
         column_mapping = {}
@@ -120,22 +117,30 @@ if uploaded_file is not None:
     if column_mapping:
         df = df.rename(columns=column_mapping)
         st.success("✅ 自动识别列名完成")
-        st.write("列映射关系:", column_mapping)
     else:
         st.warning("⚠️ 无法自动识别列名，使用原始列名")
     
-    # 数据清理
-    st.header("🧹 步骤3：数据清理")
-    
+    # 数据清理 - 隐藏详细显示
     def extract_bet_amount(amount_text):
-        """从复杂文本中提取投注金额"""
+        """从复杂文本中提取投注金额 - 修复版，支持多种格式"""
         try:
             if pd.isna(amount_text):
                 return 0
             
             text = str(amount_text).strip()
             
-            # 先尝试直接转换
+            # 先尝试直接转换数字
+            try:
+                # 移除常见的非数字字符
+                cleaned_text = re.sub(r'[^\d.]', '', text)
+                if cleaned_text:
+                    amount = float(cleaned_text)
+                    if amount >= 0:
+                        return amount
+            except:
+                pass
+            
+            # 处理带逗号的数字（如：1,000.50）
             try:
                 cleaned_text = text.replace(',', '').replace('，', '')
                 amount = float(cleaned_text)
@@ -191,7 +196,7 @@ if uploaded_file is not None:
         # 移除空值
         df_clean = df_clean.dropna(subset=required_columns)
         
-        # 数据类型转换
+        # 数据类型转换 - 修复strip拼写错误
         for col in available_columns:
             df_clean[col] = df_clean[col].astype(str).str.strip()
         
@@ -208,18 +213,6 @@ if uploaded_file is not None:
         with col2:
             if has_amount_column:
                 st.metric("总投注金额", f"{total_bet_amount:,.2f} 元")
-        
-        # 显示数据分布
-        tab1, tab2, tab3 = st.tabs(["彩种分布", "期号分布", "玩法分类分布"])
-        
-        with tab1:
-            st.dataframe(df_clean['彩种'].value_counts(), use_container_width=True)
-        
-        with tab2:
-            st.dataframe(df_clean['期号'].value_counts().head(10), use_container_width=True)
-        
-        with tab3:
-            st.dataframe(df_clean['玩法分类'].value_counts(), use_container_width=True)
         
         # 特码分析
         st.header("🎯 步骤4：特码完美覆盖分析")
@@ -298,8 +291,6 @@ if uploaded_file is not None:
         
         def analyze_period_lottery_combination(df_period_lottery, period, lottery):
             """分析特定期数和彩种的组合"""
-            progress_text = f"分析中: 期号[{period}] - 彩种[{lottery}]"
-            progress_bar = st.progress(0, text=progress_text)
             
             # 按账户提取所有特码数字和金额统计
             account_numbers = {}
@@ -307,9 +298,8 @@ if uploaded_file is not None:
             account_bet_contents = {}
             
             accounts = df_period_lottery['会员账号'].unique()
-            total_accounts = len(accounts)
             
-            for idx, account in enumerate(accounts):
+            for account in accounts:
                 account_data = df_period_lottery[df_period_lottery['会员账号'] == account]
                 
                 # 提取该账户下所有特码数字
@@ -336,8 +326,6 @@ if uploaded_file is not None:
                         'avg_amount_per_bet': total_amount / bet_count if bet_count > 0 else 0,
                         'avg_amount_per_number': total_amount / number_count if number_count > 0 else 0
                     }
-                
-                progress_bar.progress((idx + 1) / total_accounts, text=progress_text)
             
             # 排除投注总数量≤11的账户
             filtered_account_numbers = {}
@@ -350,8 +338,6 @@ if uploaded_file is not None:
                     filtered_account_numbers[account] = numbers
                     filtered_account_amount_stats[account] = account_amount_stats[account]
                     filtered_account_bet_contents[account] = account_bet_contents[account]
-            
-            progress_bar.empty()
             
             if len(filtered_account_numbers) < 2:
                 return None
@@ -531,7 +517,7 @@ if uploaded_file is not None:
         if all_period_results:
             st.success(f"🎉 分析完成！在 {valid_periods} 个期数中发现完美组合")
             
-            # 所有期数的完整组合展示
+            # 所有期数的完整组合展示 - 默认展开
             st.header("📊 完整组合展示")
             
             for (period, lottery), result in all_period_results.items():
@@ -539,7 +525,8 @@ if uploaded_file is not None:
                 total_combinations = result['total_combinations']
                 
                 if total_combinations > 0:
-                    with st.expander(f"📅 期号[{period}] - 彩种[{lottery}] - 共找到 {total_combinations} 个完美组合", expanded=False):
+                    # 修改这里：将expanded设置为True，默认展开
+                    with st.expander(f"📅 期号[{period}] - 彩种[{lottery}] - 共找到 {total_combinations} 个完美组合", expanded=True):
                         
                         # 显示2账户组合
                         if all_results[2]:
@@ -547,24 +534,21 @@ if uploaded_file is not None:
                             for i, result_data in enumerate(all_results[2], 1):
                                 accounts = result_data['accounts']
                                 
-                                col1, col2 = st.columns([1, 2])
-                                with col1:
-                                    st.write(f"**组合 {i}**")
-                                    st.write(f"账户: {accounts[0]} ↔ {accounts[1]}")
-                                    st.write(f"总数字数: {result_data['total_digits']}")
-                                    
-                                    if has_amount_column:
-                                        st.write(f"总投注金额: {result_data['total_amount']:,.2f} 元")
-                                        st.write(f"金额匹配度: {result_data['similarity']:.2f}% {result_data['similarity_indicator']}")
+                                st.markdown(f"**组合 {i}**")
+                                st.write(f"**账户**: {accounts[0]} ↔ {accounts[1]}")
+                                st.write(f"**总数字数**: {result_data['total_digits']}")
                                 
-                                with col2:
-                                    for account in accounts:
-                                        numbers_count = len([x for x in result_data['numbers'] if x in set(result_data['bet_contents'][account].split(', '))])
-                                        amount_info = result_data['individual_amounts'][account]
-                                        avg_info = result_data['individual_avg_per_number'][account]
-                                        
-                                        st.write(f"**{account}**: {numbers_count}个数字 | 总投注: {amount_info:,.2f}元 | 平均每号: {avg_info:,.2f}元")
-                                        st.write(f"投注内容: {result_data['bet_contents'][account]}")
+                                if has_amount_column:
+                                    st.write(f"**总投注金额**: {result_data['total_amount']:,.2f} 元")
+                                    st.write(f"**金额匹配度**: {result_data['similarity']:.2f}% {result_data['similarity_indicator']}")
+                                
+                                for account in accounts:
+                                    numbers_count = len([x for x in result_data['numbers'] if x in set(result_data['bet_contents'][account].split(', '))])
+                                    amount_info = result_data['individual_amounts'][account]
+                                    avg_info = result_data['individual_avg_per_number'][account]
+                                    
+                                    st.write(f"**{account}**: {numbers_count}个数字 | 总投注: {amount_info:,.2f}元 | 平均每号: {avg_info:,.2f}元")
+                                    st.write(f"**投注内容**: {result_data['bet_contents'][account]}")
                                 
                                 st.markdown("---")
                         
@@ -574,24 +558,21 @@ if uploaded_file is not None:
                             for i, result_data in enumerate(all_results[3], 1):
                                 accounts = result_data['accounts']
                                 
-                                col1, col2 = st.columns([1, 2])
-                                with col1:
-                                    st.write(f"**组合 {i}**")
-                                    st.write(f"账户: {accounts[0]} ↔ {accounts[1]} ↔ {accounts[2]}")
-                                    st.write(f"总数字数: {result_data['total_digits']}")
-                                    
-                                    if has_amount_column:
-                                        st.write(f"总投注金额: {result_data['total_amount']:,.2f} 元")
-                                        st.write(f"金额匹配度: {result_data['similarity']:.2f}% {result_data['similarity_indicator']}")
+                                st.markdown(f"**组合 {i}**")
+                                st.write(f"**账户**: {accounts[0]} ↔ {accounts[1]} ↔ {accounts[2]}")
+                                st.write(f"**总数字数**: {result_data['total_digits']}")
                                 
-                                with col2:
-                                    for account in accounts:
-                                        numbers_count = len([x for x in result_data['numbers'] if x in set(result_data['bet_contents'][account].split(', '))])
-                                        amount_info = result_data['individual_amounts'][account]
-                                        avg_info = result_data['individual_avg_per_number'][account]
-                                        
-                                        st.write(f"**{account}**: {numbers_count}个数字 | 总投注: {amount_info:,.2f}元 | 平均每号: {avg_info:,.2f}元")
-                                        st.write(f"投注内容: {result_data['bet_contents'][account]}")
+                                if has_amount_column:
+                                    st.write(f"**总投注金额**: {result_data['total_amount']:,.2f} 元")
+                                    st.write(f"**金额匹配度**: {result_data['similarity']:.2f}% {result_data['similarity_indicator']}")
+                                
+                                for account in accounts:
+                                    numbers_count = len([x for x in result_data['numbers'] if x in set(result_data['bet_contents'][account].split(', '))])
+                                    amount_info = result_data['individual_amounts'][account]
+                                    avg_info = result_data['individual_avg_per_number'][account]
+                                    
+                                    st.write(f"**{account}**: {numbers_count}个数字 | 总投注: {amount_info:,.2f}元 | 平均每号: {avg_info:,.2f}元")
+                                    st.write(f"**投注内容**: {result_data['bet_contents'][account]}")
                                 
                                 st.markdown("---")
             
@@ -635,7 +616,7 @@ if uploaded_file is not None:
                             st.write(f"- 总投注: {amount_info:,.2f}元")
                             st.write(f"- 平均每号: {avg_info:,.2f}元")
                         with col2:
-                            st.write(f"投注内容: {best['bet_contents'][account]}")
+                            st.write(f"**投注内容**: {best['bet_contents'][account]}")
                     
                     st.markdown("---")
             
@@ -661,17 +642,17 @@ if uploaded_file is not None:
                 with col1:
                     st.write("**组合信息**")
                     if len(accounts) == 2:
-                        st.write(f"账户组: {accounts[0]} ↔ {accounts[1]}")
+                        st.write(f"**账户组**: {accounts[0]} ↔ {accounts[1]}")
                     elif len(accounts) == 3:
-                        st.write(f"账户组: {accounts[0]} ↔ {accounts[1]} ↔ {accounts[2]}")
+                        st.write(f"**账户组**: {accounts[0]} ↔ {accounts[1]} ↔ {accounts[2]}")
                     
-                    st.write(f"账户数量: {best_global['account_count']}")
-                    st.write(f"总数字数: {best_global['total_digits']}")
+                    st.write(f"**账户数量**: {best_global['account_count']}")
+                    st.write(f"**总数字数**: {best_global['total_digits']}")
                     
                     if has_amount_column:
-                        st.write(f"总投注金额: {best_global['total_amount']:,.2f} 元")
-                        st.write(f"平均每号金额: {best_global['avg_amount_per_number']:,.2f} 元")
-                        st.write(f"金额匹配度: {best_global['similarity']:.2f}% {best_global['similarity_indicator']}")
+                        st.write(f"**总投注金额**: {best_global['total_amount']:,.2f} 元")
+                        st.write(f"**平均每号金额**: {best_global['avg_amount_per_number']:,.2f} 元")
+                        st.write(f"**金额匹配度**: {best_global['similarity']:.2f}% {best_global['similarity_indicator']}")
                 
                 with col2:
                     st.write("**账户详情**")
@@ -681,10 +662,10 @@ if uploaded_file is not None:
                         numbers_count = len([x for x in best_global['numbers'] if x in set(best_global['bet_contents'][account].split(', '))])
                         
                         st.write(f"**{account}**")
-                        st.write(f"- 数字数量: {numbers_count}")
-                        st.write(f"- 总投注: {amount_info:,.2f}元")
-                        st.write(f"- 平均每号: {avg_info:,.2f}元")
-                        st.write(f"投注内容: {best_global['bet_contents'][account]}")
+                        st.write(f"- **数字数量**: {numbers_count}")
+                        st.write(f"- **总投注**: {amount_info:,.2f}元")
+                        st.write(f"- **平均每号**: {avg_info:,.2f}元")
+                        st.write(f"**投注内容**: {best_global['bet_contents'][account]}")
                         st.write("")
         
         else:
