@@ -1,10 +1,7 @@
 import streamlit as st
 import pandas as pd
-import io
-import itertools
 import re
 import numpy as np
-from io import BytesIO
 
 # 设置页面
 st.set_page_config(
@@ -15,7 +12,6 @@ st.set_page_config(
 
 # 主标题
 st.title("🎯 特码完美覆盖分析系统")
-st.subheader("按期数彩种分离优化版")
 st.markdown("---")
 
 # 侧边栏说明
@@ -27,30 +23,15 @@ with st.sidebar:
     - 🔍 完整组合展示
     - 🎯 智能最优评选
     - 💰 金额匹配度分析
-    
-    ### 支持彩种：
-    - 新澳门六合彩
-    - 澳门六合彩  
-    - 香港六合彩
-    - 一分六合彩
-    - 五分六合彩
-    - 三分六合彩
-    - 香港⑥合彩
-    - 分分六合彩
-    
-    ### 数据要求：
-    - Excel文件格式
-    - 包含：会员账号、期号、彩种、玩法分类、内容等列
-    - 玩法分类需包含"特码"
     """)
 
 # 文件上传
-st.header("📁 步骤1：上传Excel文件")
+st.header("📁 上传Excel文件")
 uploaded_file = st.file_uploader("选择Excel文件", type=['xlsx', 'xls'])
 
 if uploaded_file is not None:
-    # 读取数据
     try:
+        # 读取数据
         df = pd.read_excel(uploaded_file)
         st.success(f"✅ 成功读取文件: {uploaded_file.name}")
         
@@ -63,150 +44,90 @@ if uploaded_file is not None:
         with col3:
             st.metric("文件大小", f"{uploaded_file.size / 1024:.1f} KB")
         
-    except Exception as e:
-        st.error(f"❌ 读取文件失败: {e}")
-        st.stop()
-    
-    # 智能列识别
-    def find_correct_columns(df):
-        """找到正确的列 - 兼容多种格式"""
-        column_mapping = {}
-        used_standard_cols = set()
+        # 列名映射配置
+        column_mapping = {
+            '会员账号': ['会员账号', '会员账户', '账号', '账户', '用户账号'],
+            '彩种': ['彩种', '彩票种类', '游戏类型'],
+            '期号': ['期号', '期数', '期次', '期'],
+            '玩法': ['玩法', '玩法分类', '投注类型', '类型'],
+            '内容': ['内容', '投注内容', '下注内容', '注单内容'],
+            '金额': ['金额', '下注总额', '投注金额', '总额', '下注金额']
+        }
         
-        for col in df.columns:
-            col_str = str(col).lower().strip()
+        # 智能列识别
+        def find_and_rename_columns(df, column_mapping):
+            """根据映射配置查找并重命名列"""
+            renamed_columns = {}
+            found_columns = {}
             
-            # 会员账号列
-            if '会员账号' not in used_standard_cols and any(keyword in col_str for keyword in ['会员', '账号', '账户', '用户账号']):
-                column_mapping[col] = '会员账号'
-                used_standard_cols.add('会员账号')
+            for standard_name, possible_names in column_mapping.items():
+                for col in df.columns:
+                    col_str = str(col).lower().strip()
+                    for possible in possible_names:
+                        if possible.lower() in col_str:
+                            renamed_columns[col] = standard_name
+                            found_columns[standard_name] = col
+                            break
+                    if standard_name in renamed_columns.values():
+                        break
             
-            # 期号列
-            elif '期号' not in used_standard_cols and any(keyword in col_str for keyword in ['期号', '期数', '期次', '期']):
-                column_mapping[col] = '期号'
-                used_standard_cols.add('期号')
-            
-            # 彩种列
-            elif '彩种' not in used_standard_cols and any(keyword in col_str for keyword in ['彩种', '彩票', '游戏类型']):
-                column_mapping[col] = '彩种'
-                used_standard_cols.add('彩种')
-            
-            # 玩法分类列
-            elif '玩法分类' not in used_standard_cols and any(keyword in col_str for keyword in ['玩法分类', '玩法', '投注类型', '类型']):
-                column_mapping[col] = '玩法分类'
-                used_standard_cols.add('玩法分类')
-            
-            # 内容列
-            elif '内容' not in used_standard_cols and any(keyword in col_str for keyword in ['内容', '投注', '下注内容', '注单内容']):
-                column_mapping[col] = '内容'
-                used_standard_cols.add('内容')
-            
-            # 金额列
-            elif '金额' not in used_standard_cols and any(keyword in col_str for keyword in ['金额', '下注总额', '投注金额', '总额', '下注金额']):
-                column_mapping[col] = '金额'
-                used_standard_cols.add('金额')
+            return renamed_columns, found_columns
         
-        return column_mapping
-
-    column_mapping = find_correct_columns(df)
-    
-    if column_mapping:
-        df = df.rename(columns=column_mapping)
-        st.success("✅ 列名识别完成")
-    
-    # 数据清理
-    def extract_bet_amount(amount_text):
-        """从复杂文本中提取投注金额 - 修复版，支持多种格式"""
-        try:
-            if pd.isna(amount_text):
-                return 0
-            
-            text = str(amount_text).strip()
-            
-            # 先尝试直接转换数字
+        renamed_columns, found_columns = find_and_rename_columns(df, column_mapping)
+        
+        if renamed_columns:
+            df = df.rename(columns=renamed_columns)
+            st.success("✅ 列名识别完成")
+        
+        # 数据清理函数
+        def extract_bet_amount(amount_text):
+            """从复杂文本中提取投注金额"""
             try:
-                # 移除常见的非数字字符，但保留小数点
-                cleaned_text = re.sub(r'[^\d.]', '', text)
-                if cleaned_text:
-                    amount = float(cleaned_text)
-                    if amount >= 0:
-                        return amount
-            except:
-                pass
-            
-            # 处理带逗号的数字（如：1,000.50）
-            try:
-                cleaned_text = text.replace(',', '').replace('，', '')
-                amount = float(cleaned_text)
-                if amount >= 0:
-                    return amount
-            except:
-                pass
-            
-            # 处理"投注：2.000 抵用：0 中奖：0.000"格式
-            try:
+                if pd.isna(amount_text):
+                    return 0
+                
+                text = str(amount_text).strip()
+                
+                # 处理"投注：2.000 抵用：0 中奖：0.000"格式
                 if '投注' in text:
-                    # 提取投注部分
                     bet_match = re.search(r'投注[:：]\s*(\d+\.?\d*)', text)
                     if bet_match:
-                        bet_amount = float(bet_match.group(1))
-                        return bet_amount
+                        return float(bet_match.group(1))
+                
+                # 尝试直接转换
+                try:
+                    cleaned = re.sub(r'[^\d.]', '', text)
+                    if cleaned:
+                        return float(cleaned)
+                except:
+                    pass
+                
+                return 0
             except:
-                pass
-            
-            # 多种金额提取模式
-            patterns = [
-                r'投注[:：]\s*(\d+\.?\d*)',  # 专门匹配"投注：2.000"格式
-                r'投注[:：]?\s*(\d+[,，]?\d*\.?\d*)',
-                r'投注\s*(\d+[,，]?\d*\.?\d*)',
-                r'金额[:：]?\s*(\d+[,，]?\d*\.?\d*)',
-                r'(\d+[,，]?\d*\.?\d*)\s*元',
-                r'￥\s*(\d+[,，]?\d*\.?\d*)',
-                r'¥\s*(\d+[,，]?\d*\.?\d*)',
-                r'(\d+[,，]?\d*\.?\d*)',
-            ]
-            
-            for pattern in patterns:
-                match = re.search(pattern, text)
-                if match:
-                    amount_str = match.group(1).replace(',', '').replace('，', '')
-                    try:
-                        amount = float(amount_str)
-                        if amount >= 0:
-                            return amount
-                    except:
-                        continue
-            
-            return 0
-        except Exception as e:
-            return 0
+                return 0
 
-    # 检查必要列
-    required_columns = ['会员账号', '彩种', '期号', '玩法分类', '内容']
-    available_columns = []
-    
-    for col in required_columns:
-        if col in df.columns:
-            available_columns.append(col)
-
-    has_amount_column = '金额' in df.columns
-
-    if len(available_columns) >= 5:
-        df_clean = df[available_columns].copy()
+        # 检查必要列
+        required_cols = ['会员账号', '彩种', '期号', '玩法', '内容']
+        available_cols = [col for col in required_cols if col in df.columns]
         
-        # 移除空值
-        df_clean = df_clean.dropna(subset=required_columns)
+        if len(available_cols) < 4:
+            st.error("❌ 缺少必要的数据列")
+            st.stop()
         
-        # 数据类型转换 - 修复拼写错误
-        for col in available_columns:
-            if col in df_clean.columns:
-                # 修复：使用正确的strip方法，不是strlp
+        # 创建清理后的数据框
+        df_clean = df[available_cols].copy()
+        
+        # 安全地处理每一列
+        for col in df_clean.columns:
+            try:
                 df_clean[col] = df_clean[col].astype(str).str.strip()
+            except Exception as e:
+                st.warning(f"⚠️ 处理列 {col} 时出错: {e}")
         
-        # 提取金额
-        if has_amount_column and '金额' in df_clean.columns:
+        # 如果有金额列，提取金额
+        has_amount = '金额' in df_clean.columns
+        if has_amount:
             df_clean['投注金额'] = df_clean['金额'].apply(extract_bet_amount)
-            total_bet_amount = df_clean['投注金额'].sum()
         
         # 特码分析
         st.header("🎯 特码完美覆盖分析")
@@ -220,7 +141,7 @@ if uploaded_file is not None:
         # 筛选特码数据
         df_target = df_clean[
             (df_clean['彩种'].isin(target_lotteries)) & 
-            (df_clean['玩法分类'] == '特码')
+            (df_clean['玩法'] == '特码')
         ]
         
         if len(df_target) == 0:
@@ -236,7 +157,7 @@ if uploaded_file is not None:
         with col3:
             st.metric("涉及期数", f"{df_target['期号'].nunique()}")
         
-        if has_amount_column and '投注金额' in df_target.columns:
+        if has_amount:
             total_target_amount = df_target['投注金额'].sum()
             avg_target_amount = df_target['投注金额'].mean()
             col1, col2 = st.columns(2)
@@ -305,7 +226,7 @@ if uploaded_file is not None:
                     numbers = extract_numbers_from_content(row['内容'])
                     all_numbers.update(numbers)
                     
-                    if has_amount_column and '投注金额' in row:
+                    if has_amount:
                         total_amount += row['投注金额']
                         bet_count += 1
                 
@@ -451,7 +372,7 @@ if uploaded_file is not None:
         if all_period_results:
             st.success(f"🎉 分析完成！在 {valid_periods} 个期数中发现完美组合")
             
-            # 所有期数的完整组合展示 - 默认展开
+            # 所有期数的完整组合展示
             st.header("📊 完整组合展示")
             
             for (period, lottery), result in all_period_results.items():
@@ -459,7 +380,6 @@ if uploaded_file is not None:
                 total_combinations = result['total_combinations']
                 
                 if total_combinations > 0:
-                    # 修改这里：将expanded设置为True，默认展开
                     with st.expander(f"📅 期号[{period}] - 彩种[{lottery}] - 共找到 {total_combinations} 个完美组合", expanded=True):
                         
                         # 显示2账户组合
@@ -472,19 +392,17 @@ if uploaded_file is not None:
                                 st.write(f"**账户**: {accounts[0]} ↔ {accounts[1]}")
                                 st.write(f"**总数字数**: {result_data['total_digits']}")
                                 
-                                if has_amount_column:
+                                if has_amount:
                                     st.write(f"**总投注金额**: {result_data['total_amount']:,.2f} 元")
                                     st.write(f"**金额匹配度**: {result_data['similarity']:.2f}% {result_data['similarity_indicator']}")
                                 
-                                # 使用紧凑的显示格式，减少行间距
+                                # 紧凑显示格式
                                 for account in accounts:
                                     numbers_count = len([x for x in result_data['numbers'] if x in set(result_data['bet_contents'][account].split(', '))])
                                     amount_info = result_data['individual_amounts'][account]
                                     avg_info = result_data['individual_avg_per_number'][account]
                                     
-                                    # 使用紧凑格式显示账户信息
                                     st.write(f"**{account}**: {numbers_count}个数字 | 总投注: {amount_info:,.2f}元 | 平均每号: {avg_info:,.2f}元")
-                                    # 投注内容单独一行，但减少间距
                                     st.write(f"**投注内容**: {result_data['bet_contents'][account]}")
                                 
                                 st.markdown("---")
@@ -492,8 +410,9 @@ if uploaded_file is not None:
         else:
             st.warning("❌ 在所有期数中均未找到完美组合")
     
-    else:
-        st.error("❌ 数据清理失败，缺少必要列")
+    except Exception as e:
+        st.error(f"❌ 处理数据时出错: {str(e)}")
+        st.info("💡 如果问题持续存在，请检查Excel文件格式是否正确")
 
 else:
     st.info("👆 请上传Excel文件开始分析")
