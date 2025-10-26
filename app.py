@@ -453,7 +453,7 @@ if uploaded_file is not None:
             # 读取Excel文件
             df = pd.read_excel(uploaded_file)
             
-            st.write(f"📈 数据维度: {df.shape[0]} 行 × {df.shape[1]} 列")
+            st.write(f"📈 数据维度: {df.shape}")
             st.write("📋 原始列名:", list(df.columns))
             
             # 自动识别列名
@@ -461,7 +461,6 @@ if uploaded_file is not None:
             st.write("🔄 自动识别的列映射:", column_mapping)
             
             if column_mapping:
-                # 修复：使用正确的重命名方式
                 df = df.rename(columns=column_mapping)
                 st.write("✅ 重命名后的列名:", list(df.columns))
             else:
@@ -487,19 +486,14 @@ if uploaded_file is not None:
             st.write(f"📊 可用列: {available_columns}")
             
             if len(available_columns) >= 5:
-                # 修复：确保只选择存在的列
                 df_clean = df[available_columns].copy()
                 
                 # 移除空值
-                for col in required_columns:
-                    if col in df_clean.columns:
-                        df_clean = df_clean.dropna(subset=[col])
+                df_clean = df_clean.dropna(subset=required_columns)
                 
-                # 数据类型转换 - 修复：确保对Series使用str方法，而不是DataFrame
+                # 数据类型转换
                 for col in available_columns:
-                    if col in df_clean.columns:
-                        # 修复：对Series使用str方法，而不是DataFrame
-                        df_clean[col] = df_clean[col].astype(str).str.strip()
+                    df_clean[col] = df_clean[col].astype(str).str.strip()
                 
                 # 如果有金额列，提取金额
                 if has_amount_column:
@@ -517,17 +511,13 @@ if uploaded_file is not None:
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         st.write("🎲 彩种分布:")
-                        # 修复：确保对Series使用value_counts
-                        if '彩种' in df_clean.columns:
-                            st.write(df_clean['彩种'].value_counts())
+                        st.write(df_clean['彩种'].value_counts())
                     with col2:
                         st.write("📅 期号分布:")
-                        if '期号' in df_clean.columns:
-                            st.write(df_clean['期号'].value_counts().head(10))
+                        st.write(df_clean['期号'].value_counts().head(10))
                     with col3:
                         st.write("🎯 玩法分类分布:")
-                        if '玩法分类' in df_clean.columns:
-                            st.write(df_clean['玩法分类'].value_counts())
+                        st.write(df_clean['玩法分类'].value_counts())
                 
                 # 按期数和彩种分别分析特码玩法
                 st.header("🎯 特码完美覆盖分析")
@@ -703,8 +693,7 @@ if uploaded_file is not None:
     
     except Exception as e:
         st.error(f"❌ 程序执行失败: {str(e)}")
-        import traceback
-        st.error(f"详细错误信息:\n{traceback.format_exc()}")
+        st.error(f"详细错误信息:\n{str(e)}")
 
 # 使用说明
 with st.expander("📖 使用说明（特码完美覆盖分析系统）"):
