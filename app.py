@@ -71,7 +71,7 @@ if uploaded_file is not None:
         st.error(f"❌ 读取文件失败: {e}")
         st.stop()
     
-    # 智能列识别 - 隐藏详细显示
+    # 智能列识别
     def find_correct_columns(df):
         """找到正确的列 - 兼容多种格式"""
         column_mapping = {}
@@ -120,7 +120,7 @@ if uploaded_file is not None:
     else:
         st.warning("⚠️ 无法自动识别列名，使用原始列名")
     
-    # 数据清理 - 隐藏详细显示
+    # 数据清理 - 修复版本
     def extract_bet_amount(amount_text):
         """从复杂文本中提取投注金额 - 修复版，支持多种格式"""
         try:
@@ -196,9 +196,17 @@ if uploaded_file is not None:
         # 移除空值
         df_clean = df_clean.dropna(subset=required_columns)
         
-        # 数据类型转换 - 修复strip拼写错误
+        # 修复的数据类型转换 - 安全处理字符串转换
         for col in available_columns:
-            df_clean[col] = df_clean[col].astype(str).str.strip()
+            try:
+                # 先转换为字符串，然后安全地去除空格
+                df_clean[col] = df_clean[col].astype(str)
+                # 使用列表推导式安全地处理每个值
+                df_clean[col] = [str(x).strip() if x is not None else '' for x in df_clean[col]]
+            except Exception as e:
+                st.warning(f"列 {col} 转换时遇到问题: {e}")
+                # 如果转换失败，保持原样
+                continue
         
         # 提取金额
         if has_amount_column:
@@ -517,7 +525,7 @@ if uploaded_file is not None:
         if all_period_results:
             st.success(f"🎉 分析完成！在 {valid_periods} 个期数中发现完美组合")
             
-            # 所有期数的完整组合展示 - 默认展开
+            # 所有期数的完整组合展示
             st.header("📊 完整组合展示")
             
             for (period, lottery), result in all_period_results.items():
@@ -525,7 +533,6 @@ if uploaded_file is not None:
                 total_combinations = result['total_combinations']
                 
                 if total_combinations > 0:
-                    # 修改这里：将expanded设置为True，默认展开
                     with st.expander(f"📅 期号[{period}] - 彩种[{lottery}] - 共找到 {total_combinations} 个完美组合", expanded=True):
                         
                         # 显示2账户组合
