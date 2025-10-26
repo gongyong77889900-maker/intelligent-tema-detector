@@ -63,8 +63,8 @@ if uploaded_file is not None:
         with col3:
             st.metric("文件大小", f"{uploaded_file.size / 1024:.1f} KB")
         
-        # 显示数据预览
-        with st.expander("📊 数据预览", expanded=True):
+        # 修复问题1：数据预览默认不展开
+        with st.expander("📊 数据预览", expanded=False):  # 改为False
             st.dataframe(df.head(10), use_container_width=True)
             st.write(f"**原始列名:** {list(df.columns)}")
         
@@ -191,14 +191,21 @@ if uploaded_file is not None:
         # 移除空值
         df_clean = df_clean.dropna(subset=required_columns)
         
-        # 修复数据类型转换问题
+        # 修复数据类型转换问题 - 完全重写这部分
+        st.info("🔄 正在处理数据格式...")
         for col in available_columns:
             try:
-                df_clean[col] = df_clean[col].astype(str).str.strip()
+                # 方法1：尝试直接转换
+                df_clean[col] = df_clean[col].astype(str)
+                df_clean[col] = df_clean[col].str.strip()
             except Exception as e:
-                st.warning(f"⚠️ 列 {col} 转换失败: {e}")
-                # 尝试其他转换方式
-                df_clean[col] = df_clean[col].apply(lambda x: str(x).strip() if pd.notna(x) else "")
+                try:
+                    # 方法2：使用apply逐个处理
+                    df_clean[col] = df_clean[col].apply(lambda x: str(x).strip() if pd.notna(x) else "")
+                except Exception as e2:
+                    st.warning(f"⚠️ 列 {col} 转换失败: {e2}")
+                    # 方法3：最后尝试
+                    df_clean[col] = df_clean[col].map(lambda x: str(x).strip() if pd.notna(x) else "")
         
         # 提取金额
         if has_amount_column:
@@ -258,7 +265,8 @@ if uploaded_file is not None:
         
         if len(df_target) == 0:
             st.error("❌ 未找到特码玩法数据，请检查数据格式")
-            st.write("当前数据中的玩法分类:", df_clean['玩法分类'].unique())
+            with st.expander("📋 当前数据中的玩法分类", expanded=False):
+                st.write("玩法分类列表:", df_clean['玩法分类'].unique())
             st.stop()
         
         # 显示特码数据信息
@@ -561,7 +569,7 @@ if uploaded_file is not None:
                 total_combinations = result['total_combinations']
                 
                 if total_combinations > 0:
-                    with st.expander(f"📅 期号[{period}] - 彩种[{lottery}] - 共找到 {total_combinations} 个完美组合", expanded=True):
+                    with st.expander(f"📅 期号[{period}] - 彩种[{lottery}] - 共找到 {total_combinations} 个完美组合", expanded=False):
                         
                         # 显示2账户组合
                         if all_results[2]:
