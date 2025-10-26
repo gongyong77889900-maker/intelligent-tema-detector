@@ -197,14 +197,15 @@ if uploaded_file is not None:
         # 移除空值
         df_clean = df_clean.dropna(subset=required_columns)
         
-        # 数据类型转换 - 修复列名检查和strip拼写错误
+        # 数据类型转换 - 修复拼写错误
         for col in available_columns:
             if col in df_clean.columns:
-                df_clean[col] = df_clean[col].astype(str).str.strip()  # 修复：str.strip() 不是 str.strlp()
+                # 修复：使用正确的strip方法，不是strlp
+                df_clean[col] = df_clean[col].astype(str).str.strip()
         
-        # 提取金额 - 修复列名错误
-        if has_amount_column and '金额' in df_clean.columns:  # 添加列存在检查
-            df_clean['投注金额'] = df_clean['金额'].apply(extract_bet_amount)  # 修复：正确的列名
+        # 提取金额
+        if has_amount_column and '金额' in df_clean.columns:
+            df_clean['投注金额'] = df_clean['金额'].apply(extract_bet_amount)
             total_bet_amount = df_clean['投注金额'].sum()
         
         # 特码分析
@@ -475,7 +476,7 @@ if uploaded_file is not None:
                                     st.write(f"**总投注金额**: {result_data['total_amount']:,.2f} 元")
                                     st.write(f"**金额匹配度**: {result_data['similarity']:.2f}% {result_data['similarity_indicator']}")
                                 
-                                # 修改这里：使用紧凑的显示格式，减少行间距
+                                # 使用紧凑的显示格式，减少行间距
                                 for account in accounts:
                                     numbers_count = len([x for x in result_data['numbers'] if x in set(result_data['bet_contents'][account].split(', '))])
                                     amount_info = result_data['individual_amounts'][account]
