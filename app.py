@@ -236,9 +236,12 @@ if uploaded_file is not None:
                 # 直接使用简单的筛选方法
                 mask = []
                 for idx, row in df.iterrows():
-                    lottery_ok = row['彩种'] in target_lotteries
-                    play_ok = row['玩法分类'] == '特码'
-                    mask.append(lottery_ok and play_ok)
+                    try:
+                        lottery_ok = str(row['彩种']) in target_lotteries
+                        play_ok = str(row['玩法分类']) == '特码'
+                        mask.append(lottery_ok and play_ok)
+                    except:
+                        mask.append(False)
                 
                 result = df[mask].copy().reset_index(drop=True)
                 return result
@@ -252,16 +255,39 @@ if uploaded_file is not None:
         if len(df_target) == 0:
             st.error("❌ 未找到特码玩法数据，请检查数据格式")
             
-            # 显示数据诊断信息
+            # 显示数据诊断信息 - 修复版本
             with st.expander("🔍 数据诊断信息"):
                 st.write("### 彩种分布:")
-                st.write(df_clean['彩种'].value_counts())
+                try:
+                    # 安全地计算value_counts
+                    lottery_counts = {}
+                    for lottery in df_clean['彩种']:
+                        lottery_str = str(lottery)
+                        lottery_counts[lottery_str] = lottery_counts.get(lottery_str, 0) + 1
+                    
+                    # 显示彩种分布
+                    for lottery, count in sorted(lottery_counts.items(), key=lambda x: x[1], reverse=True):
+                        st.write(f"- {lottery}: {count}次")
+                except Exception as e:
+                    st.write(f"无法计算彩种分布: {e}")
+                
                 st.write("### 玩法分类分布:")
-                st.write(df_clean['玩法分类'].value_counts())
+                try:
+                    # 安全地计算value_counts
+                    play_counts = {}
+                    for play in df_clean['玩法分类']:
+                        play_str = str(play)
+                        play_counts[play_str] = play_counts.get(play_str, 0) + 1
+                    
+                    # 显示玩法分类分布
+                    for play, count in sorted(play_counts.items(), key=lambda x: x[1], reverse=True):
+                        st.write(f"- {play}: {count}次")
+                except Exception as e:
+                    st.write(f"无法计算玩法分类分布: {e}")
                 
                 # 检查是否有接近匹配的彩种名称
                 st.write("### 可能的彩种名称变体:")
-                all_lotteries = df_clean['彩种'].unique()
+                all_lotteries = set(str(x) for x in df_clean['彩种'])
                 for lottery in all_lotteries:
                     if any(target in str(lottery) for target in ['六合彩', '六合彩']):
                         st.write(f"- {lottery}")
