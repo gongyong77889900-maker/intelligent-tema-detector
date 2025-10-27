@@ -19,8 +19,8 @@ st.set_page_config(
 st.title("🎯 六合彩特码完美覆盖分析系统")
 st.markdown("### 基于数学完备性的完美组合检测与汇总")
 
-class LotteryCoverageAnalyzer:
-    """六合彩覆盖分析器 - 优化显示框架"""
+class EnhancedLotteryCoverageAnalyzer:
+    """增强版六合彩覆盖分析器 - 支持多种列名格式"""
     
     def __init__(self):
         self.full_set = set(range(1, 50))
@@ -31,33 +31,72 @@ class LotteryCoverageAnalyzer:
             '五分六合彩', '三分六合彩', '香港⑥合彩', '分分六合彩',
             '台湾大乐透', '大发六合彩', '快乐6合彩'
         ]
+        
+        # 扩展的列名映射字典
+        self.column_mappings = {
+            '会员账号': [
+                '会员账号', '会员账户', '账号', '账户', '用户账号', '会员名'
+            ],
+            '彩种': [
+                '彩种', '彩票种类', '游戏类型', '彩票类型', '彩种名称'
+            ],
+            '期号': [
+                '期号', '期数', '期次', '期', '奖期', '期号期数'
+            ],
+            '玩法': [
+                '玩法', '玩法分类', '投注类型', '类型', '玩法类别', '投注玩法'
+            ],
+            '内容': [
+                '内容', '投注内容', '下注内容', '注单内容', '投注号码', '号码'
+            ],
+            '金额': [
+                '金额', '下注总额', '投注金额', '总额', '下注金额', '投注额', '金额(元)'
+            ]
+        }
     
-    def find_correct_columns(self, df):
-        """智能找到正确的列"""
+    def enhanced_column_mapping(self, df):
+        """增强版列名映射 - 支持多种可能的列名格式"""
         column_mapping = {}
         used_standard_cols = set()
         
-        for col in df.columns:
-            col_str = str(col).lower().strip()
+        # 显示原始列名用于调试
+        original_columns = list(df.columns)
+        st.write(f"🔍 原始文件列名: {original_columns}")
+        
+        # 对每个标准列名，检查所有可能的变体
+        for standard_col, possible_names in self.column_mappings.items():
+            if standard_col in used_standard_cols:
+                continue
+                
+            found_column = None
+            for possible_name in possible_names:
+                # 精确匹配
+                if possible_name in df.columns:
+                    found_column = possible_name
+                    break
+                # 模糊匹配（包含关键词）
+                else:
+                    for actual_col in df.columns:
+                        if possible_name in str(actual_col):
+                            found_column = actual_col
+                            break
+                    if found_column:
+                        break
             
-            if '会员账号' not in used_standard_cols and any(keyword in col_str for keyword in ['会员', '账号', '账户', '用户账号']):
-                column_mapping[col] = '会员账号'
-                used_standard_cols.add('会员账号')
-            elif '期号' not in used_standard_cols and any(keyword in col_str for keyword in ['期号', '期数', '期次', '期']):
-                column_mapping[col] = '期号'
-                used_standard_cols.add('期号')
-            elif '彩种' not in used_standard_cols and any(keyword in col_str for keyword in ['彩种', '彩票', '游戏类型']):
-                column_mapping[col] = '彩种'
-                used_standard_cols.add('彩种')
-            elif '玩法分类' not in used_standard_cols and any(keyword in col_str for keyword in ['玩法分类', '玩法', '投注类型', '类型']):
-                column_mapping[col] = '玩法分类'
-                used_standard_cols.add('玩法分类')
-            elif '内容' not in used_standard_cols and any(keyword in col_str for keyword in ['内容', '投注', '下注内容', '注单内容']):
-                column_mapping[col] = '内容'
-                used_standard_cols.add('内容')
-            elif '金额' not in used_standard_cols and any(keyword in col_str for keyword in ['金额', '下注总额', '投注金额', '总额', '下注金额']):
-                column_mapping[col] = '金额'
-                used_standard_cols.add('金额')
+            if found_column:
+                column_mapping[found_column] = standard_col
+                used_standard_cols.add(standard_col)
+                st.write(f"✅ 识别列名: '{found_column}' → '{standard_col}'")
+        
+        # 检查必要列是否都已识别
+        required_columns = ['会员账号', '彩种', '期号', '玩法', '内容']
+        missing_columns = [col for col in required_columns if col not in used_standard_cols]
+        
+        if missing_columns:
+            st.warning(f"⚠️ 未识别出的必要列: {missing_columns}")
+            st.info("请检查文件列名是否符合以下格式:")
+            for col in missing_columns:
+                st.write(f"- {col}: {self.column_mappings[col]}")
         
         return column_mapping
     
@@ -344,7 +383,7 @@ def create_download_data(all_results):
     return pd.DataFrame(download_data)
 
 def main():
-    analyzer = LotteryCoverageAnalyzer()
+    analyzer = EnhancedLotteryCoverageAnalyzer()
     
     # 侧边栏设置
     st.sidebar.header("⚙️ 分析参数设置")
@@ -389,21 +428,31 @@ def main():
             # 显示当前阈值设置
             st.info(f"📊 当前分析参数: 号码数量阈值 ≥ {min_number_count}, 平均金额阈值 ≥ {min_avg_amount}")
             
-            # 智能列名映射
-            column_mapping = analyzer.find_correct_columns(df)
+            # 增强版列名映射
+            st.subheader("🔄 智能列名识别")
+            column_mapping = analyzer.enhanced_column_mapping(df)
+            
             if column_mapping:
                 df = df.rename(columns=column_mapping)
-                st.write("✅ 列名映射完成")
-                st.write(f"映射后列名: {list(df.columns)}")
+                st.success("✅ 列名映射完成")
+                st.write(f"📋 映射后列名: {list(df.columns)}")
+            else:
+                st.warning("⚠️ 无法自动识别列名，尝试使用原始列名")
+                # 显示支持的列名格式
+                st.info("💡 支持的列名格式:")
+                for standard_col, possible_names in analyzer.column_mappings.items():
+                    st.write(f"- **{standard_col}**: {', '.join(possible_names)}")
 
             # 数据清理
-            required_columns = ['会员账号', '彩种', '期号', '玩法分类', '内容']
+            required_columns = ['会员账号', '彩种', '期号', '玩法', '内容']
             available_columns = [col for col in required_columns if col in df.columns]
             
             has_amount_column = '金额' in df.columns
             if has_amount_column:
                 available_columns.append('金额')
                 st.success("💰 检测到金额列，将进行金额分析")
+            else:
+                st.warning("⚠️ 未检测到金额列，将只分析号码覆盖")
 
             if len(available_columns) >= 5:
                 df_clean = df[available_columns].copy()
@@ -417,10 +466,25 @@ def main():
                     total_bet_amount = df_clean['投注金额'].sum()
                     st.success(f"💰 金额提取完成: 总投注额 {total_bet_amount:,.2f} 元")
 
+                # 显示数据预览
+                with st.expander("📊 数据预览"):
+                    st.dataframe(df_clean.head(10))
+                    st.write(f"数据形状: {df_clean.shape}")
+                    
+                    # 显示彩种分布
+                    if '彩种' in df_clean.columns:
+                        st.write("🎲 彩种分布:")
+                        st.write(df_clean['彩种'].value_counts())
+                    
+                    # 显示玩法分布
+                    if '玩法' in df_clean.columns:
+                        st.write("🎯 玩法分布:")
+                        st.write(df_clean['玩法'].value_counts())
+
                 # 筛选特码数据
                 df_target = df_clean[
                     (df_clean['彩种'].isin(analyzer.target_lotteries)) & 
-                    (df_clean['玩法分类'] == '特码')
+                    (df_clean['玩法'] == '特码')
                 ]
                 
                 st.write(f"✅ 特码玩法数据行数: {len(df_target):,}")
@@ -429,8 +493,13 @@ def main():
                     st.error("❌ 未找到特码玩法数据")
                     st.info("""
                     **可能原因:**
-                    1. 彩种名称不匹配
-                    2. 玩法分类不是'特码'
+                    1. 彩种名称不匹配 - 当前支持的六合彩类型:
+                       - 新澳门六合彩, 澳门六合彩, 香港六合彩
+                       - 一分六合彩, 五分六合彩, 三分六合彩
+                       - 香港⑥合彩, 分分六合彩, 台湾大乐透
+                       - 大发六合彩, 快乐6合彩
+                    
+                    2. 玩法名称不是'特码'
                     3. 数据格式问题
                     """)
                     return
@@ -569,6 +638,9 @@ def main():
             
             else:
                 st.error(f"❌ 缺少必要数据列，可用列: {available_columns}")
+                st.info("💡 请确保文件包含以下必要列:")
+                for col in ['会员账号', '彩种', '期号', '玩法', '内容']:
+                    st.write(f"- {col}: {analyzer.column_mappings[col]}")
         
         except Exception as e:
             st.error(f"❌ 处理文件时出错: {str(e)}")
@@ -579,14 +651,21 @@ def main():
         st.info("💡 **六合彩完美覆盖分析系统**")
         st.markdown("""
         ### 系统功能:
-        - 🎯 **完美组合检测**: 基于数学完备性的1-49完美覆盖
+        - 🎯 **智能列名识别**: 自动识别多种列名格式
         - ⚙️ **参数调节**: 可调节号码数量和金额阈值
         - 📊 **结果汇总**: 按彩种和期号分类显示检测结果
         - 📥 **数据导出**: 一键导出所有完美组合数据
         
+        ### 支持的列名格式:
+        """)
+        
+        for standard_col, possible_names in analyzer.column_mappings.items():
+            st.write(f"- **{standard_col}**: {', '.join(possible_names)}")
+        
+        st.markdown("""
         ### 数据要求:
-        - 必须包含: 会员账号, 彩种, 期号, 玩法分类, 内容
-        - 玩法分类必须为'特码'
+        - 必须包含: 会员账号, 彩种, 期号, 玩法, 内容
+        - 玩法必须为'特码'
         - 彩种必须是六合彩类型
         """)
 
