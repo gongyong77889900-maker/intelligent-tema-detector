@@ -19,8 +19,8 @@ st.set_page_config(
 st.title("🎯 六合彩特码完美覆盖分析系统")
 st.markdown("### 基于数学完备性的完美组合检测与汇总")
 
-class EnhancedLotteryCoverageAnalyzer:
-    """增强版六合彩覆盖分析器 - 支持多种列名格式和金额格式"""
+class FixedLotteryCoverageAnalyzer:
+    """修复版六合彩覆盖分析器 - 重点修复金额提取问题"""
     
     def __init__(self):
         self.full_set = set(range(1, 50))
@@ -101,71 +101,107 @@ class EnhancedLotteryCoverageAnalyzer:
         return column_mapping
     
     def extract_bet_amount(self, amount_text):
-        """增强版金额提取 - 支持多种金额格式"""
+        """完全重写的金额提取函数 - 确保能处理各种格式"""
         try:
-            if pd.isna(amount_text):
+            if pd.isna(amount_text) or amount_text is None:
                 return 0.0
             
+            # 转换为字符串并清理
             text = str(amount_text).strip()
             
-            # 特殊情况：处理类似 "5.000" 的格式
-            # 这可能表示 5.000 或 5000，我们假设是 5.000
-            if re.match(r'^\d+\.\d{3}$', text):
-                try:
-                    return float(text)
-                except:
-                    pass
+            # 如果已经是空字符串，返回0
+            if text == '':
+                return 0.0
             
-            # 先尝试直接转换
+            # 调试信息 - 显示原始文本
+            debug_info = f"原始金额文本: '{text}'"
+            
+            # 方法1: 直接转换（处理纯数字）
             try:
-                # 移除千位分隔符（逗号和全角逗号）
-                cleaned_text = text.replace(',', '').replace('，', '')
-                amount = float(cleaned_text)
+                # 移除所有非数字字符（除了点和负号）
+                clean_text = re.sub(r'[^\d.-]', '', text)
+                if clean_text and clean_text != '-' and clean_text != '.':
+                    amount = float(clean_text)
+                    if amount >= 0:
+                        st.write(f"✅ {debug_info} → 直接转换: {amount}")
+                        return amount
+            except:
+                pass
+            
+            # 方法2: 处理千位分隔符格式
+            try:
+                # 移除逗号和全角逗号，然后转换
+                clean_text = text.replace(',', '').replace('，', '')
+                amount = float(clean_text)
                 if amount >= 0:
+                    st.write(f"✅ {debug_info} → 千位分隔符处理: {amount}")
                     return amount
             except:
                 pass
             
-            # 多种金额提取模式
+            # 方法3: 处理"5.000"这种格式（可能是5.0或5000）
+            # 我们假设这是5.0，因为5000通常写作5,000
+            if re.match(r'^\d+\.\d{3}$', text):
+                try:
+                    amount = float(text)
+                    st.write(f"✅ {debug_info} → 三位小数格式: {amount}")
+                    return amount
+                except:
+                    pass
+            
+            # 方法4: 使用正则表达式提取各种格式
             patterns = [
-                r'投注[:：]?\s*([\d,.]+)',
-                r'投注\s*([\d,.]+)',
-                r'金额[:：]?\s*([\d,.]+)',
-                r'下注金额\s*([\d,.]+)',
-                r'([\d,.]+)\s*元',
-                r'￥\s*([\d,.]+)',
-                r'¥\s*([\d,.]+)',
-                r'([\d,.]+)\s*RMB',
-                r'([\d,.]+)\s*人民币',
-                r'([\d,.]+)$'  # 纯数字格式
+                r'投注\s*[:：]?\s*([\d,.]+)',  # 投注: 1000
+                r'金额\s*[:：]?\s*([\d,.]+)',   # 金额: 500
+                r'下注金额\s*([\d,.]+)',        # 下注金额 800
+                r'([\d,.]+)\s*元',              # 1000元
+                r'￥\s*([\d,.]+)',              # ￥1000
+                r'¥\s*([\d,.]+)',               # ¥500
+                r'([\d,.]+)\s*RMB',             # 500 RMB
+                r'([\d,.]+)\s*人民币',           # 500 人民币
+                r'([\d,.]+)$'                   # 纯数字在末尾
             ]
             
             for pattern in patterns:
-                match = re.search(pattern, text)
+                match = re.search(pattern, text, re.IGNORECASE)
                 if match:
                     amount_str = match.group(1).replace(',', '').replace('，', '')
                     try:
                         amount = float(amount_str)
                         if amount >= 0:
+                            st.write(f"✅ {debug_info} → 正则匹配[{pattern}]: {amount}")
                             return amount
                     except:
                         continue
             
-            # 如果所有方法都失败，尝试提取所有数字
+            # 方法5: 提取所有数字并尝试组合
             numbers = re.findall(r'\d+\.?\d*', text)
             if numbers:
+                # 取第一个数字
                 try:
-                    # 取第一个找到的数字
                     amount = float(numbers[0])
                     if amount >= 0:
+                        st.write(f"✅ {debug_info} → 数字提取: {amount}")
                         return amount
                 except:
                     pass
             
+            # 方法6: 最后尝试 - 移除所有非数字字符
+            try:
+                clean_text = re.sub(r'[^\d.]', '', text)
+                if clean_text and clean_text != '.':
+                    amount = float(clean_text)
+                    if amount >= 0:
+                        st.write(f"✅ {debug_info} → 最终清理: {amount}")
+                        return amount
+            except:
+                pass
+            
+            st.write(f"❌ {debug_info} → 无法提取，返回0")
             return 0.0
+            
         except Exception as e:
-            # 记录提取失败的金额用于调试
-            st.warning(f"⚠️ 金额提取失败: '{amount_text}', 错误: {e}")
+            st.write(f"❌ 金额提取异常: '{amount_text}', 错误: {e}")
             return 0.0
     
     def extract_numbers_from_content(self, content):
@@ -411,7 +447,7 @@ def create_download_data(all_results):
     return pd.DataFrame(download_data)
 
 def main():
-    analyzer = EnhancedLotteryCoverageAnalyzer()
+    analyzer = FixedLotteryCoverageAnalyzer()
     
     # 侧边栏设置
     st.sidebar.header("⚙️ 分析参数设置")
@@ -490,8 +526,16 @@ def main():
                     df_clean[col] = df_clean[col].astype(str).str.strip()
                 
                 if has_amount_column:
+                    # 显示金额提取前的示例
+                    st.subheader("💰 金额提取调试")
+                    st.write("前10行原始金额数据:")
+                    amount_sample = df_clean[['金额']].head(10).copy()
+                    st.write(amount_sample)
+                    
                     # 应用增强的金额提取
+                    st.write("开始金额提取...")
                     df_clean['投注金额'] = df_clean['金额'].apply(analyzer.extract_bet_amount)
+                    
                     total_bet_amount = df_clean['投注金额'].sum()
                     valid_amount_count = (df_clean['投注金额'] > 0).sum()
                     
