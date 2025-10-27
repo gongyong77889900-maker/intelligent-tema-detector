@@ -128,8 +128,8 @@ class LotteryCoverageAnalyzer:
         elif similarity >= 70: return "🟠"
         else: return "🔴"
     
-    def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents):
-        """寻找完美组合"""
+    def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount):
+        """寻找完美组合 - 增加平均金额阈值"""
         all_results = {2: [], 3: [], 4: []}
         all_accounts = list(account_numbers.keys())
         
@@ -152,6 +152,11 @@ class LotteryCoverageAnalyzer:
                         account_amount_stats[acc1]['avg_amount_per_number'],
                         account_amount_stats[acc2]['avg_amount_per_number']
                     ]
+                    
+                    # 检查平均金额是否达到阈值
+                    if min(avg_amounts) < min_avg_amount:
+                        continue
+                    
                     similarity = self.calculate_similarity(avg_amounts)
                     
                     result_data = {
@@ -199,6 +204,11 @@ class LotteryCoverageAnalyzer:
                             account_amount_stats[acc2]['avg_amount_per_number'],
                             account_amount_stats[acc3]['avg_amount_per_number']
                         ]
+                        
+                        # 检查平均金额是否达到阈值
+                        if min(avg_amounts) < min_avg_amount:
+                            continue
+                        
                         similarity = self.calculate_similarity(avg_amounts)
                         
                         result_data = {
@@ -228,8 +238,8 @@ class LotteryCoverageAnalyzer:
         
         return all_results
 
-    def analyze_period_lottery(self, group, period, lottery):
-        """分析特定期数和彩种"""
+    def analyze_period_lottery(self, group, period, lottery, min_number_count, min_avg_amount):
+        """分析特定期数和彩种 - 增加阈值参数"""
         has_amount_column = '金额' in group.columns
         
         account_numbers = {}
@@ -255,19 +265,23 @@ class LotteryCoverageAnalyzer:
                 account_numbers[account] = sorted(all_numbers)
                 account_bet_contents[account] = ", ".join([f"{num:02d}" for num in sorted(all_numbers)])
                 number_count = len(all_numbers)
+                avg_amount_per_number = total_amount / number_count if number_count > 0 else 0
+                
                 account_amount_stats[account] = {
                     'number_count': number_count,
                     'total_amount': total_amount,
-                    'avg_amount_per_number': total_amount / number_count if number_count > 0 else 0
+                    'avg_amount_per_number': avg_amount_per_number
                 }
 
-        # 筛选有效账户
+        # 筛选有效账户 - 使用阈值
         filtered_account_numbers = {}
         filtered_account_amount_stats = {}
         filtered_account_bet_contents = {}
 
         for account, numbers in account_numbers.items():
-            if len(numbers) > 11:
+            stats = account_amount_stats[account]
+            # 同时检查数字数量和平均金额阈值
+            if len(numbers) >= min_number_count and stats['avg_amount_per_number'] >= min_avg_amount:
                 filtered_account_numbers[account] = numbers
                 filtered_account_amount_stats[account] = account_amount_stats[account]
                 filtered_account_bet_contents[account] = account_bet_contents[account]
@@ -278,7 +292,8 @@ class LotteryCoverageAnalyzer:
         all_results = self.find_perfect_combinations(
             filtered_account_numbers, 
             filtered_account_amount_stats, 
-            filtered_account_bet_contents
+            filtered_account_bet_contents,
+            min_avg_amount
         )
 
         total_combinations = sum(len(results) for results in all_results.values())
@@ -294,7 +309,8 @@ class LotteryCoverageAnalyzer:
                 'period': period,
                 'lottery': lottery,
                 'total_combinations': total_combinations,
-                'all_combinations': all_combinations
+                'all_combinations': all_combinations,
+                'filtered_accounts': len(filtered_account_numbers)
             }
         
         return None
@@ -330,6 +346,29 @@ def create_download_data(all_results):
 def main():
     analyzer = LotteryCoverageAnalyzer()
     
+    # 侧边栏设置
+    st.sidebar.header("⚙️ 分析参数设置")
+    
+    # 阈值设置
+    min_number_count = st.sidebar.slider(
+        "账户投注号码数量阈值", 
+        min_value=1, 
+        max_value=30, 
+        value=11,
+        help="只分析投注号码数量大于等于此值的账户"
+    )
+    
+    min_avg_amount = st.sidebar.slider(
+        "平均每号金额阈值", 
+        min_value=0, 
+        max_value=10, 
+        value=2,
+        step=1,
+        help="只分析平均每号金额大于等于此值的账户"
+    )
+    
+    st.sidebar.markdown("---")
+    
     # 文件上传
     st.sidebar.header("📁 数据上传")
     uploaded_file = st.sidebar.file_uploader(
@@ -347,6 +386,9 @@ def main():
             
             st.success(f"✅ 成功读取文件，共 {len(df):,} 条记录")
             
+            # 显示当前阈值设置
+            st.info(f"📊 当前分析参数: 号码数量阈值 ≥ {min_number_count}, 平均金额阈值 ≥ {min_avg_amount}")
+            
             # 智能列名映射
             column_mapping = analyzer.find_correct_columns(df)
             if column_mapping:
@@ -358,7 +400,7 @@ def main():
             
             has_amount_column = '金额' in df.columns
             if has_amount_column:
-                available_columns.append('金额')
+                available_columns.append('金額')
 
             if len(available_columns) >= 5:
                 df_clean = df[available_columns].copy()
@@ -368,7 +410,7 @@ def main():
                     df_clean[col] = df_clean[col].astype(str).str.strip()
                 
                 if has_amount_column:
-                    df_clean['投注金额'] = df_clean['金额'].apply(analyzer.extract_bet_amount)
+                    df_clean['投注金额'] = df_clean['金額'].apply(analyzer.extract_bet_amount)
 
                 # 筛选特码数据
                 df_target = df_clean[
@@ -391,91 +433,89 @@ def main():
                     progress_bar.progress((idx+1) / total_groups)
                     
                     if len(group) >= 2:
-                        result = analyzer.analyze_period_lottery(group, period, lottery)
+                        result = analyzer.analyze_period_lottery(
+                            group, period, lottery, min_number_count, min_avg_amount
+                        )
                         if result:
                             all_period_results[(period, lottery)] = result
 
                 progress_bar.empty()
                 status_text.empty()
 
-                # 显示结果 - 采用新的框架
+                # 显示结果 - 采用合并的层级结构
                 st.header("📊 完美覆盖组合检测结果")
                 
                 if all_period_results:
                     # 汇总统计
                     total_combinations = 0
-                    lottery_stats = defaultdict(lambda: defaultdict(int))
+                    total_filtered_accounts = 0
                     
                     for (period, lottery), result in all_period_results.items():
                         total_combinations += result['total_combinations']
-                        lottery_stats[lottery][period] = result['total_combinations']
+                        total_filtered_accounts += result['filtered_accounts']
                     
                     # 显示汇总信息
                     st.subheader("📈 检测汇总")
-                    col1, col2, col3 = st.columns(3)
+                    col1, col2, col3, col4 = st.columns(4)
                     with col1:
                         st.metric("总完美组合数", total_combinations)
                     with col2:
-                        st.metric("涉及彩种数", len(lottery_stats))
-                    with col3:
                         st.metric("分析期数", len(all_period_results))
+                    with col3:
+                        st.metric("有效账户数", total_filtered_accounts)
+                    with col4:
+                        st.metric("涉及彩种", len(set([lottery for (_, lottery) in all_period_results.keys()])))
                     
-                    # 按彩种和期号显示结果
-                    for lottery in sorted(lottery_stats.keys()):
-                        lottery_periods = lottery_stats[lottery]
-                        total_lottery_combinations = sum(lottery_periods.values())
+                    # 按彩种和期号显示结果 - 合并层级
+                    for (period, lottery), result in all_period_results.items():
+                        total_combinations = result['total_combinations']
                         
-                        st.subheader(f"🎯 彩种：{lottery}（发现{total_lottery_combinations}组）")
-                        
-                        # 对每个期号创建折叠筐
-                        for period in sorted(lottery_periods.keys()):
-                            period_combinations = lottery_periods[period]
-                            
-                            # 创建折叠筐，默认展开
-                            with st.expander(f"期号: {period}（{period_combinations}组）", expanded=True):
-                                # 获取该期号的所有组合
-                                period_data = all_period_results.get((period, lottery))
-                                if period_data:
-                                    for idx, combo in enumerate(period_data['all_combinations'], 1):
-                                        accounts = combo['accounts']
-                                        
-                                        # 组合标题
-                                        if len(accounts) == 2:
-                                            st.markdown(f"**完美组合 {idx}:** {accounts[0]} ↔ {accounts[1]}")
-                                        else:
-                                            st.markdown(f"**完美组合 {idx}:** {' ↔ '.join(accounts)}")
-                                        
-                                        # 组合信息
-                                        col1, col2, col3, col4 = st.columns(4)
-                                        with col1:
-                                            st.write(f"**账户数量:** {combo['account_count']}个")
-                                        with col2:
-                                            st.write(f"**期号:** {period}")
-                                        with col3:
-                                            if has_amount_column:
-                                                st.write(f"**总金额:** ¥{combo['total_amount']:,.2f}")
-                                        with col4:
-                                            similarity = combo['similarity']
-                                            indicator = combo['similarity_indicator']
-                                            st.write(f"**金额匹配度:** {similarity:.1f}% {indicator}")
-                                        
-                                        # 各账户详情
-                                        st.write("**各账户详情:**")
-                                        for account in accounts:
-                                            amount_info = combo['individual_amounts'][account]
-                                            avg_info = combo['individual_avg_per_number'][account]
-                                            numbers = combo['bet_contents'][account]
-                                            numbers_count = len(numbers.split(', '))
-                                            
-                                            st.write(f"- **{account}**: {numbers_count}个数字")
-                                            if has_amount_column:
-                                                st.write(f"  - 总投注: ¥{amount_info:,.2f}")
-                                                st.write(f"  - 平均每号: ¥{avg_info:,.2f}")
-                                            st.write(f"  - 投注内容: {numbers}")
-                                        
-                                        # 添加分隔线（除了最后一个）
-                                        if idx < len(period_data['all_combinations']):
-                                            st.markdown("---")
+                        # 创建折叠筐，默认展开，标题合并彩种和期号
+                        with st.expander(
+                            f"🎯 {lottery} - 期号: {period}（{total_combinations}组）", 
+                            expanded=True
+                        ):
+                            # 显示该期号的所有组合
+                            for idx, combo in enumerate(result['all_combinations'], 1):
+                                accounts = combo['accounts']
+                                
+                                # 组合标题
+                                if len(accounts) == 2:
+                                    st.markdown(f"**完美组合 {idx}:** {accounts[0]} ↔ {accounts[1]}")
+                                else:
+                                    st.markdown(f"**完美组合 {idx}:** {' ↔ '.join(accounts)}")
+                                
+                                # 组合信息
+                                col1, col2, col3, col4 = st.columns(4)
+                                with col1:
+                                    st.write(f"**账户数量:** {combo['account_count']}个")
+                                with col2:
+                                    st.write(f"**期号:** {period}")
+                                with col3:
+                                    if has_amount_column:
+                                        st.write(f"**总金额:** ¥{combo['total_amount']:,.2f}")
+                                with col4:
+                                    similarity = combo['similarity']
+                                    indicator = combo['similarity_indicator']
+                                    st.write(f"**金额匹配度:** {similarity:.1f}% {indicator}")
+                                
+                                # 各账户详情
+                                st.write("**各账户详情:**")
+                                for account in accounts:
+                                    amount_info = combo['individual_amounts'][account]
+                                    avg_info = combo['individual_avg_per_number'][account]
+                                    numbers = combo['bet_contents'][account]
+                                    numbers_count = len(numbers.split(', '))
+                                    
+                                    st.write(f"- **{account}**: {numbers_count}个数字")
+                                    if has_amount_column:
+                                        st.write(f"  - 总投注: ¥{amount_info:,.2f}")
+                                        st.write(f"  - 平均每号: ¥{avg_info:,.2f}")
+                                    st.write(f"  - 投注内容: {numbers}")
+                                
+                                # 添加分隔线（除了最后一个）
+                                if idx < len(result['all_combinations']):
+                                    st.markdown("---")
                     
                     # 导表功能
                     st.markdown("---")
@@ -501,11 +541,15 @@ def main():
                 
                 else:
                     st.error("❌ 未找到完美覆盖组合")
-                    st.info("""
+                    st.info(f"""
                     **可能原因:**
-                    - 有效账户数量不足
+                    - 有效账户数量不足（当前阈值: 号码数量 ≥ {min_number_count}, 平均金额 ≥ {min_avg_amount}）
                     - 账户投注号码无法形成完美覆盖
                     - 数据质量需要检查
+                    
+                    **建议:**
+                    - 尝试降低阈值设置
+                    - 检查数据质量
                     """)
             
             else:
@@ -519,6 +563,7 @@ def main():
         st.markdown("""
         ### 系统功能:
         - 🎯 **完美组合检测**: 基于数学完备性的1-49完美覆盖
+        - ⚙️ **参数调节**: 可调节号码数量和金额阈值
         - 📊 **结果汇总**: 按彩种和期号分类显示检测结果
         - 📥 **数据导出**: 一键导出所有完美组合数据
         
