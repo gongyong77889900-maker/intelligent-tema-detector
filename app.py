@@ -19,8 +19,8 @@ st.set_page_config(
 st.title("🎯 六合彩特码完美覆盖分析系统")
 st.markdown("### 基于数学完备性的完美组合检测与汇总")
 
-class FixedLotteryCoverageAnalyzer:
-    """修复版六合彩覆盖分析器 - 重点修复金额提取问题"""
+class StrictLotteryCoverageAnalyzer:
+    """严格版六合彩覆盖分析器 - 精确列名匹配"""
     
     def __init__(self):
         self.full_set = set(range(1, 50))
@@ -32,30 +32,18 @@ class FixedLotteryCoverageAnalyzer:
             '台湾大乐透', '大发六合彩', '快乐6合彩'
         ]
         
-        # 扩展的列名映射字典
+        # 严格的列名映射字典 - 只使用您提供的列名
         self.column_mappings = {
-            '会员账号': [
-                '会员账号', '会员账户', '账号', '账户', '用户账号', '会员名'
-            ],
-            '彩种': [
-                '彩种', '彩票种类', '游戏类型', '彩票类型', '彩种名称'
-            ],
-            '期号': [
-                '期号', '期数', '期次', '期', '奖期', '期号期数'
-            ],
-            '玩法': [
-                '玩法', '玩法分类', '投注类型', '类型', '玩法类别', '投注玩法'
-            ],
-            '内容': [
-                '内容', '投注内容', '下注内容', '注单内容', '投注号码', '号码'
-            ],
-            '金额': [
-                '金额', '下注总额', '投注金额', '总额', '下注金额', '投注额', '金额(元)'
-            ]
+            '会员账号': ['会员账号', '会员账户', '账号', '账户', '用户账号'],
+            '彩种': ['彩种', '彩票种类', '游戏类型'],
+            '期号': ['期号', '期数', '期次', '期'],
+            '玩法': ['玩法', '玩法分类', '投注类型', '类型'],
+            '内容': ['内容', '投注内容', '下注内容', '注单内容'],
+            '金额': ['金额', '下注总额', '投注金额', '总额', '下注金额']
         }
     
-    def enhanced_column_mapping(self, df):
-        """增强版列名映射 - 支持多种可能的列名格式"""
+    def strict_column_mapping(self, df):
+        """严格版列名映射 - 只精确匹配提供的列名"""
         column_mapping = {}
         used_standard_cols = set()
         
@@ -63,45 +51,41 @@ class FixedLotteryCoverageAnalyzer:
         original_columns = list(df.columns)
         st.write(f"🔍 原始文件列名: {original_columns}")
         
-        # 对每个标准列名，检查所有可能的变体
+        # 对每个标准列名，只检查精确匹配的列名
         for standard_col, possible_names in self.column_mappings.items():
             if standard_col in used_standard_cols:
                 continue
                 
             found_column = None
             for possible_name in possible_names:
-                # 精确匹配
+                # 精确匹配 - 只匹配完全相同的列名
                 if possible_name in df.columns:
                     found_column = possible_name
                     break
-                # 模糊匹配（包含关键词）
-                else:
-                    for actual_col in df.columns:
-                        if possible_name in str(actual_col):
-                            found_column = actual_col
-                            break
-                    if found_column:
-                        break
             
             if found_column:
                 column_mapping[found_column] = standard_col
                 used_standard_cols.add(standard_col)
                 st.write(f"✅ 识别列名: '{found_column}' → '{standard_col}'")
+            else:
+                st.warning(f"⚠️ 未找到标准列名: {standard_col}")
+                st.info(f"支持的列名: {', '.join(possible_names)}")
         
         # 检查必要列是否都已识别
         required_columns = ['会员账号', '彩种', '期号', '玩法', '内容']
         missing_columns = [col for col in required_columns if col not in used_standard_cols]
         
         if missing_columns:
-            st.warning(f"⚠️ 未识别出的必要列: {missing_columns}")
-            st.info("请检查文件列名是否符合以下格式:")
+            st.error(f"❌ 缺少必要列: {missing_columns}")
+            st.info("请确保文件包含以下列名之一:")
             for col in missing_columns:
                 st.write(f"- {col}: {self.column_mappings[col]}")
+            return None
         
         return column_mapping
     
     def extract_bet_amount(self, amount_text):
-        """完全重写的金额提取函数 - 确保能处理各种格式"""
+        """金额提取函数"""
         try:
             if pd.isna(amount_text) or amount_text is None:
                 return 0.0
@@ -113,9 +97,6 @@ class FixedLotteryCoverageAnalyzer:
             if text == '':
                 return 0.0
             
-            # 调试信息 - 显示原始文本
-            debug_info = f"原始金额文本: '{text}'"
-            
             # 方法1: 直接转换（处理纯数字）
             try:
                 # 移除所有非数字字符（除了点和负号）
@@ -123,7 +104,6 @@ class FixedLotteryCoverageAnalyzer:
                 if clean_text and clean_text != '-' and clean_text != '.':
                     amount = float(clean_text)
                     if amount >= 0:
-                        st.write(f"✅ {debug_info} → 直接转换: {amount}")
                         return amount
             except:
                 pass
@@ -134,32 +114,28 @@ class FixedLotteryCoverageAnalyzer:
                 clean_text = text.replace(',', '').replace('，', '')
                 amount = float(clean_text)
                 if amount >= 0:
-                    st.write(f"✅ {debug_info} → 千位分隔符处理: {amount}")
                     return amount
             except:
                 pass
             
-            # 方法3: 处理"5.000"这种格式（可能是5.0或5000）
-            # 我们假设这是5.0，因为5000通常写作5,000
+            # 方法3: 处理"5.000"这种格式
             if re.match(r'^\d+\.\d{3}$', text):
                 try:
                     amount = float(text)
-                    st.write(f"✅ {debug_info} → 三位小数格式: {amount}")
                     return amount
                 except:
                     pass
             
             # 方法4: 使用正则表达式提取各种格式
             patterns = [
-                r'投注\s*[:：]?\s*([\d,.]+)',  # 投注: 1000
-                r'金额\s*[:：]?\s*([\d,.]+)',   # 金额: 500
-                r'下注金额\s*([\d,.]+)',        # 下注金额 800
-                r'([\d,.]+)\s*元',              # 1000元
-                r'￥\s*([\d,.]+)',              # ￥1000
-                r'¥\s*([\d,.]+)',               # ¥500
-                r'([\d,.]+)\s*RMB',             # 500 RMB
-                r'([\d,.]+)\s*人民币',           # 500 人民币
-                r'([\d,.]+)$'                   # 纯数字在末尾
+                r'投注\s*[:：]?\s*([\d,.]+)',
+                r'金额\s*[:：]?\s*([\d,.]+)',
+                r'下注金额\s*([\d,.]+)',
+                r'([\d,.]+)\s*元',
+                r'￥\s*([\d,.]+)',
+                r'¥\s*([\d,.]+)',
+                r'([\d,.]+)\s*RMB',
+                r'([\d,.]+)$'
             ]
             
             for pattern in patterns:
@@ -169,39 +145,13 @@ class FixedLotteryCoverageAnalyzer:
                     try:
                         amount = float(amount_str)
                         if amount >= 0:
-                            st.write(f"✅ {debug_info} → 正则匹配[{pattern}]: {amount}")
                             return amount
                     except:
                         continue
             
-            # 方法5: 提取所有数字并尝试组合
-            numbers = re.findall(r'\d+\.?\d*', text)
-            if numbers:
-                # 取第一个数字
-                try:
-                    amount = float(numbers[0])
-                    if amount >= 0:
-                        st.write(f"✅ {debug_info} → 数字提取: {amount}")
-                        return amount
-                except:
-                    pass
-            
-            # 方法6: 最后尝试 - 移除所有非数字字符
-            try:
-                clean_text = re.sub(r'[^\d.]', '', text)
-                if clean_text and clean_text != '.':
-                    amount = float(clean_text)
-                    if amount >= 0:
-                        st.write(f"✅ {debug_info} → 最终清理: {amount}")
-                        return amount
-            except:
-                pass
-            
-            st.write(f"❌ {debug_info} → 无法提取，返回0")
             return 0.0
             
         except Exception as e:
-            st.write(f"❌ 金额提取异常: '{amount_text}', 错误: {e}")
             return 0.0
     
     def extract_numbers_from_content(self, content):
@@ -447,7 +397,7 @@ def create_download_data(all_results):
     return pd.DataFrame(download_data)
 
 def main():
-    analyzer = FixedLotteryCoverageAnalyzer()
+    analyzer = StrictLotteryCoverageAnalyzer()
     
     # 侧边栏设置
     st.sidebar.header("⚙️ 分析参数设置")
@@ -492,20 +442,17 @@ def main():
             # 显示当前阈值设置
             st.info(f"📊 当前分析参数: 号码数量阈值 ≥ {min_number_count}, 平均金额阈值 ≥ {min_avg_amount}")
             
-            # 增强版列名映射
-            st.subheader("🔄 智能列名识别")
-            column_mapping = analyzer.enhanced_column_mapping(df)
+            # 严格版列名映射
+            st.subheader("🔄 严格列名识别")
+            column_mapping = analyzer.strict_column_mapping(df)
             
-            if column_mapping:
-                df = df.rename(columns=column_mapping)
-                st.success("✅ 列名映射完成")
-                st.write(f"📋 映射后列名: {list(df.columns)}")
-            else:
-                st.warning("⚠️ 无法自动识别列名，尝试使用原始列名")
-                # 显示支持的列名格式
-                st.info("💡 支持的列名格式:")
-                for standard_col, possible_names in analyzer.column_mappings.items():
-                    st.write(f"- **{standard_col}**: {', '.join(possible_names)}")
+            if column_mapping is None:
+                st.error("❌ 列名映射失败，无法继续分析")
+                return
+            
+            df = df.rename(columns=column_mapping)
+            st.success("✅ 列名映射完成")
+            st.write(f"📋 映射后列名: {list(df.columns)}")
 
             # 数据清理
             required_columns = ['会员账号', '彩种', '期号', '玩法', '内容']
@@ -526,16 +473,8 @@ def main():
                     df_clean[col] = df_clean[col].astype(str).str.strip()
                 
                 if has_amount_column:
-                    # 显示金额提取前的示例
-                    st.subheader("💰 金额提取调试")
-                    st.write("前10行原始金额数据:")
-                    amount_sample = df_clean[['金额']].head(10).copy()
-                    st.write(amount_sample)
-                    
-                    # 应用增强的金额提取
-                    st.write("开始金额提取...")
+                    # 应用金额提取
                     df_clean['投注金额'] = df_clean['金额'].apply(analyzer.extract_bet_amount)
-                    
                     total_bet_amount = df_clean['投注金额'].sum()
                     valid_amount_count = (df_clean['投注金额'] > 0).sum()
                     
@@ -735,19 +674,19 @@ def main():
         st.info("💡 **六合彩完美覆盖分析系统**")
         st.markdown("""
         ### 系统功能:
-        - 🎯 **智能列名识别**: 自动识别多种列名格式
-        - 💰 **增强金额提取**: 支持多种金额格式，包括"5.000"等文本格式
+        - 🎯 **严格列名识别**: 只识别指定的列名格式
+        - 💰 **金额提取**: 支持多种金额格式
         - ⚙️ **参数调节**: 可调节号码数量和金额阈值
         - 📊 **结果汇总**: 按彩种和期号分类显示检测结果
         - 📥 **数据导出**: 一键导出所有完美组合数据
         
-        ### 支持的金额格式:
-        - 纯数字: `1000`, `500.50`
-        - 千位分隔符: `1,000`, `1，000`
-        - 文本格式: `5.000`, `10.000`
-        - 带标识符: `投注: 1000`, `金额: 500`
-        - 货币格式: `￥1000`, `1000元`, `500 RMB`
+        ### 支持的列名格式:
+        """)
         
+        for standard_col, possible_names in analyzer.column_mappings.items():
+            st.write(f"- **{standard_col}**: {', '.join(possible_names)}")
+        
+        st.markdown("""
         ### 数据要求:
         - 必须包含: 会员账号, 彩种, 期号, 玩法, 内容
         - 玩法必须为'特码'
