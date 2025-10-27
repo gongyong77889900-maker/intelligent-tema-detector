@@ -16,17 +16,38 @@ st.set_page_config(
 
 # 标题和说明
 st.title("🎯 智能特码完美覆盖分析系统")
-st.markdown("### 基于数学完备性的完美组合检测")
+st.markdown("### 精准识别六合彩特码玩法")
 
-class PerfectCoverageAnalyzer:
-    """完美覆盖分析器 - 基于数学完备性验证"""
+class EnhancedBettingAnalyzer:
+    """增强版投注分析器 - 精准识别六合彩和特码"""
     
     def __init__(self):
         self.full_set = set(range(1, 50))
-        self.standard_columns = list(COLUMN_MAPPINGS.keys())
+        
+        # 六合彩彩种识别列表
+        self.lottery_types = [
+            '一分六合彩', '五分六合彩', '香港六合彩', '澳门六合彩', '快乐6合彩',
+            '新澳门六合彩', '香港⑥合彩', '分分六合彩', '三分六合彩', 
+            '台湾大乐透', '大发六合彩', '六合彩'
+        ]
+        
+        # 特码玩法识别列表
+        self.special_bet_types = [
+            '特码', '特别号', '特肖', '特码生肖', '特码直选', '特码组选',
+            '特码A', '特码B', '特码单双', '特码大小', '特码波色'
+        ]
     
     def map_column_names(self, df: pd.DataFrame) -> pd.DataFrame:
         """智能映射列名到标准格式"""
+        COLUMN_MAPPINGS = {
+            '会员账号': ['会员账号', '会员账户', '账号', '账户', '用户账号'],
+            '彩种': ['彩种', '彩票种类', '游戏类型'],
+            '期号': ['期号', '期数', '期次', '期'],
+            '玩法': ['玩法', '玩法分类', '投注类型', '类型'],
+            '内容': ['内容', '投注内容', '下注内容', '注单内容'],
+            '金额': ['金额', '下注总额', '投注金额', '总额', '下注金额']
+        }
+        
         mapped_columns = {}
         
         for standard_col, possible_names in COLUMN_MAPPINGS.items():
@@ -47,6 +68,34 @@ class PerfectCoverageAnalyzer:
             return None
         
         return df_renamed
+    
+    def is_lottery_type(self, lottery_str: str) -> bool:
+        """判断是否为六合彩彩种"""
+        if pd.isna(lottery_str):
+            return False
+        
+        lottery_str = str(lottery_str).strip()
+        
+        # 检查是否包含六合彩关键词
+        for lottery_type in self.lottery_types:
+            if lottery_type in lottery_str:
+                return True
+        
+        return False
+    
+    def is_special_bet(self, bet_type: str) -> bool:
+        """判断是否为特码玩法"""
+        if pd.isna(bet_type):
+            return False
+        
+        bet_type = str(bet_type).strip()
+        
+        # 检查是否包含特码关键词
+        for special_type in self.special_bet_types:
+            if special_type in bet_type:
+                return True
+        
+        return False
     
     def extract_amount(self, amount_str) -> float:
         """提取金额"""
@@ -110,16 +159,70 @@ class PerfectCoverageAnalyzer:
         elif similarity >= 70: return "🟠"
         else: return "🔴"
     
+    def analyze_data_quality(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """分析数据质量"""
+        quality_info = {
+            'total_records': len(df),
+            'has_amount': '金额' in df.columns,
+            'lottery_types': df['彩种'].unique().tolist() if '彩种' in df.columns else [],
+            'bet_types': df['玩法'].unique().tolist() if '玩法' in df.columns else [],
+            'periods': df['期号'].unique().tolist() if '期号' in df.columns else [],
+            'accounts': df['会员账号'].unique().tolist() if '会员账号' in df.columns else []
+        }
+        
+        # 识别六合彩数据
+        if '彩种' in df.columns:
+            lottery_mask = df['彩种'].apply(self.is_lottery_type)
+            quality_info['lottery_records'] = lottery_mask.sum()
+            quality_info['non_lottery_records'] = (~lottery_mask).sum()
+        
+        # 识别特码玩法
+        if '玩法' in df.columns:
+            special_mask = df['玩法'].apply(self.is_special_bet)
+            quality_info['special_bet_records'] = special_mask.sum()
+            quality_info['non_special_records'] = (~special_mask).sum()
+        
+        return quality_info
+    
     def analyze_accounts(self, df: pd.DataFrame) -> Tuple[Dict, Dict, Dict]:
-        """分析账户数据 - 返回三个字典"""
+        """分析账户数据 - 精准筛选六合彩特码玩法"""
         # 提取金额
         if '金额' in df.columns:
             df['投注金额'] = df['金额'].apply(self.extract_amount)
         else:
             df['投注金额'] = 0.0
         
-        # 筛选特码玩法
-        special_bets = df[df['玩法'].str.contains('特码|特别号', na=False)]
+        # 第一步：筛选六合彩数据
+        lottery_mask = df['彩种'].apply(self.is_lottery_type)
+        lottery_data = df[lottery_mask]
+        
+        st.write(f"🎯 六合彩数据筛选: {len(lottery_data)}/{len(df)} 条记录")
+        
+        if len(lottery_data) == 0:
+            st.warning("未找到六合彩数据，请检查彩种名称")
+            st.write("支持的六合彩类型:", self.lottery_types)
+            return {}, {}, {}
+        
+        # 第二步：筛选特码玩法
+        special_mask = lottery_data['玩法'].apply(self.is_special_bet)
+        special_bets = lottery_data[special_mask]
+        
+        st.write(f"🎯 特码玩法筛选: {len(special_bets)}/{len(lottery_data)} 条记录")
+        
+        if len(special_bets) == 0:
+            st.warning("未找到特码玩法数据，请检查玩法名称")
+            st.write("支持的特码玩法:", self.special_bet_types)
+            return {}, {}, {}
+        
+        # 显示筛选结果
+        with st.expander("📋 数据筛选详情"):
+            st.write("**六合彩类型分布:**")
+            lottery_counts = lottery_data['彩种'].value_counts()
+            st.write(lottery_counts)
+            
+            st.write("**特码玩法分布:**")
+            bet_type_counts = special_bets['玩法'].value_counts()
+            st.write(bet_type_counts)
         
         # 三个核心字典
         account_numbers = {}      # 账户 -> 数字列表
@@ -138,33 +241,35 @@ class PerfectCoverageAnalyzer:
             
             number_count = len(all_numbers)
             
-            # 填充三个字典
-            account_numbers[account] = list(all_numbers)
-            account_sets[account] = all_numbers
-            account_amount_stats[account] = {
-                'number_count': number_count,
-                'total_amount': total_amount,
-                'bet_count': bet_count,
-                'avg_amount_per_bet': total_amount / bet_count if bet_count > 0 else 0,
-                'avg_amount_per_number': total_amount / number_count if number_count > 0 else 0
-            }
+            # 只记录有数字的账户
+            if number_count > 0:
+                account_numbers[account] = list(all_numbers)
+                account_sets[account] = all_numbers
+                account_amount_stats[account] = {
+                    'number_count': number_count,
+                    'total_amount': total_amount,
+                    'bet_count': bet_count,
+                    'avg_amount_per_bet': total_amount / bet_count if bet_count > 0 else 0,
+                    'avg_amount_per_number': total_amount / number_count if number_count > 0 else 0
+                }
         
         return account_numbers, account_sets, account_amount_stats
     
     def validate_perfect_coverage(self, combined_set: Set[int]) -> bool:
         """严格验证完美覆盖"""
         return (
-            len(combined_set) == 49 and           # 恰好49个数字
-            min(combined_set) == 1 and           # 最小值为1
-            max(combined_set) == 49 and          # 最大值为49
-            len(set(combined_set)) == 49         # 无重复数字
+            len(combined_set) == 49 and
+            min(combined_set) == 1 and
+            max(combined_set) == 49
         )
     
     def search_2_account_combinations(self, accounts: List[str], account_sets: Dict, account_amount_stats: Dict) -> List[Dict]:
-        """第一层：2账户组合搜索"""
-        st.info("🔍 正在搜索2账户完美组合...")
+        """2账户组合搜索"""
         results = []
         all_accounts = accounts.copy()
+        
+        if len(all_accounts) < 2:
+            return results
         
         progress_bar = st.progress(0)
         total_pairs = len(all_accounts) * (len(all_accounts) - 1) // 2
@@ -177,17 +282,12 @@ class PerfectCoverageAnalyzer:
                 count2 = len(account_sets[acc2])
                 
                 processed += 1
-                if processed % 100 == 0:  # 每100次更新一次进度
+                if processed % 10 == 0:
                     progress_bar.progress(min(processed / total_pairs, 1.0))
                 
-                # 快速预判：数字数量之和必须等于49
-                if count1 + count2 != 49:
-                    continue
-                
-                # 精确验证：并集是否恰好为49个不同数字
+                # 精确验证
                 combined_set = account_sets[acc1] | account_sets[acc2]
                 if self.validate_perfect_coverage(combined_set):
-                    # 计算金额指标
                     total_amount = (account_amount_stats[acc1]['total_amount'] + 
                                   account_amount_stats[acc2]['total_amount'])
                     avg_amounts = [
@@ -205,209 +305,50 @@ class PerfectCoverageAnalyzer:
                         'avg_amount_per_number': total_amount / 49,
                         'similarity': similarity,
                         'similarity_indicator': self.get_similarity_indicator(similarity),
-                        'numbers': combined_set,
-                        'individual_amounts': {
-                            acc1: account_amount_stats[acc1]['total_amount'],
-                            acc2: account_amount_stats[acc2]['total_amount']
-                        },
-                        'individual_avg_per_number': {
-                            acc1: account_amount_stats[acc1]['avg_amount_per_number'],
-                            acc2: account_amount_stats[acc2]['avg_amount_per_number']
-                        }
+                        'numbers': combined_set
                     }
                     results.append(result_data)
         
         progress_bar.empty()
         return results
     
-    def search_3_account_combinations(self, accounts: List[str], account_sets: Dict, account_amount_stats: Dict) -> List[Dict]:
-        """第二层：3账户组合搜索"""
-        st.info("🔍 正在搜索3账户完美组合...")
-        results = []
-        all_accounts = accounts.copy()
-        
-        progress_bar = st.progress(0)
-        total_combinations = len(all_accounts) * (len(all_accounts)-1) * (len(all_accounts)-2) // 6
-        processed = 0
-        
-        for i, acc1 in enumerate(all_accounts):
-            count1 = len(account_sets[acc1])
-            for j in range(i+1, len(all_accounts)):
-                acc2 = all_accounts[j]
-                count2 = len(account_sets[acc2])
-                for k in range(j+1, len(all_accounts)):
-                    acc3 = all_accounts[k]
-                    count3 = len(account_sets[acc3])
-                    
-                    processed += 1
-                    if processed % 100 == 0:
-                        progress_bar.progress(min(processed / total_combinations, 1.0))
-                    
-                    # 快速预判
-                    if count1 + count2 + count3 != 49:
-                        continue
-                    
-                    # 精确验证
-                    combined_set = account_sets[acc1] | account_sets[acc2] | account_sets[acc3]
-                    if self.validate_perfect_coverage(combined_set):
-                        total_amount = (account_amount_stats[acc1]['total_amount'] + 
-                                      account_amount_stats[acc2]['total_amount'] + 
-                                      account_amount_stats[acc3]['total_amount'])
-                        avg_amounts = [
-                            account_amount_stats[acc1]['avg_amount_per_number'],
-                            account_amount_stats[acc2]['avg_amount_per_number'],
-                            account_amount_stats[acc3]['avg_amount_per_number']
-                        ]
-                        similarity = self.calculate_similarity(avg_amounts)
-                        
-                        result_data = {
-                            'accounts': [acc1, acc2, acc3],
-                            'account_count': 3,
-                            'total_digits': 49,
-                            'efficiency': 49/3,
-                            'total_amount': total_amount,
-                            'avg_amount_per_number': total_amount / 49,
-                            'similarity': similarity,
-                            'similarity_indicator': self.get_similarity_indicator(similarity),
-                            'numbers': combined_set,
-                            'individual_amounts': {
-                                acc1: account_amount_stats[acc1]['total_amount'],
-                                acc2: account_amount_stats[acc2]['total_amount'],
-                                acc3: account_amount_stats[acc3]['total_amount']
-                            },
-                            'individual_avg_per_number': {
-                                acc1: account_amount_stats[acc1]['avg_amount_per_number'],
-                                acc2: account_amount_stats[acc2]['avg_amount_per_number'],
-                                acc3: account_amount_stats[acc3]['avg_amount_per_number']
-                            }
-                        }
-                        results.append(result_data)
-        
-        progress_bar.empty()
-        return results
-    
-    def search_4_account_combinations(self, accounts: List[str], account_sets: Dict, account_amount_stats: Dict) -> List[Dict]:
-        """第三层：4账户组合搜索（带优化）"""
-        st.info("🔍 正在搜索4账户完美组合...")
-        results = []
-        
-        # 优化搜索范围：只选择数字数量在12-35之间的账户
-        suitable_accounts = [acc for acc in accounts if 12 <= len(account_sets[acc]) <= 35]
-        
-        if len(suitable_accounts) < 4:
-            return results
-        
-        progress_bar = st.progress(0)
-        total_combinations = len(suitable_accounts) * (len(suitable_accounts)-1) * (len(suitable_accounts)-2) * (len(suitable_accounts)-3) // 24
-        processed = 0
-        
-        for i, acc1 in enumerate(suitable_accounts):
-            count1 = len(account_sets[acc1])
-            for j in range(i+1, len(suitable_accounts)):
-                acc2 = suitable_accounts[j]
-                count2 = len(account_sets[acc2])
-                for k in range(j+1, len(suitable_accounts)):
-                    acc3 = suitable_accounts[k]
-                    count3 = len(account_sets[acc3])
-                    for l in range(k+1, len(suitable_accounts)):
-                        acc4 = suitable_accounts[l]
-                        count4 = len(account_sets[acc4])
-                        
-                        processed += 1
-                        if processed % 100 == 0:
-                            progress_bar.progress(min(processed / total_combinations, 1.0))
-                        
-                        # 快速预判
-                        if count1 + count2 + count3 + count4 != 49:
-                            continue
-                        
-                        # 精确验证
-                        combined_set = account_sets[acc1] | account_sets[acc2] | account_sets[acc3] | account_sets[acc4]
-                        if self.validate_perfect_coverage(combined_set):
-                            total_amount = (account_amount_stats[acc1]['total_amount'] + 
-                                          account_amount_stats[acc2]['total_amount'] + 
-                                          account_amount_stats[acc3]['total_amount'] + 
-                                          account_amount_stats[acc4]['total_amount'])
-                            avg_amounts = [
-                                account_amount_stats[acc1]['avg_amount_per_number'],
-                                account_amount_stats[acc2]['avg_amount_per_number'],
-                                account_amount_stats[acc3]['avg_amount_per_number'],
-                                account_amount_stats[acc4]['avg_amount_per_number']
-                            ]
-                            similarity = self.calculate_similarity(avg_amounts)
-                            
-                            result_data = {
-                                'accounts': [acc1, acc2, acc3, acc4],
-                                'account_count': 4,
-                                'total_digits': 49,
-                                'efficiency': 49/4,
-                                'total_amount': total_amount,
-                                'avg_amount_per_number': total_amount / 49,
-                                'similarity': similarity,
-                                'similarity_indicator': self.get_similarity_indicator(similarity),
-                                'numbers': combined_set,
-                                'individual_amounts': {
-                                    acc1: account_amount_stats[acc1]['total_amount'],
-                                    acc2: account_amount_stats[acc2]['total_amount'],
-                                    acc3: account_amount_stats[acc3]['total_amount'],
-                                    acc4: account_amount_stats[acc4]['total_amount']
-                                },
-                                'individual_avg_per_number': {
-                                    acc1: account_amount_stats[acc1]['avg_amount_per_number'],
-                                    acc2: account_amount_stats[acc2]['avg_amount_per_number'],
-                                    acc3: account_amount_stats[acc3]['avg_amount_per_number'],
-                                    acc4: account_amount_stats[acc4]['avg_amount_per_number']
-                                }
-                            }
-                            results.append(result_data)
-        
-        progress_bar.empty()
-        return results
-    
     def find_perfect_combinations(self, account_numbers: Dict, account_sets: Dict, account_amount_stats: Dict) -> Dict[str, List]:
-        """多层搜索完美组合"""
-        # 筛选有效账户（投注数字数量 > 11）
+        """寻找完美组合"""
+        # 筛选有效账户（投注数字数量 >= 12）
         valid_accounts = [acc for acc, numbers in account_numbers.items() 
-                         if len(numbers) > 11]
+                         if len(numbers) >= 12]
         
-        st.write(f"📊 有效账户分析: 总共 {len(account_numbers)} 个账户, 其中 {len(valid_accounts)} 个有效账户")
+        st.write(f"📊 有效账户分析: 总共 {len(account_numbers)} 个账户, 其中 {len(valid_accounts)} 个有效账户(数字≥12)")
         
         if len(valid_accounts) < 2:
-            st.error("❌ 有效账户不足2个，无法进行组合分析")
+            st.warning(f"有效账户不足2个，当前有 {len(valid_accounts)} 个有效账户")
+            
+            # 显示所有账户信息用于调试
+            with st.expander("🔍 所有账户详情(用于调试)"):
+                for acc, numbers in account_numbers.items():
+                    stats = account_amount_stats[acc]
+                    st.write(f"- **{acc}**: {len(numbers)}个数字, 总金额 ¥{stats['total_amount']:,.2f}")
+                    st.write(f"  号码: {sorted(list(numbers))}")
+            
             return {'2': [], '3': [], '4': []}
         
         # 显示有效账户信息
         with st.expander("📋 有效账户详情"):
             for acc in valid_accounts:
                 stats = account_amount_stats[acc]
-                st.write(f"- **{acc}**: {len(account_sets[acc])}个数字, 总金额 ¥{stats['total_amount']:,.2f}")
+                numbers = account_sets[acc]
+                st.write(f"- **{acc}**: {len(numbers)}个数字, 总金额 ¥{stats['total_amount']:,.2f}")
         
         all_results = {'2': [], '3': [], '4': []}
         
-        # 分层搜索
-        if len(valid_accounts) >= 2:
-            all_results['2'] = self.search_2_account_combinations(valid_accounts, account_sets, account_amount_stats)
-        
-        if len(valid_accounts) >= 3:
-            all_results['3'] = self.search_3_account_combinations(valid_accounts, account_sets, account_amount_stats)
-        
-        if len(valid_accounts) >= 4:
-            all_results['4'] = self.search_4_account_combinations(valid_accounts, account_sets, account_amount_stats)
+        # 搜索2账户组合
+        st.info("🔍 正在搜索2账户完美组合...")
+        all_results['2'] = self.search_2_account_combinations(valid_accounts, account_sets, account_amount_stats)
         
         return all_results
 
-# 列名映射配置
-COLUMN_MAPPINGS = {
-    '会员账号': ['会员账号', '会员账户', '账号', '账户', '用户账号'],
-    '彩种': ['彩种', '彩票种类', '游戏类型'],
-    '期号': ['期号', '期数', '期次', '期'],
-    '玩法': ['玩法', '玩法分类', '投注类型', '类型'],
-    '内容': ['内容', '投注内容', '下注内容', '注单内容'],
-    '金额': ['金额', '下注总额', '投注金额', '总额', '下注金额']
-}
-
 def main():
-    analyzer = PerfectCoverageAnalyzer()
+    analyzer = EnhancedBettingAnalyzer()
     
     # 文件上传
     st.sidebar.header("📁 数据上传")
@@ -427,11 +368,26 @@ def main():
             
             st.success(f"✅ 成功读取文件，共 {len(df)} 条记录")
             
+            # 数据质量分析
+            st.header("📊 数据质量分析")
+            quality_info = analyzer.analyze_data_quality(df)
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("总记录数", quality_info['total_records'])
+            with col2:
+                st.metric("六合彩记录", quality_info.get('lottery_records', 0))
+            with col3:
+                st.metric("特码玩法记录", quality_info.get('special_bet_records', 0))
+            with col4:
+                st.metric("唯一账户数", len(quality_info['accounts']))
+            
             # 显示原始数据
-            with st.expander("📊 原始数据预览"):
+            with st.expander("📋 原始数据预览"):
                 st.dataframe(df.head(10))
-                st.write(f"原始列名: {list(df.columns)}")
                 st.write(f"数据形状: {df.shape}")
+                st.write(f"彩种类型: {quality_info['lottery_types']}")
+                st.write(f"玩法类型: {quality_info['bet_types']}")
             
             # 列名映射
             df_mapped = analyzer.map_column_names(df)
@@ -439,13 +395,8 @@ def main():
             if df_mapped is not None:
                 st.success("✅ 列名映射完成")
                 
-                # 显示映射后的数据
-                with st.expander("🔄 映射后数据预览"):
-                    st.dataframe(df_mapped.head(10))
-                    st.write(f"映射后列名: {list(df_mapped.columns)}")
-                
                 # 数据分析
-                st.header("🔬 数学完备性分析")
+                st.header("🔬 特码完美覆盖分析")
                 
                 # 按期号分析
                 if '期号' in df_mapped.columns:
@@ -462,7 +413,13 @@ def main():
                     account_numbers, account_sets, account_amount_stats = analyzer.analyze_accounts(period_data)
                     
                     if not account_numbers:
-                        st.warning("⚠️ 未找到有效的特码投注数据")
+                        st.error("❌ 未找到有效的六合彩特码投注数据")
+                        st.info("""
+                        **可能原因:**
+                        1. 彩种名称不匹配 - 当前支持的六合彩类型包括: {}
+                        2. 玩法名称不匹配 - 当前支持的特码玩法包括: {}
+                        3. 数据格式问题 - 请检查数据内容
+                        """.format(analyzer.lottery_types, analyzer.special_bet_types))
                         return
                     
                     # 寻找完美组合
@@ -475,22 +432,8 @@ def main():
                     if total_perfect > 0:
                         st.success(f"🎉 找到 {total_perfect} 个完美覆盖组合!")
                         
-                        # 显示统计信息
-                        col1, col2, col3, col4 = st.columns(4)
-                        with col1:
-                            st.metric("2账户组合", len(all_results['2']))
-                        with col2:
-                            st.metric("3账户组合", len(all_results['3']))
-                        with col3:
-                            st.metric("4账户组合", len(all_results['4']))
-                        with col4:
-                            st.metric("总计", total_perfect)
-                        
-                        # 合并所有结果并按效率排序
-                        all_combinations = all_results['2'] + all_results['3'] + all_results['4']
-                        all_combinations.sort(key=lambda x: (x['account_count'], -x['similarity']))
-                        
                         # 显示最佳组合
+                        all_combinations = all_results['2'] + all_results['3'] + all_results['4']
                         if all_combinations:
                             best_combo = all_combinations[0]
                             st.subheader("🏆 最佳完美组合")
@@ -517,27 +460,28 @@ def main():
                                            f"总金额 ¥{stats['total_amount']:,.2f}, "
                                            f"每号平均 ¥{stats['avg_amount_per_number']:,.2f}")
                                     st.write(f"  号码: {sorted(list(numbers))}")
-                            
-                            # 显示所有组合
-                            with st.expander("📊 所有完美组合"):
-                                for combo in all_combinations:
-                                    st.write(f"**{combo['account_count']}账户组合** (效率: {combo['efficiency']:.1f}, "
-                                           f"匹配度: {combo['similarity']:.1f}% {combo['similarity_indicator']}):")
-                                    st.write(f"账户: {combo['accounts']}")
-                                    st.write(f"总金额: ¥{combo['total_amount']:,.2f}")
-                                    st.write("---")
                     
                     else:
                         st.warning("⚠️ 未找到完美覆盖组合")
-                        st.info("""
-                        **数学分析结果:**
-                        - 当前数据无法形成1-49的完美覆盖
-                        - 可能原因: 账户号码分布重叠过多
-                        - 建议: 检查数据质量或调整投注策略
-                        """)
-                
-                else:
-                    st.warning("⚠️ 数据中未找到期号信息")
+                        
+                        # 显示覆盖分析
+                        if account_numbers:
+                            st.info("🔍 覆盖情况分析")
+                            all_numbers = set()
+                            for numbers in account_sets.values():
+                                all_numbers.update(numbers)
+                            
+                            missing_numbers = set(range(1, 50)) - all_numbers
+                            coverage = len(all_numbers) / 49 * 100
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.metric("已覆盖号码", f"{len(all_numbers)}/49")
+                                st.metric("覆盖率", f"{coverage:.1f}%")
+                            with col2:
+                                st.metric("缺失号码数", len(missing_numbers))
+                                if missing_numbers:
+                                    st.write(f"缺失号码: {sorted(list(missing_numbers))}")
             
         except Exception as e:
             st.error(f"❌ 处理文件时出错: {str(e)}")
@@ -546,46 +490,19 @@ def main():
     
     else:
         # 显示示例和使用说明
-        st.info("💡 **数学完备性分析系统**")
+        st.info("💡 **精准六合彩特码分析系统**")
         st.markdown("""
-        ### 完美组合定义:
-        - **数学完备**: 账户组合的数字并集恰好等于 {1,2,3,...,49}
-        - **无重复无缺失**: 恰好49个不重复数字
-        - **效率优先**: 账户数量越少越好
+        ### 系统特性:
+        - **精准彩种识别**: 支持多种六合彩变体
+        - **特码玩法筛选**: 精准识别特码相关玩法
+        - **完美覆盖检测**: 数学完备性验证
         
-        ### 搜索策略:
-        1. **2账户组合**: 数字数量之和=49，且并集=全集
-        2. **3账户组合**: 数字数量之和=49，且并集=全集  
-        3. **4账户组合**: 数字数量之和=49，且并集=全集
+        ### 支持的六合彩类型:
+        {}
         
-        ### 数据要求:
-        - 必须包含特码玩法的投注记录
-        - 每个账户投注数字数量 > 11
-        - 数字范围严格在1-49之间
-        """)
-        
-        # 提供完美组合示例
-        st.subheader("🎲 完美组合示例")
-        example_data = {
-            '2账户组合': {
-                '账户A': list(range(1, 25)),      # 1-24
-                '账户B': list(range(25, 50))     # 25-49
-            },
-            '3账户组合': {
-                '账户A': list(range(1, 17)),      # 1-16
-                '账户B': list(range(17, 33)),     # 17-32  
-                '账户C': list(range(33, 50))      # 33-49
-            }
-        }
-        
-        for combo_type, accounts in example_data.items():
-            with st.expander(f"{combo_type}示例"):
-                for acc, numbers in accounts.items():
-                    st.write(f"- {acc}: {len(numbers)}个数字")
-                union_set = set()
-                for numbers in accounts.values():
-                    union_set.update(numbers)
-                st.write(f"✅ 并集验证: {len(union_set)}个不重复数字，完美覆盖: {union_set == set(range(1,50))}")
+        ### 支持的特码玩法:
+        {}
+        """.format(analyzer.lottery_types, analyzer.special_bet_types))
 
 if __name__ == "__main__":
     main()
