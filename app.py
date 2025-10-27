@@ -47,10 +47,6 @@ class StrictLotteryCoverageAnalyzer:
         column_mapping = {}
         used_standard_cols = set()
         
-        # 显示原始列名用于调试
-        original_columns = list(df.columns)
-        st.write(f"🔍 原始文件列名: {original_columns}")
-        
         # 对每个标准列名，只检查精确匹配的列名
         for standard_col, possible_names in self.column_mappings.items():
             if standard_col in used_standard_cols:
@@ -66,10 +62,8 @@ class StrictLotteryCoverageAnalyzer:
             if found_column:
                 column_mapping[found_column] = standard_col
                 used_standard_cols.add(standard_col)
-                st.write(f"✅ 识别列名: '{found_column}' → '{standard_col}'")
             else:
                 st.warning(f"⚠️ 未找到标准列名: {standard_col}")
-                st.info(f"支持的列名: {', '.join(possible_names)}")
         
         # 检查必要列是否都已识别
         required_columns = ['会员账号', '彩种', '期号', '玩法', '内容']
@@ -77,9 +71,6 @@ class StrictLotteryCoverageAnalyzer:
         
         if missing_columns:
             st.error(f"❌ 缺少必要列: {missing_columns}")
-            st.info("请确保文件包含以下列名之一:")
-            for col in missing_columns:
-                st.write(f"- {col}: {self.column_mappings[col]}")
             return None
         
         return column_mapping
@@ -442,8 +433,7 @@ def main():
             # 显示当前阈值设置
             st.info(f"📊 当前分析参数: 号码数量阈值 ≥ {min_number_count}, 平均金额阈值 ≥ {min_avg_amount}")
             
-            # 严格版列名映射
-            st.subheader("🔄 严格列名识别")
+            # 严格版列名映射 - 隐藏详细过程
             column_mapping = analyzer.strict_column_mapping(df)
             
             if column_mapping is None:
@@ -452,7 +442,6 @@ def main():
             
             df = df.rename(columns=column_mapping)
             st.success("✅ 列名映射完成")
-            st.write(f"📋 映射后列名: {list(df.columns)}")
 
             # 数据清理
             required_columns = ['会员账号', '彩种', '期号', '玩法', '内容']
