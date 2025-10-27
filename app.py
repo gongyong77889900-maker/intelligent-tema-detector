@@ -404,13 +404,11 @@ def main():
                 if all_period_results:
                     # 汇总统计
                     total_combinations = 0
-                    lottery_stats = {}
+                    lottery_stats = defaultdict(lambda: defaultdict(int))
                     
                     for (period, lottery), result in all_period_results.items():
                         total_combinations += result['total_combinations']
-                        if lottery not in lottery_stats:
-                            lottery_stats[lottery] = 0
-                        lottery_stats[lottery] += result['total_combinations']
+                        lottery_stats[lottery][period] = result['total_combinations']
                     
                     # 显示汇总信息
                     st.subheader("📈 检测汇总")
@@ -422,66 +420,62 @@ def main():
                     with col3:
                         st.metric("分析期数", len(all_period_results))
                     
-                    # 彩种分布
-                    st.write("**彩种分布:**")
-                    for lottery, count in lottery_stats.items():
-                        st.write(f"- {lottery}: {count}组")
-                    
-                    st.markdown("---")
-                    
-                    # 按彩种显示结果
+                    # 按彩种和期号显示结果
                     for lottery in sorted(lottery_stats.keys()):
-                        lottery_combinations = []
-                        for (period, lot), result in all_period_results.items():
-                            if lot == lottery:
-                                lottery_combinations.extend([
-                                    {**combo, '期号': period} 
-                                    for combo in result['all_combinations']
-                                ])
+                        lottery_periods = lottery_stats[lottery]
+                        total_lottery_combinations = sum(lottery_periods.values())
                         
-                        if lottery_combinations:
-                            st.subheader(f"## 🎯 彩种：{lottery}（发现{len(lottery_combinations)}组）")
+                        st.subheader(f"🎯 彩种：{lottery}（发现{total_lottery_combinations}组）")
+                        
+                        # 对每个期号创建折叠筐
+                        for period in sorted(lottery_periods.keys()):
+                            period_combinations = lottery_periods[period]
                             
-                            for idx, combo in enumerate(lottery_combinations, 1):
-                                accounts = combo['accounts']
-                                
-                                # 组合标题
-                                if len(accounts) == 2:
-                                    st.markdown(f"**完美组合 {idx}:** {accounts[0]} ↔ {accounts[1]}")
-                                else:
-                                    st.markdown(f"**完美组合 {idx}:** {' ↔ '.join(accounts)}")
-                                
-                                # 组合信息
-                                col1, col2, col3, col4 = st.columns(4)
-                                with col1:
-                                    st.write(f"**账户数量:** {combo['account_count']}个")
-                                with col2:
-                                    st.write(f"**期号:** {combo['期号']}")
-                                with col3:
-                                    if has_amount_column:
-                                        st.write(f"**总金额:** ¥{combo['total_amount']:,.2f}")
-                                with col4:
-                                    similarity = combo['similarity']
-                                    indicator = combo['similarity_indicator']
-                                    st.write(f"**金额匹配度:** {similarity:.1f}% {indicator}")
-                                
-                                # 各账户详情
-                                st.write("**各账户详情:**")
-                                for account in accounts:
-                                    amount_info = combo['individual_amounts'][account]
-                                    avg_info = combo['individual_avg_per_number'][account]
-                                    numbers = combo['bet_contents'][account]
-                                    numbers_count = len(numbers.split(', '))
-                                    
-                                    st.write(f"- **{account}**: {numbers_count}个数字")
-                                    if has_amount_column:
-                                        st.write(f"  - 总投注: ¥{amount_info:,.2f}")
-                                        st.write(f"  - 平均每号: ¥{avg_info:,.2f}")
-                                    st.write(f"  - 投注内容: {numbers}")
-                                
-                                # 添加分隔线（除了最后一个）
-                                if idx < len(lottery_combinations):
-                                    st.markdown("---")
+                            # 创建折叠筐，默认展开
+                            with st.expander(f"期号: {period}（{period_combinations}组）", expanded=True):
+                                # 获取该期号的所有组合
+                                period_data = all_period_results.get((period, lottery))
+                                if period_data:
+                                    for idx, combo in enumerate(period_data['all_combinations'], 1):
+                                        accounts = combo['accounts']
+                                        
+                                        # 组合标题
+                                        if len(accounts) == 2:
+                                            st.markdown(f"**完美组合 {idx}:** {accounts[0]} ↔ {accounts[1]}")
+                                        else:
+                                            st.markdown(f"**完美组合 {idx}:** {' ↔ '.join(accounts)}")
+                                        
+                                        # 组合信息
+                                        col1, col2, col3, col4 = st.columns(4)
+                                        with col1:
+                                            st.write(f"**账户数量:** {combo['account_count']}个")
+                                        with col2:
+                                            st.write(f"**期号:** {period}")
+                                        with col3:
+                                            if has_amount_column:
+                                                st.write(f"**总金额:** ¥{combo['total_amount']:,.2f}")
+                                        with col4:
+                                            similarity = combo['similarity']
+                                            indicator = combo['similarity_indicator']
+                                            st.write(f"**金额匹配度:** {similarity:.1f}% {indicator}")
+                                        
+                                        # 各账户详情
+                                        st.write("**各账户详情:**")
+                                        for account in accounts:
+                                            amount_info = combo['individual_amounts'][account]
+                                            avg_info = combo['individual_avg_per_number'][account]
+                                            numbers = combo['bet_contents'][account]
+                                            numbers_count = len(numbers.split(', '))
+                                            
+                                            st.write(f"- **{account}**: {numbers_count}个数字")
+                                            if has_amount_column:
+                                                st.write(f"  - 总投注: ¥{amount_info:,.2f}")
+                                                st.write(f"  - 平均每号: ¥{avg_info:,.2f}")
+                                            st.write(f"  - 投注内容: {numbers}")
+                                        
+                                        # 添加分隔线（除了最后一个）
+                                        if idx < len(period_data['all_combinations']):
+                                            st.markdown("---")
                     
                     # 导表功能
                     st.markdown("---")
@@ -525,7 +519,7 @@ def main():
         st.markdown("""
         ### 系统功能:
         - 🎯 **完美组合检测**: 基于数学完备性的1-49完美覆盖
-        - 📊 **结果汇总**: 按彩种分类显示检测结果
+        - 📊 **结果汇总**: 按彩种和期号分类显示检测结果
         - 📥 **数据导出**: 一键导出所有完美组合数据
         
         ### 数据要求:
