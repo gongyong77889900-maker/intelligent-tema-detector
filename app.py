@@ -199,10 +199,8 @@ if uploaded_file is not None:
         # 修复的数据类型转换 - 安全处理字符串转换
         for col in available_columns:
             try:
-                # 先转换为字符串，然后安全地去除空格
-                df_clean[col] = df_clean[col].astype(str)
                 # 使用列表推导式安全地处理每个值
-                df_clean[col] = [str(x).strip() if x is not None else '' for x in df_clean[col]]
+                df_clean[col] = [str(x).strip() if pd.notna(x) else '' for x in df_clean[col]]
             except Exception as e:
                 st.warning(f"列 {col} 转换时遇到问题: {e}")
                 # 如果转换失败，保持原样
@@ -231,48 +229,43 @@ if uploaded_file is not None:
             '五分六合彩', '三分六合彩', '香港⑥合彩', '分分六合彩'
         ]
         
-        # 修复的数据筛选 - 避免索引重复问题
-        def safe_data_filter(df, condition1, condition2):
-            """安全的数据筛选，避免索引重复问题"""
+        # 修复的数据筛选 - 简化版本，避免复杂条件
+        def safe_data_filter_simple(df):
+            """简化的安全数据筛选"""
             try:
-                # 方法1：使用 & 操作符，但确保索引唯一
-                result = df[condition1 & condition2].copy()
-                return result.reset_index(drop=True)
-            except:
-                try:
-                    # 方法2：分别应用条件
-                    mask1 = condition1
-                    mask2 = condition2
-                    result = df[mask1 & mask2].copy()
-                    return result.reset_index(drop=True)
-                except:
-                    # 方法3：使用 query 方法
-                    try:
-                        # 构建查询字符串
-                        lottery_condition = "彩种 in " + str(target_lotteries)
-                        play_condition = "玩法分类 == '特码'"
-                        query_str = f"{lottery_condition} and {play_condition}"
-                        result = df.query(query_str).copy()
-                        return result.reset_index(drop=True)
-                    except:
-                        # 方法4：逐行筛选
-                        mask = []
-                        for idx, row in df.iterrows():
-                            lottery_ok = row['彩种'] in target_lotteries
-                            play_ok = row['玩法分类'] == '特码'
-                            mask.append(lottery_ok and play_ok)
-                        result = df[mask].copy()
-                        return result.reset_index(drop=True)
+                # 直接使用简单的筛选方法
+                mask = []
+                for idx, row in df.iterrows():
+                    lottery_ok = row['彩种'] in target_lotteries
+                    play_ok = row['玩法分类'] == '特码'
+                    mask.append(lottery_ok and play_ok)
+                
+                result = df[mask].copy().reset_index(drop=True)
+                return result
+            except Exception as e:
+                st.error(f"数据筛选失败: {e}")
+                return pd.DataFrame()
         
-        # 筛选特码数据 - 使用安全筛选方法
-        df_target = safe_data_filter(
-            df_clean, 
-            df_clean['彩种'].isin(target_lotteries),
-            df_clean['玩法分类'] == '特码'
-        )
+        # 筛选特码数据 - 使用简化筛选方法
+        df_target = safe_data_filter_simple(df_clean)
         
         if len(df_target) == 0:
             st.error("❌ 未找到特码玩法数据，请检查数据格式")
+            
+            # 显示数据诊断信息
+            with st.expander("🔍 数据诊断信息"):
+                st.write("### 彩种分布:")
+                st.write(df_clean['彩种'].value_counts())
+                st.write("### 玩法分类分布:")
+                st.write(df_clean['玩法分类'].value_counts())
+                
+                # 检查是否有接近匹配的彩种名称
+                st.write("### 可能的彩种名称变体:")
+                all_lotteries = df_clean['彩种'].unique()
+                for lottery in all_lotteries:
+                    if any(target in str(lottery) for target in ['六合彩', '六合彩']):
+                        st.write(f"- {lottery}")
+            
             st.stop()
         
         # 显示特码数据信息
@@ -301,9 +294,12 @@ if uploaded_file is not None:
             
             number_matches = re.findall(r'\d+', content_str)
             for match in number_matches:
-                num = int(match)
-                if 1 <= num <= 49:
-                    numbers.append(num)
+                try:
+                    num = int(match)
+                    if 1 <= num <= 49:
+                        numbers.append(num)
+                except:
+                    continue
             
             return list(set(numbers))
         
