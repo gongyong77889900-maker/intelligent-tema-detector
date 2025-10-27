@@ -393,6 +393,8 @@ def main():
             column_mapping = analyzer.find_correct_columns(df)
             if column_mapping:
                 df = df.rename(columns=column_mapping)
+                st.write("✅ 列名映射完成")
+                st.write(f"映射后列名: {list(df.columns)}")
 
             # 数据清理
             required_columns = ['会员账号', '彩种', '期号', '玩法分类', '内容']
@@ -400,7 +402,8 @@ def main():
             
             has_amount_column = '金额' in df.columns
             if has_amount_column:
-                available_columns.append('金額')
+                available_columns.append('金额')
+                st.success("💰 检测到金额列，将进行金额分析")
 
             if len(available_columns) >= 5:
                 df_clean = df[available_columns].copy()
@@ -410,7 +413,9 @@ def main():
                     df_clean[col] = df_clean[col].astype(str).str.strip()
                 
                 if has_amount_column:
-                    df_clean['投注金额'] = df_clean['金額'].apply(analyzer.extract_bet_amount)
+                    df_clean['投注金额'] = df_clean['金额'].apply(analyzer.extract_bet_amount)
+                    total_bet_amount = df_clean['投注金额'].sum()
+                    st.success(f"💰 金额提取完成: 总投注额 {total_bet_amount:,.2f} 元")
 
                 # 筛选特码数据
                 df_target = df_clean[
@@ -419,6 +424,16 @@ def main():
                 ]
                 
                 st.write(f"✅ 特码玩法数据行数: {len(df_target):,}")
+
+                if len(df_target) == 0:
+                    st.error("❌ 未找到特码玩法数据")
+                    st.info("""
+                    **可能原因:**
+                    1. 彩种名称不匹配
+                    2. 玩法分类不是'特码'
+                    3. 数据格式问题
+                    """)
+                    return
 
                 # 分析数据
                 grouped = df_target.groupby(['期号', '彩种'])
@@ -429,7 +444,7 @@ def main():
                 total_groups = len(grouped)
                 
                 for idx, ((period, lottery), group) in enumerate(grouped):
-                    status_text.text(f"分析进度: {idx+1}/{total_groups}")
+                    status_text.text(f"分析进度: {idx+1}/{total_groups} (期号: {period})")
                     progress_bar.progress((idx+1) / total_groups)
                     
                     if len(group) >= 2:
@@ -553,10 +568,12 @@ def main():
                     """)
             
             else:
-                st.error("❌ 缺少必要数据列")
+                st.error(f"❌ 缺少必要数据列，可用列: {available_columns}")
         
         except Exception as e:
             st.error(f"❌ 处理文件时出错: {str(e)}")
+            import traceback
+            st.code(traceback.format_exc())
     
     else:
         st.info("💡 **六合彩完美覆盖分析系统**")
