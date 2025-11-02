@@ -2,72 +2,123 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import re
+import logging
 from typing import Dict, List, Set, Tuple, Any
 import itertools
 from collections import defaultdict
 import time
 from io import BytesIO
+from functools import lru_cache
 
 # 设置页面
 st.set_page_config(
-    page_title="六合彩特码完美覆盖分析系统",
+    page_title="六合彩特码完美覆盖分析系统 - 增强版",
     page_icon="🎯",
     layout="wide"
 )
 
-# 标题和说明
-st.title("🎯 六合彩特码完美覆盖分析系统")
-st.markdown("### 基于数学完备性的完美组合检测与汇总")
+# ==================== 配置常量 ====================
+COVERAGE_CONFIG = {
+    'min_number_count': 11,
+    'min_avg_amount': 2,
+    'similarity_thresholds': {
+        'excellent': 90,
+        'good': 80,
+        'fair': 70
+    },
+    'target_lotteries': [
+        '新澳门六合彩', '澳门六合彩', '香港六合彩', '一分六合彩',
+        '五分六合彩', '三分六合彩', '香港⑥合彩', '分分六合彩',
+        '台湾大乐透', '大发六合彩', '快乐6合彩'
+    ]
+}
 
-class StrictLotteryCoverageAnalyzer:
-    """严格版六合彩覆盖分析器 - 精确列名匹配"""
+# ==================== 日志设置 ====================
+def setup_logging():
+    """设置日志系统"""
+    logger = logging.getLogger('CoverageAnalysis')
+    logger.setLevel(logging.INFO)
+    
+    if not logger.handlers:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        console_handler.setFormatter(formatter)
+        
+        logger.addHandler(console_handler)
+    
+    return logger
+
+logger = setup_logging()
+
+# ==================== 增强版分析器 ====================
+class EnhancedLotteryCoverageAnalyzer:
+    """增强版六合彩覆盖分析器 - 融入第一套代码的优化"""
     
     def __init__(self):
         self.full_set = set(range(1, 50))
         
         # 完整的六合彩彩种列表
-        self.target_lotteries = [
-            '新澳门六合彩', '澳门六合彩', '香港六合彩', '一分六合彩',
-            '五分六合彩', '三分六合彩', '香港⑥合彩', '分分六合彩',
-            '台湾大乐透', '大发六合彩', '快乐6合彩'
-        ]
+        self.target_lotteries = COVERAGE_CONFIG['target_lotteries']
         
-        # 严格的列名映射字典 - 只使用您提供的列名
+        # 增强的列名映射字典 - 借鉴第一套代码的智能识别
         self.column_mappings = {
-            '会员账号': ['会员账号', '会员账户', '账号', '账户', '用户账号'],
-            '彩种': ['彩种', '彩票种类', '游戏类型'],
-            '期号': ['期号', '期数', '期次', '期'],
-            '玩法': ['玩法', '玩法分类', '投注类型', '类型'],
-            '内容': ['内容', '投注内容', '下注内容', '注单内容'],
-            '金额': ['金额', '下注总额', '投注金额', '总额', '下注金额']
+            '会员账号': ['会员账号', '会员账户', '账号', '账户', '用户账号', '玩家账号', '用户ID', '玩家ID'],
+            '彩种': ['彩种', '彩神', '彩票种类', '游戏类型', '彩票类型', '游戏彩种', '彩票名称'],
+            '期号': ['期号', '期数', '期次', '期', '奖期', '期号信息', '期号编号'],
+            '玩法': ['玩法', '玩法分类', '投注类型', '类型', '投注玩法', '玩法类型', '分类'],
+            '内容': ['内容', '投注内容', '下注内容', '注单内容', '投注号码', '号码内容', '投注信息'],
+            '金额': ['金额', '下注总额', '投注金额', '总额', '下注金额', '投注额', '金额数值']
+        }
+        
+        # 玩法分类映射 - 借鉴第一套代码
+        self.play_mapping = {
+            '特码': '特码',
+            '特码A': '特码', 
+            '特码B': '特码',
+            '特码球': '特码',
+            '特码_特码': '特码',
+            '特玛': '特码',
+            '特马': '特码',
+            '特碼': '特码'
         }
     
-    def strict_column_mapping(self, df):
-        """严格版列名映射 - 只精确匹配提供的列名"""
+    def enhanced_column_mapping(self, df):
+        """增强版列名识别 - 借鉴第一套代码的智能识别逻辑"""
         column_mapping = {}
-        used_standard_cols = set()
+        actual_columns = [str(col).strip() for col in df.columns]
         
-        # 对每个标准列名，只检查精确匹配的列名
+        st.info(f"🔍 检测到的列名: {actual_columns}")
+        
         for standard_col, possible_names in self.column_mappings.items():
-            if standard_col in used_standard_cols:
-                continue
+            found = False
+            for actual_col in actual_columns:
+                actual_col_lower = actual_col.lower().replace(' ', '').replace('_', '').replace('-', '')
                 
-            found_column = None
-            for possible_name in possible_names:
-                # 精确匹配 - 只匹配完全相同的列名
-                if possible_name in df.columns:
-                    found_column = possible_name
+                for possible_name in possible_names:
+                    possible_name_lower = possible_name.lower().replace(' ', '').replace('_', '').replace('-', '')
+                    
+                    # 使用第一套代码的相似度匹配
+                    if (possible_name_lower in actual_col_lower or 
+                        actual_col_lower in possible_name_lower or
+                        len(set(possible_name_lower) & set(actual_col_lower)) / len(possible_name_lower) > 0.7):
+                        column_mapping[actual_col] = standard_col
+                        st.success(f"✅ 识别列名: {actual_col} -> {standard_col}")
+                        found = True
+                        break
+                if found:
                     break
             
-            if found_column:
-                column_mapping[found_column] = standard_col
-                used_standard_cols.add(standard_col)
-            else:
-                st.warning(f"⚠️ 未找到标准列名: {standard_col}")
+            if not found:
+                st.warning(f"⚠️ 未识别到 {standard_col} 对应的列名")
         
         # 检查必要列是否都已识别
         required_columns = ['会员账号', '彩种', '期号', '玩法', '内容']
-        missing_columns = [col for col in required_columns if col not in used_standard_cols]
+        missing_columns = [col for col in required_columns if col not in column_mapping.values()]
         
         if missing_columns:
             st.error(f"❌ 缺少必要列: {missing_columns}")
@@ -75,8 +126,125 @@ class StrictLotteryCoverageAnalyzer:
         
         return column_mapping
     
+    def validate_data_quality(self, df):
+        """数据质量验证 - 借鉴第一套代码"""
+        logger.info("正在进行数据质量验证...")
+        issues = []
+        
+        # 检查必要列
+        required_cols = ['会员账号', '彩种', '期号', '玩法', '内容']
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        if missing_cols:
+            issues.append(f"缺少必要列: {missing_cols}")
+        
+        # 检查空值
+        for col in required_cols:
+            if col in df.columns:
+                null_count = df[col].isnull().sum()
+                if null_count > 0:
+                    issues.append(f"列 '{col}' 有 {null_count} 个空值")
+        
+        # 检查会员账号完整性
+        if '会员账号' in df.columns:
+            # 检查截断账号
+            truncated_accounts = df[df['会员账号'].str.contains(r'\.\.\.|…', na=False)]
+            if len(truncated_accounts) > 0:
+                issues.append(f"发现 {len(truncated_accounts)} 个可能被截断的会员账号")
+            
+            # 检查账号长度异常
+            account_lengths = df['会员账号'].str.len()
+            if account_lengths.max() > 50:
+                issues.append("发现异常长度的会员账号")
+            
+            # 显示账号格式样本
+            unique_accounts = df['会员账号'].unique()[:5]
+            sample_info = " | ".join([f"'{acc}'" for acc in unique_accounts])
+            st.info(f"会员账号格式样本: {sample_info}")
+        
+        # 检查期号格式
+        if '期号' in df.columns:
+            # 修复期号格式问题
+            df['期号'] = df['期号'].astype(str).str.replace(r'\.0$', '', regex=True)
+            invalid_periods = df[~df['期号'].str.match(r'^[\dA-Za-z]+$')]
+            if len(invalid_periods) > 0:
+                issues.append(f"发现 {len(invalid_periods)} 条无效期号记录")
+        
+        # 检查重复数据
+        duplicate_count = df.duplicated().sum()
+        if duplicate_count > 0:
+            issues.append(f"发现 {duplicate_count} 条重复记录")
+        
+        if issues:
+            with st.expander("⚠️ 数据质量问题", expanded=True):
+                for issue in issues:
+                    st.warning(f"  - {issue}")
+        else:
+            st.success("✅ 数据质量检查通过")
+        
+        return issues
+    
+    def normalize_play_category(self, play_method):
+        """统一玩法分类 - 借鉴第一套代码的玩法映射"""
+        play_str = str(play_method).strip()
+        
+        # 直接映射
+        if play_str in self.play_mapping:
+            return self.play_mapping[play_str]
+        
+        # 关键词匹配
+        for key, value in self.play_mapping.items():
+            if key in play_str:
+                return value
+        
+        # 智能匹配
+        play_lower = play_str.lower()
+        if any(word in play_lower for word in ['特码', '特玛', '特马', '特碼']):
+            return '特码'
+        
+        return play_str
+    
+    @lru_cache(maxsize=1000)
+    def cached_extract_numbers(self, content):
+        """带缓存的号码提取"""
+        return self.enhanced_extract_numbers(content)
+    
+    def enhanced_extract_numbers(self, content):
+        """增强号码提取 - 借鉴第一套代码的提取逻辑"""
+        content_str = str(content).strip()
+        numbers = []
+        
+        try:
+            # 处理特殊格式：01,02,03,04,05
+            if re.match(r'^(\d{2},)*\d{2}$', content_str):
+                numbers = [int(x.strip()) for x in content_str.split(',') if x.strip().isdigit()]
+                numbers = [num for num in numbers if 1 <= num <= 49]
+                return list(set(numbers))
+            
+            # 处理特殊格式：1,2,3,4,5,6
+            if re.match(r'^(\d,)*\d$', content_str.strip()):
+                numbers = [int(x.strip()) for x in content_str.split(',') if x.strip().isdigit()]
+                numbers = [num for num in numbers if 1 <= num <= 49]
+                return list(set(numbers))
+            
+            # 提取数字
+            number_matches = re.findall(r'\b\d{1,2}\b', content_str)
+            for match in number_matches:
+                num = int(match)
+                if 1 <= num <= 49:
+                    numbers.append(num)
+            
+            return list(set(numbers))
+        except Exception as e:
+            logger.warning(f"号码提取失败: {content_str}, 错误: {str(e)}")
+            return []
+    
+    @lru_cache(maxsize=500)
+    def cached_extract_amount(self, amount_text):
+        """带缓存的金额提取"""
+        return self.extract_bet_amount(amount_text)
+    
     def extract_bet_amount(self, amount_text):
-        """金额提取函数"""
+        """金额提取函数 - 增强版"""
         try:
             if pd.isna(amount_text) or amount_text is None:
                 return 0.0
@@ -143,20 +311,29 @@ class StrictLotteryCoverageAnalyzer:
             return 0.0
             
         except Exception as e:
+            logger.warning(f"金额提取失败: {amount_text}, 错误: {str(e)}")
             return 0.0
     
-    def extract_numbers_from_content(self, content):
-        """从内容中提取数字"""
-        numbers = []
-        content_str = str(content)
+    def identify_lottery_type(self, lottery_name):
+        """彩种识别增强 - 借鉴第一套代码的识别逻辑"""
+        lottery_str = str(lottery_name).strip()
         
-        number_matches = re.findall(r'\d+', content_str)
-        for match in number_matches:
-            num = int(match)
-            if 1 <= num <= 49:
-                numbers.append(num)
+        # 精确匹配
+        for lottery in self.target_lotteries:
+            if lottery in lottery_str:
+                return lottery
         
-        return list(set(numbers))
+        # 模糊匹配
+        lottery_lower = lottery_str.lower()
+        if any(word in lottery_lower for word in ['六合', 'lhc', '六合彩', '⑥合', '6合']):
+            # 返回最可能的彩种
+            for lottery in self.target_lotteries:
+                lottery_keywords = lottery.lower().split()
+                if any(keyword in lottery_lower for keyword in lottery_keywords):
+                    return lottery
+            return '香港六合彩'  # 默认
+        
+        return None
     
     def calculate_similarity(self, avgs):
         """计算金额匹配度"""
@@ -166,10 +343,15 @@ class StrictLotteryCoverageAnalyzer:
     
     def get_similarity_indicator(self, similarity):
         """获取相似度颜色指示符"""
-        if similarity >= 90: return "🟢"
-        elif similarity >= 80: return "🟡"
-        elif similarity >= 70: return "🟠"
-        else: return "🔴"
+        thresholds = COVERAGE_CONFIG['similarity_thresholds']
+        if similarity >= thresholds['excellent']: 
+            return "🟢"
+        elif similarity >= thresholds['good']: 
+            return "🟡"
+        elif similarity >= thresholds['fair']: 
+            return "🟠"
+        else: 
+            return "🔴"
     
     def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount):
         """寻找完美组合 - 增加平均金额阈值"""
@@ -297,11 +479,13 @@ class StrictLotteryCoverageAnalyzer:
             bet_count = 0
             
             for _, row in account_data.iterrows():
-                numbers = self.extract_numbers_from_content(row['内容'])
+                # 使用缓存的号码提取
+                numbers = self.cached_extract_numbers(row['内容'])
                 all_numbers.update(numbers)
                 
                 if has_amount_column:
-                    amount = row['投注金额']
+                    # 使用缓存的金额提取
+                    amount = self.cached_extract_amount(str(row['金额']))
                     total_amount += amount
                     bet_count += 1
             
@@ -359,36 +543,175 @@ class StrictLotteryCoverageAnalyzer:
         
         return None
 
-def create_download_data(all_results):
-    """创建下载数据"""
-    download_data = []
-    
-    for (period, lottery), result in all_results.items():
-        for combo in result['all_combinations']:
-            row = {
-                '期号': period,
-                '彩种': lottery,
-                '账户数量': combo['account_count'],
-                '账户组合': ' ↔ '.join(combo['accounts']),
-                '总投注金额': combo['total_amount'],
-                '平均每号金额': combo['avg_amount_per_number'],
-                '金额匹配度': f"{combo['similarity']:.1f}%",
-                '匹配度等级': combo['similarity_indicator']
-            }
+    def analyze_with_progress(self, df_target, min_number_count, min_avg_amount):
+        """带进度显示的分析 - 借鉴第一套代码的进度显示"""
+        grouped = df_target.groupby(['期号', '彩种'])
+        all_period_results = {}
+        
+        total_groups = len(grouped)
+        
+        if total_groups == 0:
+            return all_period_results
+        
+        # 使用第一套代码的进度条样式
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        for idx, ((period, lottery), group) in enumerate(grouped):
+            # 实时更新进度
+            progress = (idx + 1) / total_groups
+            progress_bar.progress(progress)
+            status_text.text(f"分析进度: {idx+1}/{total_groups} - {period} ({lottery})")
             
-            # 添加各账户详情
-            for i, account in enumerate(combo['accounts'], 1):
-                row[f'账户{i}'] = account
-                row[f'账户{i}投注金额'] = combo['individual_amounts'][account]
-                row[f'账户{i}平均每号'] = combo['individual_avg_per_number'][account]
-                row[f'账户{i}投注内容'] = combo['bet_contents'][account]
-            
-            download_data.append(row)
-    
-    return pd.DataFrame(download_data)
+            if len(group) >= 2:
+                result = self.analyze_period_lottery(
+                    group, period, lottery, min_number_count, min_avg_amount
+                )
+                if result:
+                    all_period_results[(period, lottery)] = result
+        
+        progress_bar.empty()
+        status_text.text("分析完成!")
+        
+        return all_period_results
 
+    def display_enhanced_results(self, all_period_results):
+        """增强结果展示 - 借鉴第一套代码的层级结构"""
+        if not all_period_results:
+            st.info("🎉 未发现完美覆盖组合")
+            return
+        
+        # 按账户聚合结果 - 借鉴第一套代码的账户中心视图
+        account_combinations = defaultdict(list)
+        
+        for (period, lottery), result in all_period_results.items():
+            for combo in result['all_combinations']:
+                for account in combo['accounts']:
+                    account_combinations[account].append({
+                        'period': period,
+                        'lottery': lottery,
+                        'combo_info': combo
+                    })
+        
+        # 显示汇总统计
+        st.subheader("📊 检测汇总")
+        total_combinations = sum(result['total_combinations'] for result in all_period_results.values())
+        total_filtered_accounts = sum(result['filtered_accounts'] for result in all_period_results.values())
+        total_periods = len(all_period_results)
+        total_lotteries = len(set(lottery for (_, lottery) in all_period_results.keys()))
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("总完美组合数", total_combinations)
+        with col2:
+            st.metric("分析期数", total_periods)
+        with col3:
+            st.metric("有效账户数", total_filtered_accounts)
+        with col4:
+            st.metric("涉及彩种", total_lotteries)
+        
+        # 显示账户统计
+        st.subheader("👥 参与账户统计")
+        account_stats = []
+        for account, combinations in account_combinations.items():
+            account_stats.append({
+                '账户': account,
+                '参与组合数': len(combinations),
+                '涉及期数': len(set(c['period'] for c in combinations)),
+                '涉及彩种': len(set(c['lottery'] for c in combinations))
+            })
+        
+        if account_stats:
+            df_stats = pd.DataFrame(account_stats).sort_values('参与组合数', ascending=False)
+            st.dataframe(df_stats, use_container_width=True, hide_index=True)
+        
+        # 按彩种和期号显示详细结果
+        st.subheader("📈 详细组合分析")
+        
+        for (period, lottery), result in all_period_results.items():
+            total_combinations = result['total_combinations']
+            
+            # 创建折叠筐，默认展开，标题合并彩种和期号
+            with st.expander(
+                f"🎯 {lottery} - 期号: {period}（{total_combinations}组）", 
+                expanded=True
+            ):
+                # 显示该期号的所有组合
+                for idx, combo in enumerate(result['all_combinations'], 1):
+                    accounts = combo['accounts']
+                    
+                    # 组合标题
+                    if len(accounts) == 2:
+                        st.markdown(f"**完美组合 {idx}:** {accounts[0]} ↔ {accounts[1]}")
+                    else:
+                        st.markdown(f"**完美组合 {idx}:** {' ↔ '.join(accounts)}")
+                    
+                    # 组合信息
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.write(f"**账户数量:** {combo['account_count']}个")
+                    with col2:
+                        st.write(f"**期号:** {period}")
+                    with col3:
+                        st.write(f"**总金额:** ¥{combo['total_amount']:,.2f}")
+                    with col4:
+                        similarity = combo['similarity']
+                        indicator = combo['similarity_indicator']
+                        st.write(f"**金额匹配度:** {similarity:.1f}% {indicator}")
+                    
+                    # 各账户详情
+                    st.write("**各账户详情:**")
+                    for account in accounts:
+                        amount_info = combo['individual_amounts'][account]
+                        avg_info = combo['individual_avg_per_number'][account]
+                        numbers = combo['bet_contents'][account]
+                        numbers_count = len(numbers.split(', '))
+                        
+                        st.write(f"- **{account}**: {numbers_count}个数字")
+                        st.write(f"  - 总投注: ¥{amount_info:,.2f}")
+                        st.write(f"  - 平均每号: ¥{avg_info:,.2f}")
+                        st.write(f"  - 投注内容: {numbers}")
+                    
+                    # 添加分隔线（除了最后一个）
+                    if idx < len(result['all_combinations']):
+                        st.markdown("---")
+
+    def enhanced_export(self, all_period_results):
+        """增强导出功能 - 借鉴第一套代码的导出逻辑"""
+        export_data = []
+        
+        for (period, lottery), result in all_period_results.items():
+            for combo in result['all_combinations']:
+                # 基础信息
+                export_record = {
+                    '期号': period,
+                    '彩种': lottery,
+                    '组合类型': f"{combo['account_count']}账户组合",
+                    '账户组合': ' ↔ '.join(combo['accounts']),
+                    '总投注金额': combo['total_amount'],
+                    '平均每号金额': combo['avg_amount_per_number'],
+                    '金额匹配度': f"{combo['similarity']:.1f}%",
+                    '匹配度等级': combo['similarity_indicator']
+                }
+                
+                # 各账户详情
+                for i, account in enumerate(combo['accounts'], 1):
+                    export_record[f'账户{i}'] = account
+                    export_record[f'账户{i}总金额'] = combo['individual_amounts'][account]
+                    export_record[f'账户{i}平均每号'] = combo['individual_avg_per_number'][account]
+                    export_record[f'账户{i}号码数量'] = len(combo['bet_contents'][account].split(', '))
+                    export_record[f'账户{i}投注内容'] = combo['bet_contents'][account]
+                
+                export_data.append(export_record)
+        
+        return pd.DataFrame(export_data)
+
+# ==================== Streamlit界面 ====================
 def main():
-    analyzer = StrictLotteryCoverageAnalyzer()
+    st.title("🎯 六合彩特码完美覆盖分析系统 - 增强版")
+    st.markdown("### 基于数学完备性的完美组合检测与汇总 - 融入智能优化")
+    
+    analyzer = EnhancedLotteryCoverageAnalyzer()
     
     # 侧边栏设置
     st.sidebar.header("⚙️ 分析参数设置")
@@ -398,7 +721,7 @@ def main():
         "账户投注号码数量阈值", 
         min_value=1, 
         max_value=30, 
-        value=11,
+        value=COVERAGE_CONFIG['min_number_count'],
         help="只分析投注号码数量大于等于此值的账户"
     )
     
@@ -406,10 +729,13 @@ def main():
         "平均每号金额阈值", 
         min_value=0, 
         max_value=10, 
-        value=2,
+        value=COVERAGE_CONFIG['min_avg_amount'],
         step=1,
         help="只分析平均每号金额大于等于此值的账户"
     )
+    
+    # 调试模式
+    debug_mode = st.sidebar.checkbox("调试模式", value=False)
     
     st.sidebar.markdown("---")
     
@@ -417,7 +743,8 @@ def main():
     st.sidebar.header("📁 数据上传")
     uploaded_file = st.sidebar.file_uploader(
         "上传投注数据文件", 
-        type=['csv', 'xlsx', 'xls']
+        type=['csv', 'xlsx', 'xls'],
+        help="请上传包含彩票投注数据的Excel或CSV文件"
     )
     
     if uploaded_file is not None:
@@ -433,8 +760,9 @@ def main():
             # 显示当前阈值设置
             st.info(f"📊 当前分析参数: 号码数量阈值 ≥ {min_number_count}, 平均金额阈值 ≥ {min_avg_amount}")
             
-            # 严格版列名映射 - 隐藏详细过程
-            column_mapping = analyzer.strict_column_mapping(df)
+            # 增强版列名映射
+            with st.spinner("正在进行列名识别..."):
+                column_mapping = analyzer.enhanced_column_mapping(df)
             
             if column_mapping is None:
                 st.error("❌ 列名映射失败，无法继续分析")
@@ -443,6 +771,10 @@ def main():
             df = df.rename(columns=column_mapping)
             st.success("✅ 列名映射完成")
 
+            # 数据质量验证
+            with st.spinner("正在进行数据质量验证..."):
+                quality_issues = analyzer.validate_data_quality(df)
+            
             # 数据清理
             required_columns = ['会员账号', '彩种', '期号', '玩法', '内容']
             available_columns = [col for col in required_columns if col in df.columns]
@@ -461,9 +793,15 @@ def main():
                 for col in available_columns:
                     df_clean[col] = df_clean[col].astype(str).str.strip()
                 
+                # 统一玩法分类
+                with st.spinner("正在统一玩法分类..."):
+                    df_clean['玩法'] = df_clean['玩法'].apply(analyzer.normalize_play_category)
+                
                 if has_amount_column:
                     # 应用金额提取
-                    df_clean['投注金额'] = df_clean['金额'].apply(analyzer.extract_bet_amount)
+                    with st.spinner("正在提取金额数据..."):
+                        df_clean['投注金额'] = df_clean['金额'].apply(analyzer.cached_extract_amount)
+                    
                     total_bet_amount = df_clean['投注金额'].sum()
                     valid_amount_count = (df_clean['投注金额'] > 0).sum()
                     
@@ -471,19 +809,21 @@ def main():
                     st.info(f"📊 有效金额记录: {valid_amount_count:,} / {len(df_clean):,}")
 
                 # 显示数据预览
-                with st.expander("📊 数据预览"):
+                with st.expander("📊 数据预览", expanded=False):
                     st.dataframe(df_clean.head(10))
                     st.write(f"数据形状: {df_clean.shape}")
                     
                     # 显示彩种分布
                     if '彩种' in df_clean.columns:
                         st.write("🎲 彩种分布:")
-                        st.write(df_clean['彩种'].value_counts())
+                        lottery_dist = df_clean['彩种'].value_counts()
+                        st.dataframe(lottery_dist.reset_index().rename(columns={'index': '彩种', '彩种': '数量'}))
                     
                     # 显示玩法分布
                     if '玩法' in df_clean.columns:
                         st.write("🎯 玩法分布:")
-                        st.write(df_clean['玩法'].value_counts())
+                        play_dist = df_clean['玩法'].value_counts()
+                        st.dataframe(play_dist.reset_index().rename(columns={'index': '玩法', '玩法': '数量'}))
                     
                     # 显示金额分布
                     if has_amount_column:
@@ -494,15 +834,18 @@ def main():
                         st.write(f"- 最小单注: {df_clean['投注金额'].min():.2f} 元")
 
                 # 筛选特码数据
-                df_target = df_clean[
-                    (df_clean['彩种'].isin(analyzer.target_lotteries)) & 
-                    (df_clean['玩法'] == '特码')
-                ]
+                df_target = df_clean[df_clean['玩法'] == '特码']
+                
+                # 增强彩种识别
+                with st.spinner("正在识别六合彩数据..."):
+                    df_target['彩种识别'] = df_target['彩种'].apply(analyzer.identify_lottery_type)
+                    df_target = df_target[df_target['彩种识别'].notna()]
+                    df_target = df_target.drop('彩种识别', axis=1)
                 
                 st.write(f"✅ 特码玩法数据行数: {len(df_target):,}")
 
                 if len(df_target) == 0:
-                    st.error("❌ 未找到特码玩法数据")
+                    st.error("❌ 未找到符合条件的特码玩法数据")
                     st.info("""
                     **可能原因:**
                     1. 彩种名称不匹配 - 当前支持的六合彩类型:
@@ -511,175 +854,114 @@ def main():
                        - 香港⑥合彩, 分分六合彩, 台湾大乐透
                        - 大发六合彩, 快乐6合彩
                     
-                    2. 玩法名称不是'特码'
+                    2. 玩法名称不是'特码'或相关变体
                     3. 数据格式问题
                     """)
                     return
 
-                # 分析数据
-                grouped = df_target.groupby(['期号', '彩种'])
-                all_period_results = {}
-                
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                total_groups = len(grouped)
-                
-                for idx, ((period, lottery), group) in enumerate(grouped):
-                    status_text.text(f"分析进度: {idx+1}/{total_groups} (期号: {period})")
-                    progress_bar.progress((idx+1) / total_groups)
-                    
-                    if len(group) >= 2:
-                        result = analyzer.analyze_period_lottery(
-                            group, period, lottery, min_number_count, min_avg_amount
-                        )
-                        if result:
-                            all_period_results[(period, lottery)] = result
+                # 分析数据 - 使用增强版分析
+                with st.spinner("正在进行完美覆盖分析..."):
+                    all_period_results = analyzer.analyze_with_progress(
+                        df_target, min_number_count, min_avg_amount
+                    )
 
-                progress_bar.empty()
-                status_text.empty()
-
-                # 显示结果 - 采用合并的层级结构
+                # 显示结果 - 使用增强版展示
                 st.header("📊 完美覆盖组合检测结果")
+                analyzer.display_enhanced_results(all_period_results)
                 
+                # 导出功能
                 if all_period_results:
-                    # 汇总统计
-                    total_combinations = 0
-                    total_filtered_accounts = 0
-                    
-                    for (period, lottery), result in all_period_results.items():
-                        total_combinations += result['total_combinations']
-                        total_filtered_accounts += result['filtered_accounts']
-                    
-                    # 显示汇总信息
-                    st.subheader("📈 检测汇总")
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("总完美组合数", total_combinations)
-                    with col2:
-                        st.metric("分析期数", len(all_period_results))
-                    with col3:
-                        st.metric("有效账户数", total_filtered_accounts)
-                    with col4:
-                        st.metric("涉及彩种", len(set([lottery for (_, lottery) in all_period_results.keys()])))
-                    
-                    # 按彩种和期号显示结果 - 合并层级
-                    for (period, lottery), result in all_period_results.items():
-                        total_combinations = result['total_combinations']
-                        
-                        # 创建折叠筐，默认展开，标题合并彩种和期号
-                        with st.expander(
-                            f"🎯 {lottery} - 期号: {period}（{total_combinations}组）", 
-                            expanded=True
-                        ):
-                            # 显示该期号的所有组合
-                            for idx, combo in enumerate(result['all_combinations'], 1):
-                                accounts = combo['accounts']
-                                
-                                # 组合标题
-                                if len(accounts) == 2:
-                                    st.markdown(f"**完美组合 {idx}:** {accounts[0]} ↔ {accounts[1]}")
-                                else:
-                                    st.markdown(f"**完美组合 {idx}:** {' ↔ '.join(accounts)}")
-                                
-                                # 组合信息
-                                col1, col2, col3, col4 = st.columns(4)
-                                with col1:
-                                    st.write(f"**账户数量:** {combo['account_count']}个")
-                                with col2:
-                                    st.write(f"**期号:** {period}")
-                                with col3:
-                                    if has_amount_column:
-                                        st.write(f"**总金额:** ¥{combo['total_amount']:,.2f}")
-                                with col4:
-                                    similarity = combo['similarity']
-                                    indicator = combo['similarity_indicator']
-                                    st.write(f"**金额匹配度:** {similarity:.1f}% {indicator}")
-                                
-                                # 各账户详情
-                                st.write("**各账户详情:**")
-                                for account in accounts:
-                                    amount_info = combo['individual_amounts'][account]
-                                    avg_info = combo['individual_avg_per_number'][account]
-                                    numbers = combo['bet_contents'][account]
-                                    numbers_count = len(numbers.split(', '))
-                                    
-                                    st.write(f"- **{account}**: {numbers_count}个数字")
-                                    if has_amount_column:
-                                        st.write(f"  - 总投注: ¥{amount_info:,.2f}")
-                                        st.write(f"  - 平均每号: ¥{avg_info:,.2f}")
-                                    st.write(f"  - 投注内容: {numbers}")
-                                
-                                # 添加分隔线（除了最后一个）
-                                if idx < len(result['all_combinations']):
-                                    st.markdown("---")
-                    
-                    # 导表功能
                     st.markdown("---")
                     st.subheader("📥 数据导出")
                     
-                    if st.button("📊 导出完美组合数据"):
-                        download_df = create_download_data(all_period_results)
+                    if st.button("📊 生成完美组合数据报告"):
+                        download_df = analyzer.enhanced_export(all_period_results)
                         
                         # 转换为Excel
                         output = BytesIO()
                         with pd.ExcelWriter(output, engine='openpyxl') as writer:
                             download_df.to_excel(writer, index=False, sheet_name='完美组合数据')
+                            
+                            # 添加统计工作表
+                            account_stats = []
+                            for (period, lottery), result in all_period_results.items():
+                                for combo in result['all_combinations']:
+                                    for account in combo['accounts']:
+                                        account_stats.append({
+                                            '账户': account,
+                                            '期号': period,
+                                            '彩种': lottery,
+                                            '组合类型': f"{combo['account_count']}账户组合"
+                                        })
+                            
+                            if account_stats:
+                                df_account_stats = pd.DataFrame(account_stats)
+                                df_account_stats.to_excel(writer, index=False, sheet_name='账户参与统计')
                         
                         # 提供下载
                         st.download_button(
-                            label="📥 下载Excel文件",
+                            label="📥 下载完整分析报告",
                             data=output.getvalue(),
-                            file_name=f"六合彩完美组合分析_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                            file_name=f"六合彩完美组合分析报告_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
                         
                         st.success("✅ 数据导出准备完成！")
                 
-                else:
-                    st.error("❌ 未找到完美覆盖组合")
-                    st.info(f"""
-                    **可能原因:**
-                    - 有效账户数量不足（当前阈值: 号码数量 ≥ {min_number_count}, 平均金额 ≥ {min_avg_amount}）
-                    - 账户投注号码无法形成完美覆盖
-                    - 数据质量需要检查
-                    
-                    **建议:**
-                    - 尝试降低阈值设置
-                    - 检查数据质量
-                    """)
-            
             else:
                 st.error(f"❌ 缺少必要数据列，可用列: {available_columns}")
                 st.info("💡 请确保文件包含以下必要列:")
                 for col in ['会员账号', '彩种', '期号', '玩法', '内容']:
-                    st.write(f"- {col}: {analyzer.column_mappings[col]}")
+                    st.write(f"- {col}")
         
         except Exception as e:
             st.error(f"❌ 处理文件时出错: {str(e)}")
-            import traceback
-            st.code(traceback.format_exc())
+            if debug_mode:
+                import traceback
+                st.code(traceback.format_exc())
     
     else:
-        st.info("💡 **六合彩完美覆盖分析系统**")
+        st.info("💡 **六合彩完美覆盖分析系统 - 增强版**")
         st.markdown("""
-        ### 系统功能:
-        - 🎯 **严格列名识别**: 只识别指定的列名格式
-        - 💰 **金额提取**: 支持多种金额格式
-        - ⚙️ **参数调节**: 可调节号码数量和金额阈值
-        - 📊 **结果汇总**: 按彩种和期号分类显示检测结果
-        - 📥 **数据导出**: 一键导出所有完美组合数据
-        
-        ### 支持的列名格式:
+        ### 🚀 系统特色功能:
+
+        **🔍 智能数据识别**
+        - ✅ 增强列名识别：支持多种列名变体
+        - 📊 数据质量验证：完整的数据检查流程
+        - 🎯 玩法分类统一：智能识别特码玩法
+        - 💰 金额提取优化：支持多种金额格式
+
+        **⚡ 性能优化**
+        - 🔄 缓存机制：号码和金额提取缓存
+        - 📈 进度显示：实时分析进度
+        - 🎨 界面优化：现代化Streamlit界面
+
+        **📊 分析增强**
+        - 👥 账户聚合视图：按账户统计参与情况
+        - 📋 详细组合分析：完整的组合信息展示
+        - 📊 汇总统计：多维度数据统计
+
+        **📥 导出功能**
+        - 📋 完整报告：包含详细数据和统计
+        - 📊 多工作表：数据明细和统计分离
+        - ⏱️ 时间戳：自动生成时间戳文件名
+
+        ### 📝 支持的列名格式:
         """)
         
         for standard_col, possible_names in analyzer.column_mappings.items():
-            st.write(f"- **{standard_col}**: {', '.join(possible_names)}")
+            st.write(f"- **{standard_col}**: {', '.join(possible_names[:3])}{'...' if len(possible_names) > 3 else ''}")
         
         st.markdown("""
-        ### 数据要求:
-        - 必须包含: 会员账号, 彩种, 期号, 玩法, 内容
-        - 玩法必须为'特码'
-        - 彩种必须是六合彩类型
+        ### 🎯 数据要求:
+        - ✅ 必须包含: 会员账号, 彩种, 期号, 玩法, 内容
+        - ✅ 玩法必须为'特码'或相关变体
+        - ✅ 彩种必须是六合彩类型
+        - 💰 可选包含金额列进行深度分析
+
+        ### ⚙️ 分析原理:
+        系统检测同一期号内不同账户的投注号码是否形成完美覆盖（1-49全部覆盖），
+        并分析各账户的投注金额匹配度，识别可疑的协同投注行为。
         """)
 
 if __name__ == "__main__":
