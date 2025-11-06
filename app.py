@@ -86,7 +86,7 @@ class MultiLotteryCoverageAnalyzer:
                 'number_range': set(range(1, 11)),  # 1-10 修正为1-10
                 'total_numbers': 10,
                 'type_name': '10个号码彩种',
-                'play_keywords': ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎', '第一名', '第二名', '第三名', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名']
+                'play_keywords': ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎', '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '第一名', '第二名', '第三名']
             }
         }
         
@@ -117,19 +117,22 @@ class MultiLotteryCoverageAnalyzer:
             '特马': '特码',
             '特碼': '特码',
             
-            # 时时彩/PK10/赛车玩法
+            # 时时彩/PK10/赛车玩法 - 增加冠军、亚军、季军等
             '定位胆': '定位胆',
             '一字定位': '定位胆',
             '一字': '定位胆',
             '定位': '定位胆',
             '大小单双': '定位胆',
             '龙虎': '定位胆',
+            '冠军': '定位胆',
+            '亚军': '定位胆',
+            '季军': '定位胆',
             '第一名': '定位胆',
             '第二名': '定位胆', 
             '第三名': '定位胆',
             '第四名': '定位胆',
             '第五名': '定位胆',
-            '第六名': '定位胆',  # 添加第六名
+            '第六名': '定位胆',
             '第七名': '定位胆',
             '第八名': '定位胆',
             '第九名': '定位胆',
@@ -285,8 +288,8 @@ class MultiLotteryCoverageAnalyzer:
             # 增强赛车玩法识别
             if any(word in play_lower for word in ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎']):
                 return '定位胆'
-            # 识别名次玩法（第一名到第十名）
-            if re.search(r'第[一二三四五六七八九十]名', play_str) or re.search(r'第\d+名', play_str):
+            # 识别名次玩法（冠军、亚军、季军、第一名到第十名）
+            if re.search(r'冠\s*军|亚\s*军|季\s*军', play_str) or re.search(r'第[一二三四五六七八九十]名', play_str) or re.search(r'第\d+名', play_str):
                 return '定位胆'
         
         return play_str
@@ -657,7 +660,7 @@ class MultiLotteryCoverageAnalyzer:
         return all_period_results
 
     def display_enhanced_results(self, all_period_results):
-        """增强结果展示 - 支持多种彩种"""
+        """增强结果展示 - 支持多种彩种，按彩种、账户、期号分类展示"""
         if not all_period_results:
             st.info("🎉 未发现完美覆盖组合")
             return
@@ -731,8 +734,29 @@ class MultiLotteryCoverageAnalyzer:
             df_stats = pd.DataFrame(account_stats).sort_values('参与组合数', ascending=False)
             st.dataframe(df_stats, use_container_width=True, hide_index=True)
         
-        # 按彩种和期号显示详细结果
+        # 按彩种、账户、期号分类展示详细结果
         st.subheader("📈 详细组合分析")
+        
+        # 添加展示方式选择
+        display_mode = st.radio(
+            "选择展示方式:",
+            ["按彩种和期号", "按账户", "按期号"],
+            horizontal=True
+        )
+        
+        if display_mode == "按彩种和期号":
+            self._display_by_lottery_period(all_period_results)
+        elif display_mode == "按账户":
+            self._display_by_account(account_combinations)
+        elif display_mode == "按期号":
+            self._display_by_period(all_period_results)
+
+    def _display_by_lottery_period(self, all_period_results):
+        """按彩种和期号展示"""
+        category_display = {
+            'six_mark': '六合彩',
+            '10_number': '时时彩/PK10/赛车'
+        }
         
         for (period, lottery), result in all_period_results.items():
             total_combinations = result['total_combinations']
@@ -784,6 +808,112 @@ class MultiLotteryCoverageAnalyzer:
                     # 添加分隔线（除了最后一个）
                     if idx < len(result['all_combinations']):
                         st.markdown("---")
+
+    def _display_by_account(self, account_combinations):
+        """按账户展示"""
+        category_display = {
+            'six_mark': '六合彩',
+            '10_number': '时时彩/PK10/赛车'
+        }
+        
+        for account, combinations in sorted(account_combinations.items(), key=lambda x: len(x[1]), reverse=True):
+            with st.expander(
+                f"👤 {account}（参与{len(combinations)}个组合）", 
+                expanded=False
+            ):
+                # 按彩种和期号分组显示
+                account_periods = defaultdict(list)
+                for combo in combinations:
+                    key = (combo['period'], combo['lottery'])
+                    account_periods[key].append(combo)
+                
+                for (period, lottery), combos in account_periods.items():
+                    st.write(f"**期号:** {period} | **彩种:** {lottery}")
+                    
+                    for idx, combo_data in enumerate(combos):
+                        combo = combo_data['combo_info']
+                        lottery_category = combo_data['lottery_category']
+                        category_name = category_display.get(lottery_category, lottery_category)
+                        
+                        # 组合信息
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.write(f"**组合类型:** {combo['account_count']}账户")
+                        with col2:
+                            st.write(f"**彩种类型:** {category_name}")
+                        with col3:
+                            st.write(f"**总金额:** ¥{combo['total_amount']:,.2f}")
+                        with col4:
+                            similarity = combo['similarity']
+                            indicator = combo['similarity_indicator']
+                            st.write(f"**匹配度:** {similarity:.1f}% {indicator}")
+                        
+                        # 显示其他账户
+                        other_accounts = [acc for acc in combo['accounts'] if acc != account]
+                        st.write(f"**合作账户:** {', '.join(other_accounts)}")
+                        
+                        # 当前账户详情
+                        amount_info = combo['individual_amounts'][account]
+                        avg_info = combo['individual_avg_per_number'][account]
+                        numbers = combo['bet_contents'][account]
+                        numbers_count = len(numbers.split(', '))
+                        
+                        st.write(f"**投注详情:** {numbers_count}个数字，总投注: ¥{amount_info:,.2f}，平均每号: ¥{avg_info:,.2f}")
+                        st.write(f"**投注内容:** {numbers}")
+                        
+                        if idx < len(combos) - 1:
+                            st.markdown("---")
+
+    def _display_by_period(self, all_period_results):
+        """按期号展示"""
+        category_display = {
+            'six_mark': '六合彩',
+            '10_number': '时时彩/PK10/赛车'
+        }
+        
+        # 按期号分组
+        period_groups = defaultdict(list)
+        for (period, lottery), result in all_period_results.items():
+            period_groups[period].append((lottery, result))
+        
+        for period, lottery_results in sorted(period_groups.items()):
+            total_combinations_period = sum(result['total_combinations'] for _, result in lottery_results)
+            
+            with st.expander(
+                f"📅 期号: {period}（{total_combinations_period}组完美组合）", 
+                expanded=False
+            ):
+                for lottery, result in lottery_results:
+                    total_combinations = result['total_combinations']
+                    lottery_category = result['lottery_category']
+                    category_name = category_display.get(lottery_category, lottery_category)
+                    
+                    st.write(f"**彩种:** {lottery}（{category_name}） - {total_combinations}组完美组合")
+                    
+                    for idx, combo in enumerate(result['all_combinations'], 1):
+                        accounts = combo['accounts']
+                        
+                        # 组合信息
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.write(f"**组合 {idx}:** {' ↔ '.join(accounts)}")
+                        with col2:
+                            st.write(f"**账户数:** {combo['account_count']}个")
+                        with col3:
+                            similarity = combo['similarity']
+                            indicator = combo['similarity_indicator']
+                            st.write(f"**匹配度:** {similarity:.1f}% {indicator}")
+                        
+                        # 各账户投注统计
+                        st.write("**投注统计:**")
+                        for account in accounts:
+                            amount_info = combo['individual_amounts'][account]
+                            numbers = combo['bet_contents'][account]
+                            numbers_count = len(numbers.split(', '))
+                            st.write(f"- {account}: {numbers_count}个号码，¥{amount_info:,.2f}")
+                        
+                        if idx < len(result['all_combinations']):
+                            st.markdown("---")
 
     def enhanced_export(self, all_period_results):
         """增强导出功能 - 支持多种彩种"""
@@ -980,7 +1110,10 @@ def main():
                        - **六合彩**: 新澳门六合彩, 澳门六合彩, 香港六合彩等
                        - **时时彩/PK10/赛车**: 时时彩, PK10, 赛车, 幸运28等
                     
-                    2. 玩法名称不匹配
+                    2. 玩法名称不匹配 - 当前支持的玩法:
+                       - **六合彩**: 特码
+                       - **时时彩/PK10/赛车**: 定位胆、冠军、亚军、季军、第一名到第十名
+                    
                     3. 数据格式问题
                     """)
                     return
