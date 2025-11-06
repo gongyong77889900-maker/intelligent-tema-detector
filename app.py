@@ -22,12 +22,10 @@ COVERAGE_CONFIG = {
     'min_number_count': {
         'six_mark': 11,  # 六合彩
         '10_number': 3,   # 10个号码的彩种
-        '5_number': 2     # 5个号码的彩种
     },
     'min_avg_amount': {
         'six_mark': 2,
         '10_number': 1,
-        '5_number': 0.5
     },
     'similarity_thresholds': {
         'excellent': 90,
@@ -45,11 +43,6 @@ COVERAGE_CONFIG = {
             '分分时时彩', '五分时时彩', '三分时时彩', '北京时时彩',
             'PK10', '北京PK10', 'PK拾', '幸运PK10', '赛车',
             '幸运28', '北京28', '加拿大28', '极速PK10', '分分PK10'
-        ],
-        '5_number': [
-            '11选5', '广东11选5', '山东11选5', '江西11选5',
-            '江苏11选5', '上海11选5', '浙江11选5', '安徽11选5',
-            '分分11选5', '五分11选5', '三分11选5'
         ]
     }
 }
@@ -78,7 +71,7 @@ logger = setup_logging()
 
 # ==================== 全彩种分析器 ====================
 class MultiLotteryCoverageAnalyzer:
-    """全彩种覆盖分析器 - 支持六合彩、时时彩、PK10、11选5等"""
+    """全彩种覆盖分析器 - 支持六合彩、时时彩、PK10等"""
     
     def __init__(self):
         # 定义各彩种的号码范围
@@ -94,12 +87,6 @@ class MultiLotteryCoverageAnalyzer:
                 'total_numbers': 10,
                 'type_name': '10个号码彩种',
                 'play_keywords': ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎']
-            },
-            '5_number': {
-                'number_range': set(range(1, 12)),  # 1-11
-                'total_numbers': 11,
-                'type_name': '11选5',
-                'play_keywords': ['任选一', '任选二', '任选三', '任选四', '任选五', '任选六', '任选七', '任选八']
             }
         }
         
@@ -136,17 +123,7 @@ class MultiLotteryCoverageAnalyzer:
             '一字': '定位胆',
             '定位': '定位胆',
             '大小单双': '定位胆',
-            '龙虎': '定位胆',
-            
-            # 11选5玩法
-            '任选一': '任选一',
-            '任选二': '任选二',
-            '任选三': '任选三',
-            '任选四': '任选四',
-            '任选五': '任选五',
-            '任选六': '任选六',
-            '任选七': '任选七',
-            '任选八': '任选八'
+            '龙虎': '定位胆'
         }
     
     def identify_lottery_category(self, lottery_name):
@@ -163,11 +140,6 @@ class MultiLotteryCoverageAnalyzer:
             if lottery.lower() in lottery_str:
                 return '10_number'
         
-        # 检查5个号码的彩种
-        for lottery in self.target_lotteries['5_number']:
-            if lottery.lower() in lottery_str:
-                return '5_number'
-        
         # 模糊匹配
         if any(word in lottery_str for word in ['六合', 'lhc', '⑥合', '6合']):
             return 'six_mark'
@@ -175,8 +147,6 @@ class MultiLotteryCoverageAnalyzer:
             return '10_number'
         elif any(word in lottery_str for word in ['pk10', 'pk拾', '赛车']):
             return '10_number'
-        elif any(word in lottery_str for word in ['11选5', '11x5']):
-            return '5_number'
         elif any(word in lottery_str for word in ['28', '幸运28']):
             return '10_number'
         
@@ -304,11 +274,6 @@ class MultiLotteryCoverageAnalyzer:
         elif lottery_category == '10_number':
             if any(word in play_lower for word in ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎']):
                 return '定位胆'
-        elif lottery_category == '5_number':
-            if any(word in play_lower for word in ['任选一', '任选二', '任选三', '任选四', '任选五']):
-                for i in range(1, 9):
-                    if f'任选{i}' in play_lower:
-                        return f'任选{i}'
         
         return play_str
     
@@ -712,11 +677,11 @@ class MultiLotteryCoverageAnalyzer:
         
         category_display = {
             'six_mark': '六合彩',
-            '10_number': '时时彩/PK10',
-            '5_number': '11选5'
+            '10_number': '时时彩/PK10'
         }
         
-        for i, (category, stats) in enumerate(lottery_category_stats.items()):
+        stats_items = list(lottery_category_stats.items())
+        for i, (category, stats) in enumerate(stats_items):
             with [col1, col2, col3, col4][i % 4]:
                 st.metric(
                     label=category_display.get(category, category),
@@ -817,8 +782,7 @@ class MultiLotteryCoverageAnalyzer:
         
         category_display = {
             'six_mark': '六合彩',
-            '10_number': '时时彩/PK10',
-            '5_number': '11选5'
+            '10_number': '时时彩/PK10'
         }
         
         for (period, lottery), result in all_period_results.items():
@@ -855,7 +819,7 @@ class MultiLotteryCoverageAnalyzer:
 # ==================== Streamlit界面 ====================
 def main():
     st.title("🎯 彩票完美覆盖分析系统 - 全彩种增强版")
-    st.markdown("### 支持六合彩、时时彩、PK10、11选5等多种彩票的智能对刷检测")
+    st.markdown("### 支持六合彩、时时彩、PK10等多种彩票的智能对刷检测")
     
     analyzer = MultiLotteryCoverageAnalyzer()
     
@@ -865,11 +829,11 @@ def main():
     # 彩种选择
     selected_lottery_type = st.sidebar.selectbox(
         "选择彩种类型",
-        ['六合彩', '时时彩/PK10', '11选5', '自动识别'],
+        ['六合彩', '时时彩/PK10', '自动识别'],
         help="选择要分析的彩种类型，或选择自动识别"
     )
     
-    # 根据彩种类型设置阈值
+    # 根据彩种类型设置阈值 - 修复滑块问题
     if selected_lottery_type == '六合彩':
         min_number_count = st.sidebar.slider(
             "账户投注号码数量阈值", 
@@ -906,26 +870,9 @@ def main():
             help="只分析平均每号金额大于等于此值的账户"
         )
     
-    elif selected_lottery_type == '11选5':
-        min_number_count = st.sidebar.slider(
-            "账户投注号码数量阈值", 
-            min_value=1, 
-            max_value=11, 
-            value=COVERAGE_CONFIG['min_number_count']['5_number'],
-            help="只分析投注号码数量大于等于此值的账户"
-        )
-        
-        min_avg_amount = st.sidebar.slider(
-            "平均每号金额阈值", 
-            min_value=0, 
-            max_value=3, 
-            value=COVERAGE_CONFIG['min_avg_amount']['5_number'],
-            step=0.5,
-            help="只分析平均每号金额大于等于此值的账户"
-        )
-    
     else:  # 自动识别
-        min_number_count = st.sidebar.slider(
+        # 使用数字输入框而不是滑块，避免step问题
+        min_number_count = st.sidebar.number_input(
             "账户投注号码数量阈值", 
             min_value=1, 
             max_value=30, 
@@ -933,11 +880,11 @@ def main():
             help="只分析投注号码数量大于等于此值的账户"
         )
         
-        min_avg_amount = st.sidebar.slider(
+        min_avg_amount = st.sidebar.number_input(
             "平均每号金额阈值", 
-            min_value=0, 
-            max_value=10, 
-            value=1,
+            min_value=0.0, 
+            max_value=10.0, 
+            value=1.0,
             step=0.5,
             help="只分析平均每号金额大于等于此值的账户"
         )
@@ -1034,8 +981,7 @@ def main():
                         lottery_type_dist = df_clean['彩种类型'].value_counts()
                         display_dist = lottery_type_dist.rename({
                             'six_mark': '六合彩',
-                            '10_number': '时时彩/PK10', 
-                            '5_number': '11选5'
+                            '10_number': '时时彩/PK10'
                         })
                         st.dataframe(display_dist.reset_index().rename(columns={'index': '彩种类型', '彩种类型': '数量'}))
                     
@@ -1054,7 +1000,7 @@ def main():
                         st.write(f"- 最小单注: {df_clean['投注金额'].min():.2f} 元")
 
                 # 筛选有效玩法数据
-                valid_plays = ['特码', '定位胆', '任选一', '任选二', '任选三', '任选四', '任选五', '任选六', '任选七', '任选八']
+                valid_plays = ['特码', '定位胆']
                 df_target = df_clean[df_clean['玩法'].isin(valid_plays)]
                 
                 # 筛选支持的彩种
@@ -1069,7 +1015,6 @@ def main():
                     1. 彩种名称不匹配 - 当前支持的彩种类型:
                        - **六合彩**: 新澳门六合彩, 澳门六合彩, 香港六合彩等
                        - **时时彩/PK10**: 时时彩, PK10, 幸运28等
-                       - **11选5**: 11选5系列
                     
                     2. 玩法名称不匹配
                     3. 数据格式问题
@@ -1146,7 +1091,6 @@ def main():
         **🎲 全彩种支持**
         - ✅ **六合彩**: 1-49个号码，特码玩法
         - ✅ **时时彩/PK10**: 0-9共10个号码，定位胆玩法  
-        - ✅ **11选5**: 1-11共11个号码，任选玩法
         - 🔄 **自动识别**: 智能识别彩种类型
 
         **🔍 智能数据识别**
@@ -1174,10 +1118,6 @@ def main():
         **时时彩/PK10 (10个号码)**  
         - 检测定位胆玩法中，不同账户是否覆盖全部10个号码（0-9）
         - 识别对刷行为：多个账户合作覆盖所有号码
-
-        **11选5 (11个号码)**
-        - 检测任选玩法中，不同账户是否覆盖全部11个号码（1-11）
-        - 分析投注模式，识别协同投注行为
 
         ### 📝 支持的列名格式:
         """)
