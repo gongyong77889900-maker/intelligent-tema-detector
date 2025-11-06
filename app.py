@@ -12,7 +12,7 @@ from functools import lru_cache
 
 # 设置页面
 st.set_page_config(
-    page_title="彩票完美覆盖分析系统 - 全彩种增强版",
+    page_title="彩票完美覆盖分析系统 - 位置精准分析版",
     page_icon="🎯",
     layout="wide"
 )
@@ -124,19 +124,33 @@ class MultiLotteryCoverageAnalyzer:
             '定位': '定位胆',
             '大小单双': '定位胆',
             '龙虎': '定位胆',
-            '冠军': '定位胆',
-            '亚军': '定位胆',
-            '季军': '定位胆',
-            '第一名': '定位胆',
-            '第二名': '定位胆', 
-            '第三名': '定位胆',
-            '第四名': '定位胆',
-            '第五名': '定位胆',
-            '第六名': '定位胆',
-            '第七名': '定位胆',
-            '第八名': '定位胆',
-            '第九名': '定位胆',
-            '第十名': '定位胆'
+            '冠军': '冠军',
+            '亚军': '亚军',
+            '季军': '季军',
+            '第一名': '第一名',
+            '第二名': '第二名', 
+            '第三名': '第三名',
+            '第四名': '第四名',
+            '第五名': '第五名',
+            '第六名': '第六名',
+            '第七名': '第七名',
+            '第八名': '第八名',
+            '第九名': '第九名',
+            '第十名': '第十名'
+        }
+        
+        # 位置映射 - 将不同写法映射到标准位置
+        self.position_mapping = {
+            '冠军': ['冠军', '第一名', '1st'],
+            '亚军': ['亚军', '第二名', '2nd'],
+            '季军': ['季军', '第三名', '3rd'],
+            '第四名': ['第四名', '第四位', '4th'],
+            '第五名': ['第五名', '第五位', '5th'],
+            '第六名': ['第六名', '第六位', '6th'],
+            '第七名': ['第七名', '第七位', '7th'],
+            '第八名': ['第八名', '第八位', '8th'],
+            '第九名': ['第九名', '第九位', '9th'],
+            '第十名': ['第十名', '第十位', '10th']
         }
     
     def identify_lottery_category(self, lottery_name):
@@ -264,6 +278,46 @@ class MultiLotteryCoverageAnalyzer:
         
         return issues
     
+    def normalize_position(self, play_method):
+        """统一位置名称 - 将不同写法映射到标准位置"""
+        play_str = str(play_method).strip()
+        
+        # 直接映射
+        for standard_pos, variants in self.position_mapping.items():
+            if play_str in variants:
+                return standard_pos
+        
+        # 关键词匹配
+        for standard_pos, variants in self.position_mapping.items():
+            for variant in variants:
+                if variant in play_str:
+                    return standard_pos
+        
+        # 智能匹配
+        play_lower = play_str.lower()
+        if '冠军' in play_lower or '第一名' in play_lower or '1st' in play_lower:
+            return '冠军'
+        elif '亚军' in play_lower or '第二名' in play_lower or '2nd' in play_lower:
+            return '亚军'
+        elif '季军' in play_lower or '第三名' in play_lower or '3rd' in play_lower:
+            return '季军'
+        elif '第四名' in play_lower or '第四位' in play_lower or '4th' in play_lower:
+            return '第四名'
+        elif '第五名' in play_lower or '第五位' in play_lower or '5th' in play_lower:
+            return '第五名'
+        elif '第六名' in play_lower or '第六位' in play_lower or '6th' in play_lower:
+            return '第六名'
+        elif '第七名' in play_lower or '第七位' in play_lower or '7th' in play_lower:
+            return '第七名'
+        elif '第八名' in play_lower or '第八位' in play_lower or '8th' in play_lower:
+            return '第八名'
+        elif '第九名' in play_lower or '第九位' in play_lower or '9th' in play_lower:
+            return '第九名'
+        elif '第十名' in play_lower or '第十位' in play_lower or '10th' in play_lower:
+            return '第十名'
+        
+        return play_str
+    
     def normalize_play_category(self, play_method, lottery_category='six_mark'):
         """统一玩法分类 - 根据彩种类型，特别增强赛车玩法识别"""
         play_str = str(play_method).strip()
@@ -290,7 +344,8 @@ class MultiLotteryCoverageAnalyzer:
                 return '定位胆'
             # 识别名次玩法（冠军、亚军、季军、第一名到第十名）
             if re.search(r'冠\s*军|亚\s*军|季\s*军', play_str) or re.search(r'第[一二三四五六七八九十]名', play_str) or re.search(r'第\d+名', play_str):
-                return '定位胆'
+                # 使用位置标准化函数
+                return self.normalize_position(play_str)
         
         return play_str
     
@@ -537,8 +592,8 @@ class MultiLotteryCoverageAnalyzer:
         
         return all_results
 
-    def analyze_period_lottery(self, group, period, lottery, min_number_count, min_avg_amount):
-        """分析特定期数和彩种 - 支持多种彩种"""
+    def analyze_period_lottery_position(self, group, period, lottery, position, min_number_count, min_avg_amount):
+        """分析特定期数、彩种和位置 - 支持精准位置分析"""
         has_amount_column = '金额' in group.columns
         
         # 识别彩种类型
@@ -619,6 +674,7 @@ class MultiLotteryCoverageAnalyzer:
             return {
                 'period': period,
                 'lottery': lottery,
+                'position': position,
                 'lottery_category': lottery_category,
                 'total_combinations': total_combinations,
                 'all_combinations': all_combinations,
@@ -628,9 +684,15 @@ class MultiLotteryCoverageAnalyzer:
         
         return None
 
-    def analyze_with_progress(self, df_target, min_number_count, min_avg_amount):
-        """带进度显示的分析"""
-        grouped = df_target.groupby(['期号', '彩种'])
+    def analyze_with_progress(self, df_target, min_number_count, min_avg_amount, analysis_mode):
+        """带进度显示的分析 - 支持精准位置分析"""
+        # 根据分析模式决定分组方式
+        if analysis_mode == "仅分析六合彩":
+            grouped = df_target.groupby(['期号', '彩种'])
+        else:
+            # 对于赛车类彩种，按期号、彩种和位置分组
+            grouped = df_target.groupby(['期号', '彩种', '玩法'])
+        
         all_period_results = {}
         
         total_groups = len(grouped)
@@ -641,25 +703,40 @@ class MultiLotteryCoverageAnalyzer:
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        for idx, ((period, lottery), group) in enumerate(grouped):
+        for idx, (group_key, group) in enumerate(grouped):
             # 实时更新进度
             progress = (idx + 1) / total_groups
             progress_bar.progress(progress)
-            status_text.text(f"分析进度: {idx+1}/{total_groups} - {period} ({lottery})")
+            
+            if analysis_mode == "仅分析六合彩":
+                period, lottery = group_key
+                position = None
+                status_text.text(f"分析进度: {idx+1}/{total_groups} - {period} ({lottery})")
+            else:
+                period, lottery, position = group_key
+                status_text.text(f"分析进度: {idx+1}/{total_groups} - {period} ({lottery} - {position})")
             
             if len(group) >= 2:
-                result = self.analyze_period_lottery(
-                    group, period, lottery, min_number_count, min_avg_amount
-                )
+                if analysis_mode == "仅分析六合彩":
+                    # 六合彩使用原有的分析方法
+                    result = self.analyze_period_lottery_position(
+                        group, period, lottery, None, min_number_count, min_avg_amount
+                    )
+                else:
+                    # 赛车类使用位置精准分析方法
+                    result = self.analyze_period_lottery_position(
+                        group, period, lottery, position, min_number_count, min_avg_amount
+                    )
+                
                 if result:
-                    all_period_results[(period, lottery)] = result
+                    all_period_results[group_key] = result
         
         progress_bar.empty()
         status_text.text("分析完成!")
         
         return all_period_results
 
-    def display_enhanced_results(self, all_period_results):
+    def display_enhanced_results(self, all_period_results, analysis_mode):
         """增强结果展示 - 支持多种彩种，按彩种、账户、期号分类展示"""
         if not all_period_results:
             st.info("🎉 未发现完美覆盖组合")
@@ -667,21 +744,31 @@ class MultiLotteryCoverageAnalyzer:
         
         # 按账户聚合结果
         account_combinations = defaultdict(list)
-        lottery_category_stats = defaultdict(lambda: {'periods': set(), 'combinations': 0})
+        lottery_category_stats = defaultdict(lambda: {'periods': set(), 'combinations': 0, 'positions': set()})
         
-        for (period, lottery), result in all_period_results.items():
+        for group_key, result in all_period_results.items():
             lottery_category = result['lottery_category']
-            lottery_category_stats[lottery_category]['periods'].add(period)
+            lottery_category_stats[lottery_category]['periods'].add(result['period'])
             lottery_category_stats[lottery_category]['combinations'] += result['total_combinations']
+            
+            # 记录位置信息（如果是赛车类）
+            if analysis_mode != "仅分析六合彩" and 'position' in result:
+                lottery_category_stats[lottery_category]['positions'].add(result['position'])
             
             for combo in result['all_combinations']:
                 for account in combo['accounts']:
-                    account_combinations[account].append({
-                        'period': period,
-                        'lottery': lottery,
+                    account_info = {
+                        'period': result['period'],
+                        'lottery': result['lottery'],
                         'lottery_category': lottery_category,
                         'combo_info': combo
-                    })
+                    }
+                    
+                    # 添加位置信息（如果是赛车类）
+                    if analysis_mode != "仅分析六合彩" and 'position' in result:
+                        account_info['position'] = result['position']
+                    
+                    account_combinations[account].append(account_info)
         
         # 显示彩种类型统计
         st.subheader("🎲 彩种类型统计")
@@ -695,9 +782,12 @@ class MultiLotteryCoverageAnalyzer:
         stats_items = list(lottery_category_stats.items())
         for i, (category, stats) in enumerate(stats_items):
             with [col1, col2, col3, col4][i % 4]:
+                display_text = f"{stats['combinations']}组"
+                if analysis_mode != "仅分析六合彩" and stats['positions']:
+                    display_text += f"\n{len(stats['positions'])}个位置"
                 st.metric(
                     label=category_display.get(category, category),
-                    value=f"{stats['combinations']}组",
+                    value=display_text,
                     delta=f"{len(stats['periods'])}期"
                 )
         
@@ -705,8 +795,8 @@ class MultiLotteryCoverageAnalyzer:
         st.subheader("📊 检测汇总")
         total_combinations = sum(result['total_combinations'] for result in all_period_results.values())
         total_filtered_accounts = sum(result['filtered_accounts'] for result in all_period_results.values())
-        total_periods = len(all_period_results)
-        total_lotteries = len(set(lottery for (_, lottery) in all_period_results.keys()))
+        total_periods = len(set(result['period'] for result in all_period_results.values()))
+        total_lotteries = len(set(result['lottery'] for result in all_period_results.values()))
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -718,17 +808,39 @@ class MultiLotteryCoverageAnalyzer:
         with col4:
             st.metric("涉及彩种", total_lotteries)
         
+        # 如果分析赛车类，显示位置统计
+        if analysis_mode != "仅分析六合彩":
+            position_stats = defaultdict(int)
+            for result in all_period_results.values():
+                if 'position' in result:
+                    position_stats[result['position']] += result['total_combinations']
+            
+            if position_stats:
+                st.subheader("📍 位置统计")
+                position_cols = st.columns(min(5, len(position_stats)))
+                for idx, (position, count) in enumerate(sorted(position_stats.items())):
+                    with position_cols[idx % 5]:
+                        st.metric(f"{position}", f"{count}组")
+        
         # 显示账户统计
         st.subheader("👥 参与账户统计")
         account_stats = []
         for account, combinations in account_combinations.items():
-            account_stats.append({
+            stat_record = {
                 '账户': account,
                 '参与组合数': len(combinations),
                 '涉及期数': len(set(c['period'] for c in combinations)),
                 '涉及彩种': len(set(c['lottery'] for c in combinations)),
-                '彩种类型': ', '.join(sorted(set(category_display.get(c['lottery_category'], c['lottery_category']) for c in combinations)))
-            })
+            }
+            
+            # 如果是赛车类，添加位置信息
+            if analysis_mode != "仅分析六合彩":
+                positions = set(c.get('position', '') for c in combinations)
+                positions.discard('')  # 移除空字符串
+                if positions:
+                    stat_record['涉及位置'] = ', '.join(sorted(positions))
+            
+            account_stats.append(stat_record)
         
         if account_stats:
             df_stats = pd.DataFrame(account_stats).sort_values('参与组合数', ascending=False)
@@ -738,37 +850,48 @@ class MultiLotteryCoverageAnalyzer:
         st.subheader("📈 详细组合分析")
         
         # 添加展示方式选择
+        if analysis_mode == "仅分析六合彩":
+            display_options = ["按彩种和期号", "按账户", "按期号"]
+        else:
+            display_options = ["按位置和期号", "按账户", "按期号", "按位置"]
+        
         display_mode = st.radio(
             "选择展示方式:",
-            ["按彩种和期号", "按账户", "按期号"],
+            display_options,
             horizontal=True
         )
         
-        if display_mode == "按彩种和期号":
-            self._display_by_lottery_period(all_period_results)
+        if display_mode == "按彩种和期号" or (analysis_mode != "仅分析六合彩" and display_mode == "按位置和期号"):
+            self._display_by_lottery_period(all_period_results, analysis_mode)
         elif display_mode == "按账户":
-            self._display_by_account(account_combinations)
+            self._display_by_account(account_combinations, analysis_mode)
         elif display_mode == "按期号":
-            self._display_by_period(all_period_results)
+            self._display_by_period(all_period_results, analysis_mode)
+        elif display_mode == "按位置":
+            self._display_by_position(all_period_results)
 
-    def _display_by_lottery_period(self, all_period_results):
+    def _display_by_lottery_period(self, all_period_results, analysis_mode):
         """按彩种和期号展示"""
         category_display = {
             'six_mark': '六合彩',
             '10_number': '时时彩/PK10/赛车'
         }
         
-        for (period, lottery), result in all_period_results.items():
+        for group_key, result in all_period_results.items():
             total_combinations = result['total_combinations']
             lottery_category = result['lottery_category']
             total_numbers = result['total_numbers']
             
             category_name = category_display.get(lottery_category, lottery_category)
             
-            with st.expander(
-                f"🎯 {category_name} - {lottery} 期号: {period}（{total_combinations}组，{total_numbers}个号码）", 
-                expanded=True
-            ):
+            # 构建标题
+            if analysis_mode == "仅分析六合彩":
+                title = f"🎯 {category_name} - {result['lottery']} 期号: {result['period']}（{total_combinations}组，{total_numbers}个号码）"
+            else:
+                position = result.get('position', '未知位置')
+                title = f"🎯 {category_name} - {result['lottery']} {position} 期号: {result['period']}（{total_combinations}组，{total_numbers}个号码）"
+            
+            with st.expander(title, expanded=True):
                 # 显示该期号的所有组合
                 for idx, combo in enumerate(result['all_combinations'], 1):
                     accounts = combo['accounts']
@@ -784,7 +907,7 @@ class MultiLotteryCoverageAnalyzer:
                     with col1:
                         st.write(f"**账户数量:** {combo['account_count']}个")
                     with col2:
-                        st.write(f"**期号:** {period}")
+                        st.write(f"**期号:** {result['period']}")
                     with col3:
                         st.write(f"**总金额:** ¥{combo['total_amount']:,.2f}")
                     with col4:
@@ -809,7 +932,7 @@ class MultiLotteryCoverageAnalyzer:
                     if idx < len(result['all_combinations']):
                         st.markdown("---")
 
-    def _display_by_account(self, account_combinations):
+    def _display_by_account(self, account_combinations, analysis_mode):
         """按账户展示"""
         category_display = {
             'six_mark': '六合彩',
@@ -824,11 +947,20 @@ class MultiLotteryCoverageAnalyzer:
                 # 按彩种和期号分组显示
                 account_periods = defaultdict(list)
                 for combo in combinations:
-                    key = (combo['period'], combo['lottery'])
+                    if analysis_mode == "仅分析六合彩":
+                        key = (combo['period'], combo['lottery'])
+                    else:
+                        position = combo.get('position', '未知位置')
+                        key = (combo['period'], combo['lottery'], position)
                     account_periods[key].append(combo)
                 
-                for (period, lottery), combos in account_periods.items():
-                    st.write(f"**期号:** {period} | **彩种:** {lottery}")
+                for key, combos in account_periods.items():
+                    if analysis_mode == "仅分析六合彩":
+                        period, lottery = key
+                        st.write(f"**期号:** {period} | **彩种:** {lottery}")
+                    else:
+                        period, lottery, position = key
+                        st.write(f"**期号:** {period} | **彩种:** {lottery} | **位置:** {position}")
                     
                     for idx, combo_data in enumerate(combos):
                         combo = combo_data['combo_info']
@@ -864,7 +996,7 @@ class MultiLotteryCoverageAnalyzer:
                         if idx < len(combos) - 1:
                             st.markdown("---")
 
-    def _display_by_period(self, all_period_results):
+    def _display_by_period(self, all_period_results, analysis_mode):
         """按期号展示"""
         category_display = {
             'six_mark': '六合彩',
@@ -873,22 +1005,26 @@ class MultiLotteryCoverageAnalyzer:
         
         # 按期号分组
         period_groups = defaultdict(list)
-        for (period, lottery), result in all_period_results.items():
-            period_groups[period].append((lottery, result))
+        for group_key, result in all_period_results.items():
+            period_groups[result['period']].append(result)
         
-        for period, lottery_results in sorted(period_groups.items()):
-            total_combinations_period = sum(result['total_combinations'] for _, result in lottery_results)
+        for period, results in sorted(period_groups.items()):
+            total_combinations_period = sum(result['total_combinations'] for result in results)
             
             with st.expander(
                 f"📅 期号: {period}（{total_combinations_period}组完美组合）", 
                 expanded=False
             ):
-                for lottery, result in lottery_results:
+                for result in results:
                     total_combinations = result['total_combinations']
                     lottery_category = result['lottery_category']
                     category_name = category_display.get(lottery_category, lottery_category)
                     
-                    st.write(f"**彩种:** {lottery}（{category_name}） - {total_combinations}组完美组合")
+                    if analysis_mode == "仅分析六合彩":
+                        st.write(f"**彩种:** {result['lottery']}（{category_name}） - {total_combinations}组完美组合")
+                    else:
+                        position = result.get('position', '未知位置')
+                        st.write(f"**彩种:** {result['lottery']}（{category_name}） **位置:** {position} - {total_combinations}组完美组合")
                     
                     for idx, combo in enumerate(result['all_combinations'], 1):
                         accounts = combo['accounts']
@@ -915,8 +1051,66 @@ class MultiLotteryCoverageAnalyzer:
                         if idx < len(result['all_combinations']):
                             st.markdown("---")
 
-    def enhanced_export(self, all_period_results):
-        """增强导出功能 - 支持多种彩种"""
+    def _display_by_position(self, all_period_results):
+        """按位置展示"""
+        category_display = {
+            'six_mark': '六合彩',
+            '10_number': '时时彩/PK10/赛车'
+        }
+        
+        # 按位置分组
+        position_groups = defaultdict(list)
+        for group_key, result in all_period_results.items():
+            if 'position' in result:
+                position_groups[result['position']].append(result)
+        
+        for position, results in sorted(position_groups.items()):
+            total_combinations_position = sum(result['total_combinations'] for result in results)
+            total_periods = len(set(result['period'] for result in results))
+            total_lotteries = len(set(result['lottery'] for result in results))
+            
+            with st.expander(
+                f"📍 {position}（{total_combinations_position}组完美组合，{total_periods}期，{total_lotteries}个彩种）", 
+                expanded=False
+            ):
+                # 按期号分组显示
+                period_groups = defaultdict(list)
+                for result in results:
+                    period_groups[result['period']].append(result)
+                
+                for period, period_results in sorted(period_groups.items()):
+                    st.write(f"**期号:** {period}")
+                    
+                    for result in period_results:
+                        lottery = result['lottery']
+                        total_combinations = result['total_combinations']
+                        
+                        st.write(f"  - **彩种:** {lottery} - {total_combinations}组完美组合")
+                        
+                        for idx, combo in enumerate(result['all_combinations'], 1):
+                            accounts = combo['accounts']
+                            
+                            # 组合信息
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.write(f"    * 组合 {idx}:** {' ↔ '.join(accounts)}")
+                            with col2:
+                                st.write(f"**账户数:** {combo['account_count']}个")
+                            with col3:
+                                similarity = combo['similarity']
+                                indicator = combo['similarity_indicator']
+                                st.write(f"**匹配度:** {similarity:.1f}% {indicator}")
+                            
+                            # 各账户投注统计
+                            st.write("    **投注统计:**")
+                            for account in accounts:
+                                amount_info = combo['individual_amounts'][account]
+                                numbers = combo['bet_contents'][account]
+                                numbers_count = len(numbers.split(', '))
+                                st.write(f"      - {account}: {numbers_count}个号码，¥{amount_info:,.2f}")
+
+    def enhanced_export(self, all_period_results, analysis_mode):
+        """增强导出功能 - 支持多种彩种和位置信息"""
         export_data = []
         
         category_display = {
@@ -924,15 +1118,15 @@ class MultiLotteryCoverageAnalyzer:
             '10_number': '时时彩/PK10/赛车'
         }
         
-        for (period, lottery), result in all_period_results.items():
+        for group_key, result in all_period_results.items():
             lottery_category = result['lottery_category']
             total_numbers = result['total_numbers']
             
             for combo in result['all_combinations']:
                 # 基础信息
                 export_record = {
-                    '期号': period,
-                    '彩种': lottery,
+                    '期号': result['period'],
+                    '彩种': result['lottery'],
                     '彩种类型': category_display.get(lottery_category, lottery_category),
                     '号码总数': total_numbers,
                     '组合类型': f"{combo['account_count']}账户组合",
@@ -942,6 +1136,10 @@ class MultiLotteryCoverageAnalyzer:
                     '金额匹配度': f"{combo['similarity']:.1f}%",
                     '匹配度等级': combo['similarity_indicator']
                 }
+                
+                # 添加位置信息（如果是赛车类）
+                if analysis_mode != "仅分析六合彩" and 'position' in result:
+                    export_record['投注位置'] = result['position']
                 
                 # 各账户详情
                 for i, account in enumerate(combo['accounts'], 1):
@@ -957,7 +1155,7 @@ class MultiLotteryCoverageAnalyzer:
 
 # ==================== Streamlit界面 ====================
 def main():
-    st.title("🎯 彩票完美覆盖分析系统 - 全彩种增强版")
+    st.title("🎯 彩票完美覆盖分析系统 - 位置精准分析版")
     st.markdown("### 支持六合彩、时时彩、PK10、赛车等多种彩票的智能对刷检测")
     
     analyzer = MultiLotteryCoverageAnalyzer()
@@ -1132,7 +1330,13 @@ def main():
                         st.write(f"- 最小单注: {df_clean['投注金额'].min():.2f} 元")
 
                 # 筛选有效玩法数据
-                valid_plays = ['特码', '定位胆']
+                if analysis_mode == "仅分析六合彩":
+                    valid_plays = ['特码']
+                elif analysis_mode == "仅分析时时彩/PK10/赛车":
+                    valid_plays = ['冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆']
+                else:
+                    valid_plays = ['特码', '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆']
+                
                 df_target = df_clean[df_clean['玩法'].isin(valid_plays)]
                 
                 # 根据分析模式筛选彩种
@@ -1151,54 +1355,36 @@ def main():
 
                 if len(df_target) == 0:
                     st.error("❌ 未找到符合条件的有效玩法数据")
+                    st.info("""
+                    **可能原因:**
+                    1. 彩种名称不匹配 - 当前支持的彩种类型:
+                       - **六合彩**: 新澳门六合彩, 澳门六合彩, 香港六合彩等
+                       - **时时彩/PK10/赛车**: 时时彩, PK10, 赛车, 幸运28等
+                    
+                    2. 玩法名称不匹配 - 当前支持的玩法:
+                       - **六合彩**: 特码
+                       - **时时彩/PK10/赛车**: 冠军、亚军、季军、第四名到第十名、定位胆
+                    
+                    3. 数据格式问题
+                    """)
                     return
 
                 # 修改分析函数以支持不同彩种的不同阈值
                 def analyze_with_dynamic_thresholds(df_target, analysis_mode, six_mark_params, ten_number_params):
                     """根据分析模式和彩种类型使用不同的阈值进行分析"""
-                    grouped = df_target.groupby(['期号', '彩种'])
-                    all_period_results = {}
+                    # 根据分析模式选择参数
+                    if analysis_mode == "仅分析六合彩":
+                        min_number_count = six_mark_params['min_number_count']
+                        min_avg_amount = six_mark_params['min_avg_amount']
+                    elif analysis_mode == "仅分析时时彩/PK10/赛车":
+                        min_number_count = ten_number_params['min_number_count']
+                        min_avg_amount = ten_number_params['min_avg_amount']
+                    else:
+                        # 自动识别模式，使用默认参数，实际分析时会根据彩种类型动态选择
+                        min_number_count = six_mark_params['min_number_count']
+                        min_avg_amount = six_mark_params['min_avg_amount']
                     
-                    total_groups = len(grouped)
-                    
-                    if total_groups == 0:
-                        return all_period_results
-                    
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
-                    
-                    for idx, ((period, lottery), group) in enumerate(grouped):
-                        # 实时更新进度
-                        progress = (idx + 1) / total_groups
-                        progress_bar.progress(progress)
-                        status_text.text(f"分析进度: {idx+1}/{total_groups} - {period} ({lottery})")
-                        
-                        if len(group) >= 2:
-                            # 识别彩种类型
-                            lottery_category = analyzer.identify_lottery_category(lottery)
-                            
-                            # 根据彩种类型选择阈值
-                            if lottery_category == 'six_mark':
-                                min_number_count = six_mark_params['min_number_count']
-                                min_avg_amount = six_mark_params['min_avg_amount']
-                            elif lottery_category == '10_number':
-                                min_number_count = ten_number_params['min_number_count']
-                                min_avg_amount = ten_number_params['min_avg_amount']
-                            else:
-                                # 默认使用六合彩阈值
-                                min_number_count = six_mark_params['min_number_count']
-                                min_avg_amount = six_mark_params['min_avg_amount']
-                            
-                            result = analyzer.analyze_period_lottery(
-                                group, period, lottery, min_number_count, min_avg_amount
-                            )
-                            if result:
-                                all_period_results[(period, lottery)] = result
-                    
-                    progress_bar.empty()
-                    status_text.text("分析完成!")
-                    
-                    return all_period_results
+                    return analyzer.analyze_with_progress(df_target, min_number_count, min_avg_amount, analysis_mode)
 
                 # 分析数据 - 使用动态阈值分析
                 with st.spinner("正在进行完美覆盖分析..."):
@@ -1217,7 +1403,7 @@ def main():
 
                 # 显示结果 - 使用增强版展示
                 st.header("📊 完美覆盖组合检测结果")
-                analyzer.display_enhanced_results(all_period_results)
+                analyzer.display_enhanced_results(all_period_results, analysis_mode)
                 
                 # 导出功能
                 if all_period_results:
@@ -1225,7 +1411,7 @@ def main():
                     st.subheader("📥 数据导出")
                     
                     if st.button("📊 生成完美组合数据报告"):
-                        download_df = analyzer.enhanced_export(all_period_results)
+                        download_df = analyzer.enhanced_export(all_period_results, analysis_mode)
                         
                         # 转换为Excel
                         output = BytesIO()
@@ -1234,16 +1420,22 @@ def main():
                             
                             # 添加统计工作表
                             account_stats = []
-                            for (period, lottery), result in all_period_results.items():
+                            for group_key, result in all_period_results.items():
                                 for combo in result['all_combinations']:
                                     for account in combo['accounts']:
-                                        account_stats.append({
+                                        stat_record = {
                                             '账户': account,
-                                            '期号': period,
-                                            '彩种': lottery,
+                                            '期号': result['period'],
+                                            '彩种': result['lottery'],
                                             '彩种类型': result['lottery_category'],
                                             '组合类型': f"{combo['account_count']}账户组合"
-                                        })
+                                        }
+                                        
+                                        # 添加位置信息（如果是赛车类）
+                                        if analysis_mode != "仅分析六合彩" and 'position' in result:
+                                            stat_record['投注位置'] = result['position']
+                                        
+                                        account_stats.append(stat_record)
                             
                             if account_stats:
                                 df_account_stats = pd.DataFrame(account_stats)
@@ -1272,14 +1464,20 @@ def main():
                 st.code(traceback.format_exc())
     
     else:
-        st.info("💡 **彩票完美覆盖分析系统 - 全彩种增强版**")
+        st.info("💡 **彩票完美覆盖分析系统 - 位置精准分析版**")
         st.markdown("""
         ### 🚀 系统特色功能:
 
         **🎲 全彩种支持**
         - ✅ **六合彩**: 1-49个号码，特码玩法
-        - ✅ **时时彩/PK10/赛车**: 1-10共10个号码，定位胆玩法  
+        - ✅ **时时彩/PK10/赛车**: 1-10共10个号码，**按位置精准分析**  
         - 🔄 **自动识别**: 智能识别彩种类型
+
+        **📍 位置精准分析**
+        - ✅ **冠军、亚军、季军**: 分别分析每个位置的投注情况
+        - ✅ **第四名到第十名**: 完整支持所有名次位置
+        - ✅ **位置统计**: 按位置统计完美组合数量
+        - ✅ **位置展示**: 支持按位置分类展示结果
 
         **🔍 智能数据识别**
         - ✅ 增强列名识别：支持多种列名变体
@@ -1304,8 +1502,9 @@ def main():
         - 分析各账户的投注金额匹配度，识别可疑的协同投注行为
 
         **时时彩/PK10/赛车 (10个号码)**  
-        - 检测定位胆玩法中，不同账户是否覆盖全部10个号码（1-10）
-        - 识别对刷行为：多个账户合作覆盖所有号码
+        - **按位置精准分析**: 冠军、亚军、季军等每个位置独立分析
+        - 检测同一位置内，不同账户是否覆盖全部10个号码（1-10）
+        - 识别对刷行为：多个账户在同一位置合作覆盖所有号码
 
         ### 📝 支持的列名格式:
         """)
