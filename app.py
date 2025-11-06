@@ -962,25 +962,54 @@ def main():
     
     analyzer = MultiLotteryCoverageAnalyzer()
     
-    # 侧边栏设置 - 移除彩种选择，只保留自动识别
+    # 侧边栏设置 - 分别设置六合彩和其他彩种的阈值
     st.sidebar.header("⚙️ 分析参数设置")
     
-    # 使用统一的参数设置，不再区分彩种类型
-    min_number_count = st.sidebar.number_input(
-        "账户投注号码数量阈值", 
-        min_value=1, 
-        max_value=30, 
-        value=3,
-        help="只分析投注号码数量大于等于此值的账户"
+    # 添加彩种类型选择
+    analysis_mode = st.sidebar.radio(
+        "分析模式:",
+        ["自动识别所有彩种", "仅分析六合彩", "仅分析时时彩/PK10/赛车"],
+        help="选择要分析的彩种类型"
     )
     
-    min_avg_amount = st.sidebar.number_input(
-        "平均每号金额阈值", 
-        min_value=0.0, 
-        max_value=10.0, 
-        value=1.0,
-        step=0.5,
-        help="只分析平均每号金额大于等于此值的账户"
+    st.sidebar.subheader("🎯 六合彩参数设置")
+    
+    # 六合彩专用阈值设置
+    six_mark_min_number_count = st.sidebar.slider(
+        "六合彩-号码数量阈值", 
+        min_value=1, 
+        max_value=30, 
+        value=11,
+        help="六合彩特码玩法：只分析投注号码数量大于等于此值的账户"
+    )
+    
+    six_mark_min_avg_amount = st.sidebar.slider(
+        "六合彩-平均金额阈值", 
+        min_value=0, 
+        max_value=20, 
+        value=2,
+        step=1,
+        help="六合彩特码玩法：只分析平均每号金额大于等于此值的账户"
+    )
+    
+    st.sidebar.subheader("🏎️ 时时彩/PK10/赛车参数设置")
+    
+    # 时时彩/PK10/赛车专用阈值设置
+    ten_number_min_number_count = st.sidebar.slider(
+        "赛车类-号码数量阈值", 
+        min_value=1, 
+        max_value=10, 
+        value=3,
+        help="时时彩/PK10/赛车：只分析投注号码数量大于等于此值的账户"
+    )
+    
+    ten_number_min_avg_amount = st.sidebar.slider(
+        "赛车类-平均金额阈值", 
+        min_value=0, 
+        max_value=10, 
+        value=1,
+        step=1,
+        help="时时彩/PK10/赛车：只分析平均每号金额大于等于此值的账户"
     )
     
     # 调试模式
@@ -1006,8 +1035,17 @@ def main():
             
             st.success(f"✅ 成功读取文件，共 {len(df):,} 条记录")
             
-            # 显示当前阈值设置
-            st.info(f"📊 当前分析参数: 号码数量阈值 ≥ {min_number_count}, 平均金额阈值 ≥ {min_avg_amount}")
+            # 根据选择的分析模式显示当前阈值设置
+            if analysis_mode == "仅分析六合彩":
+                st.info(f"📊 当前分析模式: {analysis_mode}")
+                st.info(f"🎯 六合彩参数: 号码数量阈值 ≥ {six_mark_min_number_count}, 平均金额阈值 ≥ {six_mark_min_avg_amount}")
+            elif analysis_mode == "仅分析时时彩/PK10/赛车":
+                st.info(f"📊 当前分析模式: {analysis_mode}")
+                st.info(f"🏎️ 赛车类参数: 号码数量阈值 ≥ {ten_number_min_number_count}, 平均金额阈值 ≥ {ten_number_min_avg_amount}")
+            else:
+                st.info(f"📊 当前分析模式: {analysis_mode}")
+                st.info(f"🎯 六合彩参数: 号码数量 ≥ {six_mark_min_number_count}, 平均金额 ≥ {six_mark_min_avg_amount}")
+                st.info(f"🏎️ 赛车类参数: 号码数量 ≥ {ten_number_min_number_count}, 平均金额 ≥ {ten_number_min_avg_amount}")
             
             # 增强版列名映射
             with st.spinner("正在进行列名识别..."):
@@ -1097,31 +1135,84 @@ def main():
                 valid_plays = ['特码', '定位胆']
                 df_target = df_clean[df_clean['玩法'].isin(valid_plays)]
                 
-                # 筛选支持的彩种
-                df_target = df_target[df_target['彩种类型'].notna()]
+                # 根据分析模式筛选彩种
+                if analysis_mode == "仅分析六合彩":
+                    df_target = df_target[df_target['彩种类型'] == 'six_mark']
+                    st.info(f"🔍 已筛选六合彩数据: {len(df_target):,} 条记录")
+                elif analysis_mode == "仅分析时时彩/PK10/赛车":
+                    df_target = df_target[df_target['彩种类型'] == '10_number']
+                    st.info(f"🔍 已筛选时时彩/PK10/赛车数据: {len(df_target):,} 条记录")
+                else:
+                    # 自动识别模式，保留所有支持的彩种
+                    df_target = df_target[df_target['彩种类型'].notna()]
+                    st.info(f"🔍 自动识别模式: 六合彩 {len(df_target[df_target['彩种类型'] == 'six_mark']):,} 条，赛车类 {len(df_target[df_target['彩种类型'] == '10_number']):,} 条")
                 
                 st.write(f"✅ 有效玩法数据行数: {len(df_target):,}")
 
                 if len(df_target) == 0:
                     st.error("❌ 未找到符合条件的有效玩法数据")
-                    st.info("""
-                    **可能原因:**
-                    1. 彩种名称不匹配 - 当前支持的彩种类型:
-                       - **六合彩**: 新澳门六合彩, 澳门六合彩, 香港六合彩等
-                       - **时时彩/PK10/赛车**: 时时彩, PK10, 赛车, 幸运28等
-                    
-                    2. 玩法名称不匹配 - 当前支持的玩法:
-                       - **六合彩**: 特码
-                       - **时时彩/PK10/赛车**: 定位胆、冠军、亚军、季军、第一名到第十名
-                    
-                    3. 数据格式问题
-                    """)
                     return
 
-                # 分析数据 - 使用增强版分析
+                # 修改分析函数以支持不同彩种的不同阈值
+                def analyze_with_dynamic_thresholds(df_target, analysis_mode, six_mark_params, ten_number_params):
+                    """根据分析模式和彩种类型使用不同的阈值进行分析"""
+                    grouped = df_target.groupby(['期号', '彩种'])
+                    all_period_results = {}
+                    
+                    total_groups = len(grouped)
+                    
+                    if total_groups == 0:
+                        return all_period_results
+                    
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    
+                    for idx, ((period, lottery), group) in enumerate(grouped):
+                        # 实时更新进度
+                        progress = (idx + 1) / total_groups
+                        progress_bar.progress(progress)
+                        status_text.text(f"分析进度: {idx+1}/{total_groups} - {period} ({lottery})")
+                        
+                        if len(group) >= 2:
+                            # 识别彩种类型
+                            lottery_category = analyzer.identify_lottery_category(lottery)
+                            
+                            # 根据彩种类型选择阈值
+                            if lottery_category == 'six_mark':
+                                min_number_count = six_mark_params['min_number_count']
+                                min_avg_amount = six_mark_params['min_avg_amount']
+                            elif lottery_category == '10_number':
+                                min_number_count = ten_number_params['min_number_count']
+                                min_avg_amount = ten_number_params['min_avg_amount']
+                            else:
+                                # 默认使用六合彩阈值
+                                min_number_count = six_mark_params['min_number_count']
+                                min_avg_amount = six_mark_params['min_avg_amount']
+                            
+                            result = analyzer.analyze_period_lottery(
+                                group, period, lottery, min_number_count, min_avg_amount
+                            )
+                            if result:
+                                all_period_results[(period, lottery)] = result
+                    
+                    progress_bar.empty()
+                    status_text.text("分析完成!")
+                    
+                    return all_period_results
+
+                # 分析数据 - 使用动态阈值分析
                 with st.spinner("正在进行完美覆盖分析..."):
-                    all_period_results = analyzer.analyze_with_progress(
-                        df_target, min_number_count, min_avg_amount
+                    six_mark_params = {
+                        'min_number_count': six_mark_min_number_count,
+                        'min_avg_amount': six_mark_min_avg_amount
+                    }
+                    ten_number_params = {
+                        'min_number_count': ten_number_min_number_count,
+                        'min_avg_amount': ten_number_min_avg_amount
+                    }
+                    
+                    all_period_results = analyze_with_dynamic_thresholds(
+                        df_target, analysis_mode, six_mark_params, ten_number_params
                     )
 
                 # 显示结果 - 使用增强版展示
