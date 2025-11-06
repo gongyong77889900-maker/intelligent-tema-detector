@@ -86,7 +86,7 @@ class MultiLotteryCoverageAnalyzer:
                 'number_range': set(range(1, 11)),  # 1-10 修正为1-10
                 'total_numbers': 10,
                 'type_name': '10个号码彩种',
-                'play_keywords': ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎', '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '第一名', '第二名', '第三名', '单选', '双选', '直选']
+                'play_keywords': ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎', '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '第一名', '第二名', '第三名']
             }
         }
         
@@ -136,10 +136,7 @@ class MultiLotteryCoverageAnalyzer:
             '第七名': '第七名',
             '第八名': '第八名',
             '第九名': '第九名',
-            '第十名': '第十名',
-            '单选': '定位胆',  # 添加时时彩单选
-            '双选': '定位胆',
-            '直选': '定位胆'
+            '第十名': '第十名'
         }
         
         # 位置映射 - 将不同写法映射到标准位置
@@ -343,7 +340,7 @@ class MultiLotteryCoverageAnalyzer:
                 return '特码'
         elif lottery_category == '10_number':
             # 增强赛车玩法识别
-            if any(word in play_lower for word in ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎', '单选', '双选', '直选']):
+            if any(word in play_lower for word in ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎']):
                 return '定位胆'
             # 识别名次玩法（冠军、亚军、季军、第一名到第十名）
             if re.search(r'冠\s*军|亚\s*军|季\s*军', play_str) or re.search(r'第[一二三四五六七八九十]名', play_str) or re.search(r'第\d+名', play_str):
@@ -687,17 +684,56 @@ class MultiLotteryCoverageAnalyzer:
         
         return None
 
-    def analyze_with_progress(self, df_target, min_number_count, min_avg_amount, analysis_mode):
+    def analyze_with_progress(self, df_target, six_mark_params, ten_number_params, analysis_mode):
         """带进度显示的分析 - 支持精准位置分析"""
         # 根据分析模式决定分组方式
         if analysis_mode == "仅分析六合彩":
             grouped = df_target.groupby(['期号', '彩种'])
-        else:
-            # 对于赛车类彩种，按期号、彩种和玩法分组
+            min_number_count = six_mark_params['min_number_count']
+            min_avg_amount = six_mark_params['min_avg_amount']
+        elif analysis_mode == "仅分析时时彩/PK10/赛车":
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
+            min_number_count = ten_number_params['min_number_count']
+            min_avg_amount = ten_number_params['min_avg_amount']
+        else:  # 自动识别所有彩种
+            # 分别处理六合彩和时时彩/PK10/赛车
+            df_six_mark = df_target[df_target['彩种类型'] == 'six_mark']
+            df_10_number = df_target[df_target['彩种类型'] == '10_number']
+            
+            all_period_results = {}
+            
+            # 分析六合彩
+            if len(df_six_mark) > 0:
+                st.info("🔍 正在分析六合彩数据...")
+                grouped_six = df_six_mark.groupby(['期号', '彩种'])
+                for (period, lottery), group in grouped_six:
+                    if len(group) >= 2:
+                        result = self.analyze_period_lottery_position(
+                            group, period, lottery, None, 
+                            six_mark_params['min_number_count'], 
+                            six_mark_params['min_avg_amount']
+                        )
+                        if result:
+                            all_period_results[(period, lottery, 'six_mark')] = result
+            
+            # 分析时时彩/PK10/赛车
+            if len(df_10_number) > 0:
+                st.info("🔍 正在分析时时彩/PK10/赛车数据...")
+                grouped_10 = df_10_number.groupby(['期号', '彩种', '玩法'])
+                for (period, lottery, position), group in grouped_10:
+                    if len(group) >= 2:
+                        result = self.analyze_period_lottery_position(
+                            group, period, lottery, position,
+                            ten_number_params['min_number_count'],
+                            ten_number_params['min_avg_amount']
+                        )
+                        if result:
+                            all_period_results[(period, lottery, position)] = result
+            
+            return all_period_results
         
+        # 非自动识别模式的进度显示
         all_period_results = {}
-        
         total_groups = len(grouped)
         
         if total_groups == 0:
@@ -720,19 +756,14 @@ class MultiLotteryCoverageAnalyzer:
                 status_text.text(f"分析进度: {idx+1}/{total_groups} - {period} ({lottery} - {position})")
             
             if len(group) >= 2:
-                if analysis_mode == "仅分析六合彩":
-                    # 六合彩使用原有的分析方法
-                    result = self.analyze_period_lottery_position(
-                        group, period, lottery, None, min_number_count, min_avg_amount
-                    )
-                else:
-                    # 赛车类使用位置精准分析方法
-                    result = self.analyze_period_lottery_position(
-                        group, period, lottery, position, min_number_count, min_avg_amount
-                    )
-                
+                result = self.analyze_period_lottery_position(
+                    group, period, lottery, position, min_number_count, min_avg_amount
+                )
                 if result:
-                    all_period_results[group_key] = result
+                    if analysis_mode == "仅分析六合彩":
+                        all_period_results[(period, lottery, 'six_mark')] = result
+                    else:
+                        all_period_results[(period, lottery, position)] = result
         
         progress_bar.empty()
         status_text.text("分析完成!")
@@ -755,7 +786,7 @@ class MultiLotteryCoverageAnalyzer:
             lottery_category_stats[lottery_category]['combinations'] += result['total_combinations']
             
             # 记录位置信息（如果是赛车类）
-            if analysis_mode != "仅分析六合彩" and 'position' in result:
+            if analysis_mode != "仅分析六合彩" and 'position' in result and result['position']:
                 lottery_category_stats[lottery_category]['positions'].add(result['position'])
             
             for combo in result['all_combinations']:
@@ -768,7 +799,7 @@ class MultiLotteryCoverageAnalyzer:
                     }
                     
                     # 添加位置信息（如果是赛车类）
-                    if analysis_mode != "仅分析六合彩" and 'position' in result:
+                    if analysis_mode != "仅分析六合彩" and 'position' in result and result['position']:
                         account_info['position'] = result['position']
                     
                     account_combinations[account].append(account_info)
@@ -815,7 +846,7 @@ class MultiLotteryCoverageAnalyzer:
         if analysis_mode != "仅分析六合彩":
             position_stats = defaultdict(int)
             for result in all_period_results.values():
-                if 'position' in result:
+                if 'position' in result and result['position']:
                     position_stats[result['position']] += result['total_combinations']
             
             if position_stats:
@@ -892,7 +923,10 @@ class MultiLotteryCoverageAnalyzer:
                 title = f"🎯 {category_name} - {result['lottery']} 期号: {result['period']}（{total_combinations}组，{total_numbers}个号码）"
             else:
                 position = result.get('position', '未知位置')
-                title = f"🎯 {category_name} - {result['lottery']} {position} 期号: {result['period']}（{total_combinations}组，{total_numbers}个号码）"
+                if position:
+                    title = f"🎯 {category_name} - {result['lottery']} {position} 期号: {result['period']}（{total_combinations}组，{total_numbers}个号码）"
+                else:
+                    title = f"🎯 {category_name} - {result['lottery']} 期号: {result['period']}（{total_combinations}组，{total_numbers}个号码）"
             
             with st.expander(title, expanded=True):
                 # 显示该期号的所有组合
@@ -900,7 +934,7 @@ class MultiLotteryCoverageAnalyzer:
                     accounts = combo['accounts']
                     
                     # 组合标题 - 显示位置信息
-                    if analysis_mode != "仅分析六合彩":
+                    if analysis_mode != "仅分析六合彩" and result.get('position'):
                         position = result.get('position', '未知位置')
                         if len(accounts) == 2:
                             st.markdown(f"**{position} 完美组合 {idx}:** {accounts[0]} ↔ {accounts[1]}")
@@ -926,7 +960,7 @@ class MultiLotteryCoverageAnalyzer:
                         st.write(f"**金额匹配度:** {similarity:.1f}% {indicator}")
                     
                     # 如果是赛车类，显示位置信息
-                    if analysis_mode != "仅分析六合彩":
+                    if analysis_mode != "仅分析六合彩" and result.get('position'):
                         position = result.get('position', '未知位置')
                         st.write(f"**投注位置:** {position}")
                     
@@ -975,7 +1009,10 @@ class MultiLotteryCoverageAnalyzer:
                         st.write(f"**期号:** {period} | **彩种:** {lottery}")
                     else:
                         period, lottery, position = key
-                        st.write(f"**期号:** {period} | **彩种:** {lottery} | **位置:** {position}")
+                        if position:
+                            st.write(f"**期号:** {period} | **彩种:** {lottery} | **位置:** {position}")
+                        else:
+                            st.write(f"**期号:** {period} | **彩种:** {lottery}")
                     
                     for idx, combo_data in enumerate(combos):
                         combo = combo_data['combo_info']
@@ -1039,7 +1076,10 @@ class MultiLotteryCoverageAnalyzer:
                         st.write(f"**彩种:** {result['lottery']}（{category_name}） - {total_combinations}组完美组合")
                     else:
                         position = result.get('position', '未知位置')
-                        st.write(f"**彩种:** {result['lottery']}（{category_name}） **位置:** {position} - {total_combinations}组完美组合")
+                        if position:
+                            st.write(f"**彩种:** {result['lottery']}（{category_name}） **位置:** {position} - {total_combinations}组完美组合")
+                        else:
+                            st.write(f"**彩种:** {result['lottery']}（{category_name}） - {total_combinations}组完美组合")
                     
                     for idx, combo in enumerate(result['all_combinations'], 1):
                         accounts = combo['accounts']
@@ -1056,7 +1096,7 @@ class MultiLotteryCoverageAnalyzer:
                             st.write(f"**匹配度:** {similarity:.1f}% {indicator}")
                         
                         # 如果是赛车类，显示位置信息
-                        if analysis_mode != "仅分析六合彩":
+                        if analysis_mode != "仅分析六合彩" and result.get('position'):
                             position = result.get('position', '未知位置')
                             st.write(f"**位置:** {position}")
                         
@@ -1081,7 +1121,7 @@ class MultiLotteryCoverageAnalyzer:
         # 按位置分组
         position_groups = defaultdict(list)
         for group_key, result in all_period_results.items():
-            if 'position' in result:
+            if 'position' in result and result['position']:
                 position_groups[result['position']].append(result)
         
         for position, results in sorted(position_groups.items()):
@@ -1158,7 +1198,7 @@ class MultiLotteryCoverageAnalyzer:
                 }
                 
                 # 添加位置信息（如果是赛车类）
-                if analysis_mode != "仅分析六合彩" and 'position' in result:
+                if analysis_mode != "仅分析六合彩" and 'position' in result and result['position']:
                     export_record['投注位置'] = result['position']
                 
                 # 各账户详情
@@ -1351,9 +1391,9 @@ def main():
                 if analysis_mode == "仅分析六合彩":
                     valid_plays = ['特码']
                 elif analysis_mode == "仅分析时时彩/PK10/赛车":
-                    valid_plays = ['冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆', '单选', '双选', '直选']
+                    valid_plays = ['冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆']
                 else:
-                    valid_plays = ['特码', '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆', '单选', '双选', '直选']
+                    valid_plays = ['特码', '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆']
                 
                 df_target = df_clean[df_clean['玩法'].isin(valid_plays)]
                 
@@ -1381,30 +1421,13 @@ def main():
                     
                     2. 玩法名称不匹配 - 当前支持的玩法:
                        - **六合彩**: 特码
-                       - **时时彩/PK10/赛车**: 冠军、亚军、季军、第四名到第十名、定位胆、单选、双选、直选
+                       - **时时彩/PK10/赛车**: 冠军、亚军、季军、第四名到第十名、定位胆
                     
                     3. 数据格式问题
                     """)
                     return
 
-                # 修改分析函数以支持不同彩种的不同阈值
-                def analyze_with_dynamic_thresholds(df_target, analysis_mode, six_mark_params, ten_number_params):
-                    """根据分析模式和彩种类型使用不同的阈值进行分析"""
-                    # 根据分析模式选择参数
-                    if analysis_mode == "仅分析六合彩":
-                        min_number_count = six_mark_params['min_number_count']
-                        min_avg_amount = six_mark_params['min_avg_amount']
-                    elif analysis_mode == "仅分析时时彩/PK10/赛车":
-                        min_number_count = ten_number_params['min_number_count']
-                        min_avg_amount = ten_number_params['min_avg_amount']
-                    else:
-                        # 自动识别模式，使用默认参数，实际分析时会根据彩种类型动态选择
-                        min_number_count = six_mark_params['min_number_count']
-                        min_avg_amount = six_mark_params['min_avg_amount']
-                    
-                    return analyzer.analyze_with_progress(df_target, min_number_count, min_avg_amount, analysis_mode)
-
-                # 分析数据 - 使用动态阈值分析
+                # 分析数据 - 使用增强版分析
                 with st.spinner("正在进行完美覆盖分析..."):
                     six_mark_params = {
                         'min_number_count': six_mark_min_number_count,
@@ -1415,8 +1438,8 @@ def main():
                         'min_avg_amount': ten_number_min_avg_amount
                     }
                     
-                    all_period_results = analyze_with_dynamic_thresholds(
-                        df_target, analysis_mode, six_mark_params, ten_number_params
+                    all_period_results = analyzer.analyze_with_progress(
+                        df_target, six_mark_params, ten_number_params, analysis_mode
                     )
 
                 # 显示结果 - 使用增强版展示
@@ -1450,7 +1473,7 @@ def main():
                                         }
                                         
                                         # 添加位置信息（如果是赛车类）
-                                        if analysis_mode != "仅分析六合彩" and 'position' in result:
+                                        if analysis_mode != "仅分析六合彩" and 'position' in result and result['position']:
                                             stat_record['投注位置'] = result['position']
                                         
                                         account_stats.append(stat_record)
