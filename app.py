@@ -12,25 +12,46 @@ from functools import lru_cache
 
 # 设置页面
 st.set_page_config(
-    page_title="六合彩特码完美覆盖分析系统 - 增强版",
+    page_title="彩票完美覆盖分析系统 - 全彩种增强版",
     page_icon="🎯",
     layout="wide"
 )
 
 # ==================== 配置常量 ====================
 COVERAGE_CONFIG = {
-    'min_number_count': 11,
-    'min_avg_amount': 2,
+    'min_number_count': {
+        'six_mark': 11,  # 六合彩
+        '10_number': 3,   # 10个号码的彩种
+        '5_number': 2     # 5个号码的彩种
+    },
+    'min_avg_amount': {
+        'six_mark': 2,
+        '10_number': 1,
+        '5_number': 0.5
+    },
     'similarity_thresholds': {
         'excellent': 90,
         'good': 80,
         'fair': 70
     },
-    'target_lotteries': [
-        '新澳门六合彩', '澳门六合彩', '香港六合彩', '一分六合彩',
-        '五分六合彩', '三分六合彩', '香港⑥合彩', '分分六合彩',
-        '台湾大乐透', '大发六合彩', '快乐6合彩'
-    ]
+    'target_lotteries': {
+        'six_mark': [
+            '新澳门六合彩', '澳门六合彩', '香港六合彩', '一分六合彩',
+            '五分六合彩', '三分六合彩', '香港⑥合彩', '分分六合彩',
+            '台湾大乐透', '大发六合彩', '快乐6合彩'
+        ],
+        '10_number': [
+            '时时彩', '重庆时时彩', '新疆时时彩', '天津时时彩',
+            '分分时时彩', '五分时时彩', '三分时时彩', '北京时时彩',
+            'PK10', '北京PK10', 'PK拾', '幸运PK10', '赛车',
+            '幸运28', '北京28', '加拿大28', '极速PK10', '分分PK10'
+        ],
+        '5_number': [
+            '11选5', '广东11选5', '山东11选5', '江西11选5',
+            '江苏11选5', '上海11选5', '浙江11选5', '安徽11选5',
+            '分分11选5', '五分11选5', '三分11选5'
+        ]
+    }
 }
 
 # ==================== 日志设置 ====================
@@ -55,17 +76,39 @@ def setup_logging():
 
 logger = setup_logging()
 
-# ==================== 增强版分析器 ====================
-class EnhancedLotteryCoverageAnalyzer:
-    """增强版六合彩覆盖分析器 - 融入第一套代码的优化"""
+# ==================== 全彩种分析器 ====================
+class MultiLotteryCoverageAnalyzer:
+    """全彩种覆盖分析器 - 支持六合彩、时时彩、PK10、11选5等"""
     
     def __init__(self):
-        self.full_set = set(range(1, 50))
+        # 定义各彩种的号码范围
+        self.lottery_configs = {
+            'six_mark': {
+                'number_range': set(range(1, 50)),
+                'total_numbers': 49,
+                'type_name': '六合彩特码',
+                'play_keywords': ['特码', '特玛', '特马', '特碼']
+            },
+            '10_number': {
+                'number_range': set(range(0, 10)),  # 0-9
+                'total_numbers': 10,
+                'type_name': '10个号码彩种',
+                'play_keywords': ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎']
+            },
+            '5_number': {
+                'number_range': set(range(1, 12)),  # 1-11
+                'total_numbers': 11,
+                'type_name': '11选5',
+                'play_keywords': ['任选一', '任选二', '任选三', '任选四', '任选五', '任选六', '任选七', '任选八']
+            }
+        }
         
-        # 完整的六合彩彩种列表
-        self.target_lotteries = COVERAGE_CONFIG['target_lotteries']
+        # 完整的彩种列表
+        self.target_lotteries = {}
+        for lottery_type, lotteries in COVERAGE_CONFIG['target_lotteries'].items():
+            self.target_lotteries[lottery_type] = lotteries
         
-        # 增强的列名映射字典 - 借鉴第一套代码的智能识别
+        # 增强的列名映射字典
         self.column_mappings = {
             '会员账号': ['会员账号', '会员账户', '账号', '账户', '用户账号', '玩家账号', '用户ID', '玩家ID'],
             '彩种': ['彩种', '彩神', '彩票种类', '游戏类型', '彩票类型', '游戏彩种', '彩票名称'],
@@ -75,8 +118,9 @@ class EnhancedLotteryCoverageAnalyzer:
             '金额': ['金额', '下注总额', '投注金额', '总额', '下注金额', '投注额', '金额数值']
         }
         
-        # 玩法分类映射 - 借鉴第一套代码
+        # 玩法分类映射 - 扩展支持多种彩种
         self.play_mapping = {
+            # 六合彩玩法
             '特码': '特码',
             '特码A': '特码', 
             '特码B': '特码',
@@ -84,11 +128,66 @@ class EnhancedLotteryCoverageAnalyzer:
             '特码_特码': '特码',
             '特玛': '特码',
             '特马': '特码',
-            '特碼': '特码'
+            '特碼': '特码',
+            
+            # 时时彩/PK10玩法
+            '定位胆': '定位胆',
+            '一字定位': '定位胆',
+            '一字': '定位胆',
+            '定位': '定位胆',
+            '大小单双': '定位胆',
+            '龙虎': '定位胆',
+            
+            # 11选5玩法
+            '任选一': '任选一',
+            '任选二': '任选二',
+            '任选三': '任选三',
+            '任选四': '任选四',
+            '任选五': '任选五',
+            '任选六': '任选六',
+            '任选七': '任选七',
+            '任选八': '任选八'
         }
     
+    def identify_lottery_category(self, lottery_name):
+        """识别彩种类型"""
+        lottery_str = str(lottery_name).strip().lower()
+        
+        # 检查六合彩
+        for lottery in self.target_lotteries['six_mark']:
+            if lottery.lower() in lottery_str:
+                return 'six_mark'
+        
+        # 检查10个号码的彩种
+        for lottery in self.target_lotteries['10_number']:
+            if lottery.lower() in lottery_str:
+                return '10_number'
+        
+        # 检查5个号码的彩种
+        for lottery in self.target_lotteries['5_number']:
+            if lottery.lower() in lottery_str:
+                return '5_number'
+        
+        # 模糊匹配
+        if any(word in lottery_str for word in ['六合', 'lhc', '⑥合', '6合']):
+            return 'six_mark'
+        elif any(word in lottery_str for word in ['时时彩', 'ssc']):
+            return '10_number'
+        elif any(word in lottery_str for word in ['pk10', 'pk拾', '赛车']):
+            return '10_number'
+        elif any(word in lottery_str for word in ['11选5', '11x5']):
+            return '5_number'
+        elif any(word in lottery_str for word in ['28', '幸运28']):
+            return '10_number'
+        
+        return None
+    
+    def get_lottery_config(self, lottery_category):
+        """获取彩种配置"""
+        return self.lottery_configs.get(lottery_category, self.lottery_configs['six_mark'])
+    
     def enhanced_column_mapping(self, df):
-        """增强版列名识别 - 借鉴第一套代码的智能识别逻辑"""
+        """增强版列名识别"""
         column_mapping = {}
         actual_columns = [str(col).strip() for col in df.columns]
         
@@ -102,7 +201,6 @@ class EnhancedLotteryCoverageAnalyzer:
                 for possible_name in possible_names:
                     possible_name_lower = possible_name.lower().replace(' ', '').replace('_', '').replace('-', '')
                     
-                    # 使用第一套代码的相似度匹配
                     if (possible_name_lower in actual_col_lower or 
                         actual_col_lower in possible_name_lower or
                         len(set(possible_name_lower) & set(actual_col_lower)) / len(possible_name_lower) > 0.7):
@@ -127,7 +225,7 @@ class EnhancedLotteryCoverageAnalyzer:
         return column_mapping
     
     def validate_data_quality(self, df):
-        """数据质量验证 - 借鉴第一套代码"""
+        """数据质量验证"""
         logger.info("正在进行数据质量验证...")
         issues = []
         
@@ -183,8 +281,8 @@ class EnhancedLotteryCoverageAnalyzer:
         
         return issues
     
-    def normalize_play_category(self, play_method):
-        """统一玩法分类 - 借鉴第一套代码的玩法映射"""
+    def normalize_play_category(self, play_method, lottery_category='six_mark'):
+        """统一玩法分类 - 根据彩种类型"""
         play_str = str(play_method).strip()
         
         # 直接映射
@@ -196,41 +294,61 @@ class EnhancedLotteryCoverageAnalyzer:
             if key in play_str:
                 return value
         
-        # 智能匹配
+        # 根据彩种类型智能匹配
         play_lower = play_str.lower()
-        if any(word in play_lower for word in ['特码', '特玛', '特马', '特碼']):
-            return '特码'
+        config = self.get_lottery_config(lottery_category)
+        
+        if lottery_category == 'six_mark':
+            if any(word in play_lower for word in ['特码', '特玛', '特马', '特碼']):
+                return '特码'
+        elif lottery_category == '10_number':
+            if any(word in play_lower for word in ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎']):
+                return '定位胆'
+        elif lottery_category == '5_number':
+            if any(word in play_lower for word in ['任选一', '任选二', '任选三', '任选四', '任选五']):
+                for i in range(1, 9):
+                    if f'任选{i}' in play_lower:
+                        return f'任选{i}'
         
         return play_str
     
     @lru_cache(maxsize=1000)
-    def cached_extract_numbers(self, content):
+    def cached_extract_numbers(self, content, lottery_category='six_mark'):
         """带缓存的号码提取"""
-        return self.enhanced_extract_numbers(content)
+        return self.enhanced_extract_numbers(content, lottery_category)
     
-    def enhanced_extract_numbers(self, content):
-        """增强号码提取 - 借鉴第一套代码的提取逻辑"""
+    def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
+        """增强号码提取 - 根据彩种类型调整"""
         content_str = str(content).strip()
         numbers = []
         
         try:
+            config = self.get_lottery_config(lottery_category)
+            number_range = config['number_range']
+            
             # 处理特殊格式：01,02,03,04,05
-            if re.match(r'^(\d{2},)*\d{2}$', content_str):
+            if re.match(r'^(\d{1,2},)*\d{1,2}$', content_str):
                 numbers = [int(x.strip()) for x in content_str.split(',') if x.strip().isdigit()]
-                numbers = [num for num in numbers if 1 <= num <= 49]
+                numbers = [num for num in numbers if num in number_range]
                 return list(set(numbers))
             
             # 处理特殊格式：1,2,3,4,5,6
             if re.match(r'^(\d,)*\d$', content_str.strip()):
                 numbers = [int(x.strip()) for x in content_str.split(',') if x.strip().isdigit()]
-                numbers = [num for num in numbers if 1 <= num <= 49]
+                numbers = [num for num in numbers if num in number_range]
                 return list(set(numbers))
             
             # 提取数字
-            number_matches = re.findall(r'\b\d{1,2}\b', content_str)
+            if lottery_category == '10_number':
+                # 对于10个号码的彩种，提取0-9
+                number_matches = re.findall(r'\b\d\b', content_str)
+            else:
+                # 对于其他彩种，提取1-2位数字
+                number_matches = re.findall(r'\b\d{1,2}\b', content_str)
+            
             for match in number_matches:
                 num = int(match)
-                if 1 <= num <= 49:
+                if num in number_range:
                     numbers.append(num)
             
             return list(set(numbers))
@@ -314,27 +432,6 @@ class EnhancedLotteryCoverageAnalyzer:
             logger.warning(f"金额提取失败: {amount_text}, 错误: {str(e)}")
             return 0.0
     
-    def identify_lottery_type(self, lottery_name):
-        """彩种识别增强 - 借鉴第一套代码的识别逻辑"""
-        lottery_str = str(lottery_name).strip()
-        
-        # 精确匹配
-        for lottery in self.target_lotteries:
-            if lottery in lottery_str:
-                return lottery
-        
-        # 模糊匹配
-        lottery_lower = lottery_str.lower()
-        if any(word in lottery_lower for word in ['六合', 'lhc', '六合彩', '⑥合', '6合']):
-            # 返回最可能的彩种
-            for lottery in self.target_lotteries:
-                lottery_keywords = lottery.lower().split()
-                if any(keyword in lottery_lower for keyword in lottery_keywords):
-                    return lottery
-            return '香港六合彩'  # 默认
-        
-        return None
-    
     def calculate_similarity(self, avgs):
         """计算金额匹配度"""
         if not avgs or max(avgs) == 0:
@@ -353,8 +450,8 @@ class EnhancedLotteryCoverageAnalyzer:
         else: 
             return "🔴"
     
-    def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount):
-        """寻找完美组合 - 增加平均金额阈值"""
+    def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers):
+        """寻找完美组合 - 支持任意号码数量的彩种"""
         all_results = {2: [], 3: [], 4: []}
         all_accounts = list(account_numbers.keys())
         
@@ -367,11 +464,11 @@ class EnhancedLotteryCoverageAnalyzer:
                 acc2 = all_accounts[j]
                 count2 = len(account_numbers[acc2])
                 
-                if count1 + count2 != 49:
+                if count1 + count2 != total_numbers:
                     continue
                 
                 combined_set = account_sets[acc1] | account_sets[acc2]
-                if len(combined_set) == 49:
+                if len(combined_set) == total_numbers:
                     total_amount = account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount']
                     avg_amounts = [
                         account_amount_stats[acc1]['avg_amount_per_number'],
@@ -388,7 +485,7 @@ class EnhancedLotteryCoverageAnalyzer:
                         'accounts': [acc1, acc2],
                         'account_count': 2,
                         'total_amount': total_amount,
-                        'avg_amount_per_number': total_amount / 49,
+                        'avg_amount_per_number': total_amount / total_numbers,
                         'similarity': similarity,
                         'similarity_indicator': self.get_similarity_indicator(similarity),
                         'individual_amounts': {
@@ -416,11 +513,11 @@ class EnhancedLotteryCoverageAnalyzer:
                     acc3 = all_accounts[k]
                     count3 = len(account_numbers[acc3])
                     
-                    if count1 + count2 + count3 != 49:
+                    if count1 + count2 + count3 != total_numbers:
                         continue
                     
                     combined_set = account_sets[acc1] | account_sets[acc2] | account_sets[acc3]
-                    if len(combined_set) == 49:
+                    if len(combined_set) == total_numbers:
                         total_amount = (account_amount_stats[acc1]['total_amount'] + 
                                       account_amount_stats[acc2]['total_amount'] + 
                                       account_amount_stats[acc3]['total_amount'])
@@ -440,7 +537,7 @@ class EnhancedLotteryCoverageAnalyzer:
                             'accounts': [acc1, acc2, acc3],
                             'account_count': 3,
                             'total_amount': total_amount,
-                            'avg_amount_per_number': total_amount / 49,
+                            'avg_amount_per_number': total_amount / total_numbers,
                             'similarity': similarity,
                             'similarity_indicator': self.get_similarity_indicator(similarity),
                             'individual_amounts': {
@@ -464,8 +561,16 @@ class EnhancedLotteryCoverageAnalyzer:
         return all_results
 
     def analyze_period_lottery(self, group, period, lottery, min_number_count, min_avg_amount):
-        """分析特定期数和彩种 - 增加阈值参数"""
+        """分析特定期数和彩种 - 支持多种彩种"""
         has_amount_column = '金额' in group.columns
+        
+        # 识别彩种类型
+        lottery_category = self.identify_lottery_category(lottery)
+        if not lottery_category:
+            return None
+        
+        config = self.get_lottery_config(lottery_category)
+        total_numbers = config['total_numbers']
         
         account_numbers = {}
         account_amount_stats = {}
@@ -479,8 +584,8 @@ class EnhancedLotteryCoverageAnalyzer:
             bet_count = 0
             
             for _, row in account_data.iterrows():
-                # 使用缓存的号码提取
-                numbers = self.cached_extract_numbers(row['内容'])
+                # 使用缓存的号码提取，传入彩种类型
+                numbers = self.cached_extract_numbers(row['内容'], lottery_category)
                 all_numbers.update(numbers)
                 
                 if has_amount_column:
@@ -521,7 +626,8 @@ class EnhancedLotteryCoverageAnalyzer:
             filtered_account_numbers, 
             filtered_account_amount_stats, 
             filtered_account_bet_contents,
-            min_avg_amount
+            min_avg_amount,
+            total_numbers
         )
 
         total_combinations = sum(len(results) for results in all_results.values())
@@ -536,15 +642,17 @@ class EnhancedLotteryCoverageAnalyzer:
             return {
                 'period': period,
                 'lottery': lottery,
+                'lottery_category': lottery_category,
                 'total_combinations': total_combinations,
                 'all_combinations': all_combinations,
-                'filtered_accounts': len(filtered_account_numbers)
+                'filtered_accounts': len(filtered_account_numbers),
+                'total_numbers': total_numbers
             }
         
         return None
 
     def analyze_with_progress(self, df_target, min_number_count, min_avg_amount):
-        """带进度显示的分析 - 借鉴第一套代码的进度显示"""
+        """带进度显示的分析"""
         grouped = df_target.groupby(['期号', '彩种'])
         all_period_results = {}
         
@@ -553,7 +661,6 @@ class EnhancedLotteryCoverageAnalyzer:
         if total_groups == 0:
             return all_period_results
         
-        # 使用第一套代码的进度条样式
         progress_bar = st.progress(0)
         status_text = st.empty()
         
@@ -576,22 +683,46 @@ class EnhancedLotteryCoverageAnalyzer:
         return all_period_results
 
     def display_enhanced_results(self, all_period_results):
-        """增强结果展示 - 借鉴第一套代码的层级结构"""
+        """增强结果展示 - 支持多种彩种"""
         if not all_period_results:
             st.info("🎉 未发现完美覆盖组合")
             return
         
-        # 按账户聚合结果 - 借鉴第一套代码的账户中心视图
+        # 按账户聚合结果
         account_combinations = defaultdict(list)
+        lottery_category_stats = defaultdict(lambda: {'periods': set(), 'combinations': 0})
         
         for (period, lottery), result in all_period_results.items():
+            lottery_category = result['lottery_category']
+            lottery_category_stats[lottery_category]['periods'].add(period)
+            lottery_category_stats[lottery_category]['combinations'] += result['total_combinations']
+            
             for combo in result['all_combinations']:
                 for account in combo['accounts']:
                     account_combinations[account].append({
                         'period': period,
                         'lottery': lottery,
+                        'lottery_category': lottery_category,
                         'combo_info': combo
                     })
+        
+        # 显示彩种类型统计
+        st.subheader("🎲 彩种类型统计")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        category_display = {
+            'six_mark': '六合彩',
+            '10_number': '时时彩/PK10',
+            '5_number': '11选5'
+        }
+        
+        for i, (category, stats) in enumerate(lottery_category_stats.items()):
+            with [col1, col2, col3, col4][i % 4]:
+                st.metric(
+                    label=category_display.get(category, category),
+                    value=f"{stats['combinations']}组",
+                    delta=f"{len(stats['periods'])}期"
+                )
         
         # 显示汇总统计
         st.subheader("📊 检测汇总")
@@ -618,7 +749,8 @@ class EnhancedLotteryCoverageAnalyzer:
                 '账户': account,
                 '参与组合数': len(combinations),
                 '涉及期数': len(set(c['period'] for c in combinations)),
-                '涉及彩种': len(set(c['lottery'] for c in combinations))
+                '涉及彩种': len(set(c['lottery'] for c in combinations)),
+                '彩种类型': ', '.join(sorted(set(category_display.get(c['lottery_category'], c['lottery_category']) for c in combinations)))
             })
         
         if account_stats:
@@ -630,10 +762,13 @@ class EnhancedLotteryCoverageAnalyzer:
         
         for (period, lottery), result in all_period_results.items():
             total_combinations = result['total_combinations']
+            lottery_category = result['lottery_category']
+            total_numbers = result['total_numbers']
             
-            # 创建折叠筐，默认展开，标题合并彩种和期号
+            category_name = category_display.get(lottery_category, lottery_category)
+            
             with st.expander(
-                f"🎯 {lottery} - 期号: {period}（{total_combinations}组）", 
+                f"🎯 {category_name} - {lottery} 期号: {period}（{total_combinations}组，{total_numbers}个号码）", 
                 expanded=True
             ):
                 # 显示该期号的所有组合
@@ -677,15 +812,26 @@ class EnhancedLotteryCoverageAnalyzer:
                         st.markdown("---")
 
     def enhanced_export(self, all_period_results):
-        """增强导出功能 - 借鉴第一套代码的导出逻辑"""
+        """增强导出功能 - 支持多种彩种"""
         export_data = []
         
+        category_display = {
+            'six_mark': '六合彩',
+            '10_number': '时时彩/PK10',
+            '5_number': '11选5'
+        }
+        
         for (period, lottery), result in all_period_results.items():
+            lottery_category = result['lottery_category']
+            total_numbers = result['total_numbers']
+            
             for combo in result['all_combinations']:
                 # 基础信息
                 export_record = {
                     '期号': period,
                     '彩种': lottery,
+                    '彩种类型': category_display.get(lottery_category, lottery_category),
+                    '号码总数': total_numbers,
                     '组合类型': f"{combo['account_count']}账户组合",
                     '账户组合': ' ↔ '.join(combo['accounts']),
                     '总投注金额': combo['total_amount'],
@@ -708,31 +854,93 @@ class EnhancedLotteryCoverageAnalyzer:
 
 # ==================== Streamlit界面 ====================
 def main():
-    st.title("🎯 六合彩特码完美覆盖分析系统 - 增强版")
-    st.markdown("### 基于数学完备性的完美组合检测与汇总 - 融入智能优化")
+    st.title("🎯 彩票完美覆盖分析系统 - 全彩种增强版")
+    st.markdown("### 支持六合彩、时时彩、PK10、11选5等多种彩票的智能对刷检测")
     
-    analyzer = EnhancedLotteryCoverageAnalyzer()
+    analyzer = MultiLotteryCoverageAnalyzer()
     
     # 侧边栏设置
     st.sidebar.header("⚙️ 分析参数设置")
     
-    # 阈值设置
-    min_number_count = st.sidebar.slider(
-        "账户投注号码数量阈值", 
-        min_value=1, 
-        max_value=30, 
-        value=COVERAGE_CONFIG['min_number_count'],
-        help="只分析投注号码数量大于等于此值的账户"
+    # 彩种选择
+    selected_lottery_type = st.sidebar.selectbox(
+        "选择彩种类型",
+        ['六合彩', '时时彩/PK10', '11选5', '自动识别'],
+        help="选择要分析的彩种类型，或选择自动识别"
     )
     
-    min_avg_amount = st.sidebar.slider(
-        "平均每号金额阈值", 
-        min_value=0, 
-        max_value=10, 
-        value=COVERAGE_CONFIG['min_avg_amount'],
-        step=1,
-        help="只分析平均每号金额大于等于此值的账户"
-    )
+    # 根据彩种类型设置阈值
+    if selected_lottery_type == '六合彩':
+        min_number_count = st.sidebar.slider(
+            "账户投注号码数量阈值", 
+            min_value=1, 
+            max_value=30, 
+            value=COVERAGE_CONFIG['min_number_count']['six_mark'],
+            help="只分析投注号码数量大于等于此值的账户"
+        )
+        
+        min_avg_amount = st.sidebar.slider(
+            "平均每号金额阈值", 
+            min_value=0, 
+            max_value=10, 
+            value=COVERAGE_CONFIG['min_avg_amount']['six_mark'],
+            step=1,
+            help="只分析平均每号金额大于等于此值的账户"
+        )
+    
+    elif selected_lottery_type == '时时彩/PK10':
+        min_number_count = st.sidebar.slider(
+            "账户投注号码数量阈值", 
+            min_value=1, 
+            max_value=10, 
+            value=COVERAGE_CONFIG['min_number_count']['10_number'],
+            help="只分析投注号码数量大于等于此值的账户"
+        )
+        
+        min_avg_amount = st.sidebar.slider(
+            "平均每号金额阈值", 
+            min_value=0, 
+            max_value=5, 
+            value=COVERAGE_CONFIG['min_avg_amount']['10_number'],
+            step=1,
+            help="只分析平均每号金额大于等于此值的账户"
+        )
+    
+    elif selected_lottery_type == '11选5':
+        min_number_count = st.sidebar.slider(
+            "账户投注号码数量阈值", 
+            min_value=1, 
+            max_value=11, 
+            value=COVERAGE_CONFIG['min_number_count']['5_number'],
+            help="只分析投注号码数量大于等于此值的账户"
+        )
+        
+        min_avg_amount = st.sidebar.slider(
+            "平均每号金额阈值", 
+            min_value=0, 
+            max_value=3, 
+            value=COVERAGE_CONFIG['min_avg_amount']['5_number'],
+            step=0.5,
+            help="只分析平均每号金额大于等于此值的账户"
+        )
+    
+    else:  # 自动识别
+        min_number_count = st.sidebar.slider(
+            "账户投注号码数量阈值", 
+            min_value=1, 
+            max_value=30, 
+            value=5,
+            help="只分析投注号码数量大于等于此值的账户"
+        )
+        
+        min_avg_amount = st.sidebar.slider(
+            "平均每号金额阈值", 
+            min_value=0, 
+            max_value=10, 
+            value=1,
+            step=0.5,
+            help="只分析平均每号金额大于等于此值的账户"
+        )
     
     # 调试模式
     debug_mode = st.sidebar.checkbox("调试模式", value=False)
@@ -793,9 +1001,16 @@ def main():
                 for col in available_columns:
                     df_clean[col] = df_clean[col].astype(str).str.strip()
                 
-                # 统一玩法分类
-                with st.spinner("正在统一玩法分类..."):
-                    df_clean['玩法'] = df_clean['玩法'].apply(analyzer.normalize_play_category)
+                # 识别彩种类型并统一玩法分类
+                with st.spinner("正在识别彩种类型和统一玩法分类..."):
+                    df_clean['彩种类型'] = df_clean['彩种'].apply(analyzer.identify_lottery_category)
+                    df_clean['玩法'] = df_clean.apply(
+                        lambda row: analyzer.normalize_play_category(
+                            row['玩法'], 
+                            row['彩种类型'] if not pd.isna(row['彩种类型']) else 'six_mark'
+                        ), 
+                        axis=1
+                    )
                 
                 if has_amount_column:
                     # 应用金额提取
@@ -813,11 +1028,16 @@ def main():
                     st.dataframe(df_clean.head(10))
                     st.write(f"数据形状: {df_clean.shape}")
                     
-                    # 显示彩种分布
-                    if '彩种' in df_clean.columns:
-                        st.write("🎲 彩种分布:")
-                        lottery_dist = df_clean['彩种'].value_counts()
-                        st.dataframe(lottery_dist.reset_index().rename(columns={'index': '彩种', '彩种': '数量'}))
+                    # 显示彩种类型分布
+                    if '彩种类型' in df_clean.columns:
+                        st.write("🎲 彩种类型分布:")
+                        lottery_type_dist = df_clean['彩种类型'].value_counts()
+                        display_dist = lottery_type_dist.rename({
+                            'six_mark': '六合彩',
+                            '10_number': '时时彩/PK10', 
+                            '5_number': '11选5'
+                        })
+                        st.dataframe(display_dist.reset_index().rename(columns={'index': '彩种类型', '彩种类型': '数量'}))
                     
                     # 显示玩法分布
                     if '玩法' in df_clean.columns:
@@ -833,28 +1053,25 @@ def main():
                         st.write(f"- 最大单注: {df_clean['投注金额'].max():.2f} 元")
                         st.write(f"- 最小单注: {df_clean['投注金额'].min():.2f} 元")
 
-                # 筛选特码数据
-                df_target = df_clean[df_clean['玩法'] == '特码']
+                # 筛选有效玩法数据
+                valid_plays = ['特码', '定位胆', '任选一', '任选二', '任选三', '任选四', '任选五', '任选六', '任选七', '任选八']
+                df_target = df_clean[df_clean['玩法'].isin(valid_plays)]
                 
-                # 增强彩种识别
-                with st.spinner("正在识别六合彩数据..."):
-                    df_target['彩种识别'] = df_target['彩种'].apply(analyzer.identify_lottery_type)
-                    df_target = df_target[df_target['彩种识别'].notna()]
-                    df_target = df_target.drop('彩种识别', axis=1)
+                # 筛选支持的彩种
+                df_target = df_target[df_target['彩种类型'].notna()]
                 
-                st.write(f"✅ 特码玩法数据行数: {len(df_target):,}")
+                st.write(f"✅ 有效玩法数据行数: {len(df_target):,}")
 
                 if len(df_target) == 0:
-                    st.error("❌ 未找到符合条件的特码玩法数据")
+                    st.error("❌ 未找到符合条件的有效玩法数据")
                     st.info("""
                     **可能原因:**
-                    1. 彩种名称不匹配 - 当前支持的六合彩类型:
-                       - 新澳门六合彩, 澳门六合彩, 香港六合彩
-                       - 一分六合彩, 五分六合彩, 三分六合彩
-                       - 香港⑥合彩, 分分六合彩, 台湾大乐透
-                       - 大发六合彩, 快乐6合彩
+                    1. 彩种名称不匹配 - 当前支持的彩种类型:
+                       - **六合彩**: 新澳门六合彩, 澳门六合彩, 香港六合彩等
+                       - **时时彩/PK10**: 时时彩, PK10, 幸运28等
+                       - **11选5**: 11选5系列
                     
-                    2. 玩法名称不是'特码'或相关变体
+                    2. 玩法名称不匹配
                     3. 数据格式问题
                     """)
                     return
@@ -891,6 +1108,7 @@ def main():
                                             '账户': account,
                                             '期号': period,
                                             '彩种': lottery,
+                                            '彩种类型': result['lottery_category'],
                                             '组合类型': f"{combo['account_count']}账户组合"
                                         })
                             
@@ -902,7 +1120,7 @@ def main():
                         st.download_button(
                             label="📥 下载完整分析报告",
                             data=output.getvalue(),
-                            file_name=f"六合彩完美组合分析报告_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                            file_name=f"全彩种完美组合分析报告_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
                         
@@ -921,14 +1139,20 @@ def main():
                 st.code(traceback.format_exc())
     
     else:
-        st.info("💡 **六合彩完美覆盖分析系统 - 增强版**")
+        st.info("💡 **彩票完美覆盖分析系统 - 全彩种增强版**")
         st.markdown("""
         ### 🚀 系统特色功能:
+
+        **🎲 全彩种支持**
+        - ✅ **六合彩**: 1-49个号码，特码玩法
+        - ✅ **时时彩/PK10**: 0-9共10个号码，定位胆玩法  
+        - ✅ **11选5**: 1-11共11个号码，任选玩法
+        - 🔄 **自动识别**: 智能识别彩种类型
 
         **🔍 智能数据识别**
         - ✅ 增强列名识别：支持多种列名变体
         - 📊 数据质量验证：完整的数据检查流程
-        - 🎯 玩法分类统一：智能识别特码玩法
+        - 🎯 玩法分类统一：智能识别各彩种玩法
         - 💰 金额提取优化：支持多种金额格式
 
         **⚡ 性能优化**
@@ -941,10 +1165,19 @@ def main():
         - 📋 详细组合分析：完整的组合信息展示
         - 📊 汇总统计：多维度数据统计
 
-        **📥 导出功能**
-        - 📋 完整报告：包含详细数据和统计
-        - 📊 多工作表：数据明细和统计分离
-        - ⏱️ 时间戳：自动生成时间戳文件名
+        ### 🎯 各彩种分析原理:
+
+        **六合彩 (49个号码)**
+        - 检测同一期号内不同账户的投注号码是否形成完美覆盖（1-49全部覆盖）
+        - 分析各账户的投注金额匹配度，识别可疑的协同投注行为
+
+        **时时彩/PK10 (10个号码)**  
+        - 检测定位胆玩法中，不同账户是否覆盖全部10个号码（0-9）
+        - 识别对刷行为：多个账户合作覆盖所有号码
+
+        **11选5 (11个号码)**
+        - 检测任选玩法中，不同账户是否覆盖全部11个号码（1-11）
+        - 分析投注模式，识别协同投注行为
 
         ### 📝 支持的列名格式:
         """)
@@ -955,13 +1188,9 @@ def main():
         st.markdown("""
         ### 🎯 数据要求:
         - ✅ 必须包含: 会员账号, 彩种, 期号, 玩法, 内容
-        - ✅ 玩法必须为'特码'或相关变体
-        - ✅ 彩种必须是六合彩类型
+        - ✅ 玩法必须为支持的类型
+        - ✅ 彩种必须是支持的彩票类型
         - 💰 可选包含金额列进行深度分析
-
-        ### ⚙️ 分析原理:
-        系统检测同一期号内不同账户的投注号码是否形成完美覆盖（1-49全部覆盖），
-        并分析各账户的投注金额匹配度，识别可疑的协同投注行为。
         """)
 
 if __name__ == "__main__":
