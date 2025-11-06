@@ -86,7 +86,7 @@ class MultiLotteryCoverageAnalyzer:
                 'number_range': set(range(1, 11)),  # 1-10 修正为1-10
                 'total_numbers': 10,
                 'type_name': '10个号码彩种',
-                'play_keywords': ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎', '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '第一名', '第二名', '第三名']
+                'play_keywords': ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎', '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '第一名', '第二名', '第三名', '单选', '双选', '直选']
             }
         }
         
@@ -136,7 +136,10 @@ class MultiLotteryCoverageAnalyzer:
             '第七名': '第七名',
             '第八名': '第八名',
             '第九名': '第九名',
-            '第十名': '第十名'
+            '第十名': '第十名',
+            '单选': '定位胆',  # 添加时时彩单选
+            '双选': '定位胆',
+            '直选': '定位胆'
         }
         
         # 位置映射 - 将不同写法映射到标准位置
@@ -340,7 +343,7 @@ class MultiLotteryCoverageAnalyzer:
                 return '特码'
         elif lottery_category == '10_number':
             # 增强赛车玩法识别
-            if any(word in play_lower for word in ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎']):
+            if any(word in play_lower for word in ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎', '单选', '双选', '直选']):
                 return '定位胆'
             # 识别名次玩法（冠军、亚军、季军、第一名到第十名）
             if re.search(r'冠\s*军|亚\s*军|季\s*军', play_str) or re.search(r'第[一二三四五六七八九十]名', play_str) or re.search(r'第\d+名', play_str):
@@ -690,7 +693,7 @@ class MultiLotteryCoverageAnalyzer:
         if analysis_mode == "仅分析六合彩":
             grouped = df_target.groupby(['期号', '彩种'])
         else:
-            # 对于赛车类彩种，按期号、彩种和位置分组
+            # 对于赛车类彩种，按期号、彩种和玩法分组
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
         
         all_period_results = {}
@@ -884,7 +887,7 @@ class MultiLotteryCoverageAnalyzer:
             
             category_name = category_display.get(lottery_category, lottery_category)
             
-            # 构建标题
+            # 构建标题 - 确保显示位置信息
             if analysis_mode == "仅分析六合彩":
                 title = f"🎯 {category_name} - {result['lottery']} 期号: {result['period']}（{total_combinations}组，{total_numbers}个号码）"
             else:
@@ -896,11 +899,18 @@ class MultiLotteryCoverageAnalyzer:
                 for idx, combo in enumerate(result['all_combinations'], 1):
                     accounts = combo['accounts']
                     
-                    # 组合标题
-                    if len(accounts) == 2:
-                        st.markdown(f"**完美组合 {idx}:** {accounts[0]} ↔ {accounts[1]}")
+                    # 组合标题 - 显示位置信息
+                    if analysis_mode != "仅分析六合彩":
+                        position = result.get('position', '未知位置')
+                        if len(accounts) == 2:
+                            st.markdown(f"**{position} 完美组合 {idx}:** {accounts[0]} ↔ {accounts[1]}")
+                        else:
+                            st.markdown(f"**{position} 完美组合 {idx}:** {' ↔ '.join(accounts)}")
                     else:
-                        st.markdown(f"**完美组合 {idx}:** {' ↔ '.join(accounts)}")
+                        if len(accounts) == 2:
+                            st.markdown(f"**完美组合 {idx}:** {accounts[0]} ↔ {accounts[1]}")
+                        else:
+                            st.markdown(f"**完美组合 {idx}:** {' ↔ '.join(accounts)}")
                     
                     # 组合信息
                     col1, col2, col3, col4 = st.columns(4)
@@ -914,6 +924,11 @@ class MultiLotteryCoverageAnalyzer:
                         similarity = combo['similarity']
                         indicator = combo['similarity_indicator']
                         st.write(f"**金额匹配度:** {similarity:.1f}% {indicator}")
+                    
+                    # 如果是赛车类，显示位置信息
+                    if analysis_mode != "仅分析六合彩":
+                        position = result.get('position', '未知位置')
+                        st.write(f"**投注位置:** {position}")
                     
                     # 各账户详情
                     st.write("**各账户详情:**")
@@ -1040,6 +1055,11 @@ class MultiLotteryCoverageAnalyzer:
                             indicator = combo['similarity_indicator']
                             st.write(f"**匹配度:** {similarity:.1f}% {indicator}")
                         
+                        # 如果是赛车类，显示位置信息
+                        if analysis_mode != "仅分析六合彩":
+                            position = result.get('position', '未知位置')
+                            st.write(f"**位置:** {position}")
+                        
                         # 各账户投注统计
                         st.write("**投注统计:**")
                         for account in accounts:
@@ -1163,6 +1183,14 @@ def main():
     # 侧边栏设置 - 分别设置六合彩和其他彩种的阈值
     st.sidebar.header("⚙️ 分析参数设置")
     
+    # 文件上传 - 放在阈值上面
+    st.sidebar.header("📁 数据上传")
+    uploaded_file = st.sidebar.file_uploader(
+        "上传投注数据文件", 
+        type=['csv', 'xlsx', 'xls'],
+        help="请上传包含彩票投注数据的Excel或CSV文件"
+    )
+    
     # 添加彩种类型选择
     analysis_mode = st.sidebar.radio(
         "分析模式:",
@@ -1212,16 +1240,6 @@ def main():
     
     # 调试模式
     debug_mode = st.sidebar.checkbox("调试模式", value=False)
-    
-    st.sidebar.markdown("---")
-    
-    # 文件上传
-    st.sidebar.header("📁 数据上传")
-    uploaded_file = st.sidebar.file_uploader(
-        "上传投注数据文件", 
-        type=['csv', 'xlsx', 'xls'],
-        help="请上传包含彩票投注数据的Excel或CSV文件"
-    )
     
     if uploaded_file is not None:
         try:
@@ -1333,9 +1351,9 @@ def main():
                 if analysis_mode == "仅分析六合彩":
                     valid_plays = ['特码']
                 elif analysis_mode == "仅分析时时彩/PK10/赛车":
-                    valid_plays = ['冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆']
+                    valid_plays = ['冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆', '单选', '双选', '直选']
                 else:
-                    valid_plays = ['特码', '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆']
+                    valid_plays = ['特码', '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆', '单选', '双选', '直选']
                 
                 df_target = df_clean[df_clean['玩法'].isin(valid_plays)]
                 
@@ -1363,7 +1381,7 @@ def main():
                     
                     2. 玩法名称不匹配 - 当前支持的玩法:
                        - **六合彩**: 特码
-                       - **时时彩/PK10/赛车**: 冠军、亚军、季军、第四名到第十名、定位胆
+                       - **时时彩/PK10/赛车**: 冠军、亚军、季军、第四名到第十名、定位胆、单选、双选、直选
                     
                     3. 数据格式问题
                     """)
