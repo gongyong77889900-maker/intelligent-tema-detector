@@ -184,6 +184,25 @@ class MultiLotteryCoverageAnalyzer:
             '第九名': '第九名',
             '第十名': '第十名',
             '前一': '前一',
+
+            # === 新增：从第一套代码借鉴的3D系列玩法 ===
+            '百位': '百位',
+            '十位': '十位', 
+            '个位': '个位',
+            '百十': '百十',
+            '百个': '百个',
+            '十个': '十个',
+            '百十个': '百十个',
+            '定位胆_百位': '定位胆_百位',
+            '定位胆_十位': '定位胆_十位',
+            '定位胆_个位': '定位胆_个位',
+            '两面': '两面',
+            '大小单双': '两面',
+            
+            # === 新增：从第一套代码借鉴的三色彩玩法 ===
+            '正码': '正码',
+            '色波': '色波',
+            '特码': '特码',
             
             # 快三玩法
             '和值': '和值'
@@ -243,6 +262,14 @@ class MultiLotteryCoverageAnalyzer:
         for lottery in self.target_lotteries['10_number']:
             if lottery.lower() in lottery_str:
                 return '10_number'
+
+        # === 新增：从第一套代码借鉴的3D系列识别 ===
+        if any(word in lottery_str for word in ['排列三', '排列3', '福彩3d', '3d', '极速3d', '排列', 'p3', 'p三']):
+            return '3d_series'
+        
+        # === 新增：从第一套代码借鉴的三色彩识别 ===
+        if any(word in lottery_str for word in ['三色', '三色彩', '三色球']):
+            return 'three_color'
         
         # 模糊匹配
         if any(word in lottery_str for word in ['六合', 'lhc', '⑥合', '6合']):
@@ -438,6 +465,18 @@ class MultiLotteryCoverageAnalyzer:
             return '和值'
         
         return play_str
+
+    def enhanced_normalize_special_characters(self, text):
+        """增强特殊字符处理 - 从第一套代码借鉴"""
+        if not text:
+            return text
+        
+        # 从第一套代码借鉴的空白字符处理
+        import re
+        text = re.sub(r'\s+', ' ', text)  # 将所有空白字符替换为普通空格
+        text = text.strip()
+        
+        return text
     
     def normalize_play_category(self, play_method, lottery_category='six_mark'):
         """统一玩法分类 - 扩展六合彩正码正特识别"""
@@ -1023,6 +1062,21 @@ class MultiLotteryCoverageAnalyzer:
             st.metric("有效账户数", total_filtered_accounts)
         with col4:
             st.metric("涉及彩种", total_lotteries)
+
+        # === 新增：从第一套代码借鉴的详细账户统计 ===
+        st.subheader("👥 参与账户详细统计")
+        account_stats = self._calculate_detailed_account_stats(all_period_results)
+        
+        if account_stats:
+            df_stats = pd.DataFrame(account_stats)
+            
+            # 使用第一套代码的详细数据框展示方式
+            st.dataframe(
+                df_stats,
+                use_container_width=True,
+                hide_index=True,
+                height=min(400, len(df_stats) * 35 + 38)
+            )
         
         # 显示账户统计 - 增加总投注金额
         st.subheader("👥 参与账户统计")
@@ -1090,6 +1144,45 @@ class MultiLotteryCoverageAnalyzer:
             account_stats.append(stat_record)
         
         return account_stats
+
+    def _calculate_detailed_account_stats(self, all_period_results):
+        """详细账户统计 - 从第一套代码借鉴"""
+        account_stats = []
+        account_participation = defaultdict(lambda: {
+            'periods': set(),
+            'lotteries': set(),
+            'positions': set(),
+            'total_combinations': 0,
+            'total_bet_amount': 0
+        })
+        
+        for result in all_period_results.values():
+            for combo in result['all_combinations']:
+                for account in combo['accounts']:
+                    account_info = account_participation[account]
+                    account_info['periods'].add(result['period'])
+                    account_info['lotteries'].add(result['lottery'])
+                    if 'position' in result:
+                        account_info['positions'].add(result['position'])
+                    account_info['total_combinations'] += 1
+                    account_info['total_bet_amount'] += combo['individual_amounts'][account]
+        
+        for account, info in account_participation.items():
+            stat_record = {
+                '账户': account,
+                '参与组合数': info['total_combinations'],
+                '涉及期数': len(info['periods']),
+                '涉及彩种': len(info['lotteries']),
+                '总投注金额': info['total_bet_amount'],
+                '平均每期金额': info['total_bet_amount'] / len(info['periods']) if info['periods'] else 0
+            }
+            
+            if info['positions']:
+                stat_record['涉及位置'] = ', '.join(sorted(info['positions']))
+            
+            account_stats.append(stat_record)
+        
+        return sorted(account_stats, key=lambda x: x['参与组合数'], reverse=True)
 
     def _display_by_account_pair_lottery(self, account_pair_groups, analysis_mode):
         """按账户组合和彩种展示"""
