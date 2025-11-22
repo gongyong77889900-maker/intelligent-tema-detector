@@ -1015,7 +1015,7 @@ class MultiLotteryCoverageAnalyzer:
                 
                 account_pair_groups[account_pair][lottery_key].append(combo_info)
         
-        # 显示彩种类型统计
+        # 显示彩种类型统计 - 修改为只显示组数
         st.subheader("🎲 彩种类型统计")
         col1, col2, col3, col4 = st.columns(4)
         
@@ -1026,20 +1026,16 @@ class MultiLotteryCoverageAnalyzer:
         }
         
         # 计算统计
-        lottery_category_stats = defaultdict(lambda: {'periods': set(), 'combinations': 0, 'positions': set()})
+        lottery_category_stats = defaultdict(lambda: {'periods': set(), 'combinations': 0})
         for result in all_period_results.values():
             lottery_category = result['lottery_category']
             lottery_category_stats[lottery_category]['periods'].add(result['period'])
             lottery_category_stats[lottery_category]['combinations'] += result['total_combinations']
-            if 'position' in result and result['position']:
-                lottery_category_stats[lottery_category]['positions'].add(result['position'])
         
         stats_items = list(lottery_category_stats.items())
         for i, (category, stats) in enumerate(stats_items):
             with [col1, col2, col3, col4][i % 4]:
                 display_text = f"{stats['combinations']}组"
-                if analysis_mode != "仅分析六合彩" and stats['positions']:
-                    display_text += f"\n{len(stats['positions'])}个位置"
                 st.metric(
                     label=category_display.get(category, category),
                     value=display_text,
@@ -1050,8 +1046,8 @@ class MultiLotteryCoverageAnalyzer:
         st.subheader("📊 检测汇总")
         total_combinations = sum(result['total_combinations'] for result in all_period_results.values())
         total_filtered_accounts = sum(result['filtered_accounts'] for result in all_period_results.values())
-        total_periods = len(set(result['period'] for result in all_period_results.values()))
-        total_lotteries = len(set(result['lottery'] for result in all_period_results.values()))
+        total_periods = len(set(result['period'] for result in all_period_results.values())
+        total_lotteries = len(set(result['lottery'] for result in all_period_results.values())
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -1062,8 +1058,8 @@ class MultiLotteryCoverageAnalyzer:
             st.metric("有效账户数", total_filtered_accounts)
         with col4:
             st.metric("涉及彩种", total_lotteries)
-
-        # === 新增：从第一套代码借鉴的详细账户统计 ===
+    
+        # 只保留一个"参与账户详细统计"
         st.subheader("👥 参与账户详细统计")
         account_stats = self._calculate_detailed_account_stats(all_period_results)
         
@@ -1077,24 +1073,6 @@ class MultiLotteryCoverageAnalyzer:
                 hide_index=True,
                 height=min(400, len(df_stats) * 35 + 38)
             )
-        
-        # 显示账户统计 - 增加总投注金额
-        st.subheader("👥 参与账户统计")
-        account_stats = self._calculate_account_stats(all_period_results, analysis_mode)
-        
-        if account_stats:
-            df_stats = pd.DataFrame(account_stats).sort_values('参与组合数', ascending=False)
-            
-            # 格式化金额显示
-            def format_amount(x):
-                if isinstance(x, (int, float)):
-                    return f"¥{x:,.2f}"
-                return x
-            
-            display_df = df_stats.copy()
-            display_df['总投注金额'] = display_df['总投注金额'].apply(format_amount)
-            
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
         
         # 显示详细组合分析
         st.subheader("📈 详细组合分析")
@@ -1407,20 +1385,22 @@ def main():
                 st.info(f"🏎️ 赛车类参数: 号码数量 ≥ {ten_number_min_number_count}, 平均金额 ≥ {ten_number_min_avg_amount}")
                 st.info(f"🎲 快三参数: 号码数量 ≥ {fast_three_min_number_count}, 平均金额 ≥ {fast_three_min_avg_amount}")
             
-            # 增强版列名映射
-            with st.spinner("正在进行列名识别..."):
-                column_mapping = analyzer.enhanced_column_mapping(df)
-            
-            if column_mapping is None:
-                st.error("❌ 列名映射失败，无法继续分析")
-                return
-            
-            df = df.rename(columns=column_mapping)
-            st.success("✅ 列名映射完成")
-
-            # 数据质量验证
-            with st.spinner("正在进行数据质量验证..."):
-                quality_issues = analyzer.validate_data_quality(df)
+            # 将列名识别和数据质量检查放入折叠框
+            with st.expander("🔧 数据预处理过程", expanded=False):
+                # 增强版列名映射
+                with st.spinner("正在进行列名识别..."):
+                    column_mapping = analyzer.enhanced_column_mapping(df)
+                
+                if column_mapping is None:
+                    st.error("❌ 列名映射失败，无法继续分析")
+                    return
+                
+                df = df.rename(columns=column_mapping)
+                st.success("✅ 列名映射完成")
+    
+                # 数据质量验证
+                with st.spinner("正在进行数据质量验证..."):
+                    quality_issues = analyzer.validate_data_quality(df)
             
             # 数据清理
             required_columns = ['会员账号', '彩种', '期号', '玩法', '内容']
@@ -1582,7 +1562,7 @@ def main():
                             download_df.to_excel(writer, index=False, sheet_name='完美组合数据')
                             
                             # 添加统计工作表
-                            account_stats = analyzer._calculate_account_stats(all_period_results, analysis_mode)
+                            account_stats = analyzer._calculate_detailed_account_stats(all_period_results)
                             if account_stats:
                                 df_account_stats = pd.DataFrame(account_stats)
                                 df_account_stats.to_excel(writer, index=False, sheet_name='账户参与统计')
