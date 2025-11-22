@@ -85,8 +85,8 @@ class MultiLotteryCoverageAnalyzer:
             'six_mark': {
                 'number_range': set(range(1, 50)),
                 'total_numbers': 49,
-                'type_name': '六合彩特码',
-                'play_keywords': ['特码', '特玛', '特马', '特碼']
+                'type_name': '六合彩',
+                'play_keywords': ['特码', '特玛', '特马', '特碼', '正码', '正特', '正肖', '平码', '平特']
             },
             '10_number': {
                 'number_range': set(range(1, 11)),
@@ -117,9 +117,9 @@ class MultiLotteryCoverageAnalyzer:
             '金额': ['金额', '下注总额', '投注金额', '总额', '下注金额', '投注额', '金额数值', '单注金额']
         }
         
-        # 玩法分类映射 - 扩展支持多种彩种
+        # 玩法分类映射 - 扩展支持六合彩正码正特
         self.play_mapping = {
-            # 六合彩玩法
+            # 六合彩特码玩法
             '特码': '特码',
             '特码A': '特码', 
             '特码B': '特码',
@@ -128,6 +128,40 @@ class MultiLotteryCoverageAnalyzer:
             '特玛': '特码',
             '特马': '特码',
             '特碼': '特码',
+            
+            # 六合彩正码玩法
+            '正码': '正码',
+            '正码一': '正码一',
+            '正码二': '正码二',
+            '正码三': '正码三',
+            '正码四': '正码四',
+            '正码五': '正码五',
+            '正码六': '正码六',
+            '正码1': '正码一',
+            '正码2': '正码二',
+            '正码3': '正码三',
+            '正码4': '正码四',
+            '正码5': '正码五',
+            '正码6': '正码六',
+            
+            # 六合彩正特玩法
+            '正特': '正特',
+            '正一特': '正一特',
+            '正二特': '正二特',
+            '正三特': '正三特',
+            '正四特': '正四特',
+            '正五特': '正五特',
+            '正六特': '正六特',
+            '正1特': '正一特',
+            '正2特': '正二特',
+            '正3特': '正三特',
+            '正4特': '正四特',
+            '正5特': '正五特',
+            '正6特': '正六特',
+            
+            # 六合彩平码玩法
+            '平码': '平码',
+            '平特': '平特',
             
             # 时时彩/PK10/赛车玩法
             '定位胆': '定位胆',
@@ -155,8 +189,26 @@ class MultiLotteryCoverageAnalyzer:
             '和值': '和值'
         }
         
-        # 位置映射
+        # 位置映射 - 扩展六合彩位置
         self.position_mapping = {
+            # 六合彩位置
+            '特码': ['特码', '特玛', '特马', '特碼'],
+            '正码一': ['正码一', '正码1', '正一码'],
+            '正码二': ['正码二', '正码2', '正二码'],
+            '正码三': ['正码三', '正码3', '正三码'],
+            '正码四': ['正码四', '正码4', '正四码'],
+            '正码五': ['正码五', '正码5', '正五码'],
+            '正码六': ['正码六', '正码6', '正六码'],
+            '正一特': ['正一特', '正1特'],
+            '正二特': ['正二特', '正2特'],
+            '正三特': ['正三特', '正3特'],
+            '正四特': ['正四特', '正4特'],
+            '正五特': ['正五特', '正5特'],
+            '正六特': ['正六特', '正6特'],
+            '平码': ['平码'],
+            '平特': ['平特'],
+            
+            # PK10/赛车位置
             '冠军': ['冠军', '第一名', '1st'],
             '亚军': ['亚军', '第二名', '2nd'],
             '季军': ['季军', '第三名', '3rd'],
@@ -168,11 +220,13 @@ class MultiLotteryCoverageAnalyzer:
             '第九名': ['第九名', '第九位', '9th'],
             '第十名': ['第十名', '第十位', '10th'],
             '前一': ['前一', '前一位', '第一位'],
+            
+            # 快三位置
             '和值': ['和值', '和数', '和']
         }
     
     def identify_lottery_category(self, lottery_name):
-        """识别彩种类型 - 增强快三识别"""
+        """识别彩种类型 - 增强六合彩识别"""
         lottery_str = str(lottery_name).strip().lower()
         
         # 检查六合彩
@@ -304,7 +358,7 @@ class MultiLotteryCoverageAnalyzer:
         return issues
     
     def normalize_position(self, play_method):
-        """统一位置名称 - 将不同写法映射到标准位置"""
+        """统一位置名称 - 扩展六合彩正码正特位置识别"""
         play_str = str(play_method).strip()
         
         # 直接映射
@@ -318,9 +372,45 @@ class MultiLotteryCoverageAnalyzer:
                 if variant in play_str:
                     return standard_pos
         
-        # 智能匹配
+        # 智能匹配 - 六合彩正码
         play_lower = play_str.lower()
-        if '冠军' in play_lower or '第一名' in play_lower or '1st' in play_lower:
+        if '正码一' in play_lower or '正码1' in play_lower or '正一码' in play_lower:
+            return '正码一'
+        elif '正码二' in play_lower or '正码2' in play_lower or '正二码' in play_lower:
+            return '正码二'
+        elif '正码三' in play_lower or '正码3' in play_lower or '正三码' in play_lower:
+            return '正码三'
+        elif '正码四' in play_lower or '正码4' in play_lower or '正四码' in play_lower:
+            return '正码四'
+        elif '正码五' in play_lower or '正码5' in play_lower or '正五码' in play_lower:
+            return '正码五'
+        elif '正码六' in play_lower or '正码6' in play_lower or '正六码' in play_lower:
+            return '正码六'
+        
+        # 智能匹配 - 六合彩正特
+        elif '正一特' in play_lower or '正1特' in play_lower:
+            return '正一特'
+        elif '正二特' in play_lower or '正2特' in play_lower:
+            return '正二特'
+        elif '正三特' in play_lower or '正3特' in play_lower:
+            return '正三特'
+        elif '正四特' in play_lower or '正4特' in play_lower:
+            return '正四特'
+        elif '正五特' in play_lower or '正5特' in play_lower:
+            return '正五特'
+        elif '正六特' in play_lower or '正6特' in play_lower:
+            return '正六特'
+        
+        # 智能匹配 - 六合彩其他
+        elif '平码' in play_lower:
+            return '平码'
+        elif '平特' in play_lower:
+            return '平特'
+        elif '特码' in play_lower or '特玛' in play_lower or '特马' in play_lower or '特碼' in play_lower:
+            return '特码'
+        
+        # 智能匹配 - PK10/赛车
+        elif '冠军' in play_lower or '第一名' in play_lower or '1st' in play_lower:
             return '冠军'
         elif '亚军' in play_lower or '第二名' in play_lower or '2nd' in play_lower:
             return '亚军'
@@ -342,13 +432,15 @@ class MultiLotteryCoverageAnalyzer:
             return '第十名'
         elif '前一' in play_lower or '前一位' in play_lower or '第一位' in play_lower:
             return '前一'
+        
+        # 智能匹配 - 快三
         elif '和值' in play_lower or '和数' in play_lower or '和' in play_lower:
             return '和值'
         
         return play_str
     
     def normalize_play_category(self, play_method, lottery_category='six_mark'):
-        """统一玩法分类 - 根据彩种类型，特别增强快三识别"""
+        """统一玩法分类 - 扩展六合彩正码正特识别"""
         play_str = str(play_method).strip()
         
         # 直接映射
@@ -365,8 +457,41 @@ class MultiLotteryCoverageAnalyzer:
         config = self.get_lottery_config(lottery_category)
         
         if lottery_category == 'six_mark':
+            # 六合彩玩法识别
             if any(word in play_lower for word in ['特码', '特玛', '特马', '特碼']):
                 return '特码'
+            elif any(word in play_lower for word in ['正码一', '正码1', '正一码']):
+                return '正码一'
+            elif any(word in play_lower for word in ['正码二', '正码2', '正二码']):
+                return '正码二'
+            elif any(word in play_lower for word in ['正码三', '正码3', '正三码']):
+                return '正码三'
+            elif any(word in play_lower for word in ['正码四', '正码4', '正四码']):
+                return '正码四'
+            elif any(word in play_lower for word in ['正码五', '正码5', '正五码']):
+                return '正码五'
+            elif any(word in play_lower for word in ['正码六', '正码6', '正六码']):
+                return '正码六'
+            elif any(word in play_lower for word in ['正一特', '正1特']):
+                return '正一特'
+            elif any(word in play_lower for word in ['正二特', '正2特']):
+                return '正二特'
+            elif any(word in play_lower for word in ['正三特', '正3特']):
+                return '正三特'
+            elif any(word in play_lower for word in ['正四特', '正4特']):
+                return '正四特'
+            elif any(word in play_lower for word in ['正五特', '正5特']):
+                return '正五特'
+            elif any(word in play_lower for word in ['正六特', '正6特']):
+                return '正六特'
+            elif '平码' in play_lower:
+                return '平码'
+            elif '平特' in play_lower:
+                return '平特'
+            elif '正码' in play_lower:
+                return '正码'
+            elif '正特' in play_lower:
+                return '正特'
         elif lottery_category == '10_number':
             # 增强赛车玩法识别
             if any(word in play_lower for word in ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎']):
@@ -391,7 +516,7 @@ class MultiLotteryCoverageAnalyzer:
         return self.enhanced_extract_numbers(content, lottery_category)
     
     def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
-        """增强号码提取 - 根据彩种类型调整，特别处理快三格式"""
+        """增强号码提取 - 根据彩种类型调整"""
         content_str = str(content).strip()
         numbers = []
         
@@ -399,7 +524,7 @@ class MultiLotteryCoverageAnalyzer:
             config = self.get_lottery_config(lottery_category)
             number_range = config['number_range']
             
-            # 特别处理快三格式：3,4,5,6,15,16,17,18
+            # 处理常见格式：3,4,5,6,15,16,17,18
             if re.match(r'^(\d{1,2},)*\d{1,2}$', content_str):
                 numbers = [int(x.strip()) for x in content_str.split(',') if x.strip().isdigit()]
                 numbers = [num for num in numbers if num in number_range]
@@ -724,7 +849,7 @@ class MultiLotteryCoverageAnalyzer:
         """带进度显示的分析 - 支持精准位置分析"""
         # 根据分析模式决定分组方式
         if analysis_mode == "仅分析六合彩":
-            grouped = df_target.groupby(['期号', '彩种'])
+            grouped = df_target.groupby(['期号', '彩种', '玩法'])
             min_number_count = six_mark_params['min_number_count']
             min_avg_amount = six_mark_params['min_avg_amount']
         elif analysis_mode == "仅分析时时彩/PK10/赛车":
@@ -746,16 +871,16 @@ class MultiLotteryCoverageAnalyzer:
             # 分析六合彩
             if len(df_six_mark) > 0:
                 st.info("🔍 正在分析六合彩数据...")
-                grouped_six = df_six_mark.groupby(['期号', '彩种'])
-                for (period, lottery), group in grouped_six:
+                grouped_six = df_six_mark.groupby(['期号', '彩种', '玩法'])
+                for (period, lottery, position), group in grouped_six:
                     if len(group) >= 2:
                         result = self.analyze_period_lottery_position(
-                            group, period, lottery, None, 
+                            group, period, lottery, position, 
                             six_mark_params['min_number_count'], 
                             six_mark_params['min_avg_amount']
                         )
                         if result:
-                            all_period_results[(period, lottery, 'six_mark')] = result
+                            all_period_results[(period, lottery, position)] = result
             
             # 分析时时彩/PK10/赛车
             if len(df_10_number) > 0:
@@ -802,23 +927,15 @@ class MultiLotteryCoverageAnalyzer:
             progress = (idx + 1) / total_groups
             progress_bar.progress(progress)
             
-            if analysis_mode == "仅分析六合彩":
-                period, lottery = group_key
-                position = None
-                status_text.text(f"分析进度: {idx+1}/{total_groups} - {period} ({lottery})")
-            else:
-                period, lottery, position = group_key
-                status_text.text(f"分析进度: {idx+1}/{total_groups} - {period} ({lottery} - {position})")
+            period, lottery, position = group_key
+            status_text.text(f"分析进度: {idx+1}/{total_groups} - {period} ({lottery} - {position})")
             
             if len(group) >= 2:
                 result = self.analyze_period_lottery_position(
                     group, period, lottery, position, min_number_count, min_avg_amount
                 )
                 if result:
-                    if analysis_mode == "仅分析六合彩":
-                        all_period_results[(period, lottery, 'six_mark')] = result
-                    else:
-                        all_period_results[(period, lottery, position)] = result
+                    all_period_results[(period, lottery, position)] = result
         
         progress_bar.empty()
         status_text.text("分析完成!")
@@ -943,7 +1060,7 @@ class MultiLotteryCoverageAnalyzer:
                         'combo_info': combo
                     }
                     
-                    if analysis_mode != "仅分析六合彩" and 'position' in result and result['position']:
+                    if 'position' in result and result['position']:
                         account_info['position'] = result['position']
                     
                     account_combinations[account].append(account_info)
@@ -964,12 +1081,11 @@ class MultiLotteryCoverageAnalyzer:
                 '总投注金额': total_bet_amount
             }
             
-            # 如果是赛车类，添加位置信息
-            if analysis_mode != "仅分析六合彩":
-                positions = set(c.get('position', '') for c in combinations)
-                positions.discard('')  # 移除空字符串
-                if positions:
-                    stat_record['涉及位置'] = ', '.join(sorted(positions))
+            # 添加位置信息
+            positions = set(c.get('position', '') for c in combinations)
+            positions.discard('')  # 移除空字符串
+            if positions:
+                stat_record['涉及位置'] = ', '.join(sorted(positions))
             
             account_stats.append(stat_record)
         
@@ -1068,8 +1184,8 @@ class MultiLotteryCoverageAnalyzer:
                     '匹配度等级': combo['similarity_indicator']
                 }
                 
-                # 添加位置信息（如果是赛车类）
-                if analysis_mode != "仅分析六合彩" and 'position' in result and result['position']:
+                # 添加位置信息
+                if 'position' in result and result['position']:
                     export_record['投注位置'] = result['position']
                 
                 # 各账户详情
@@ -1117,7 +1233,7 @@ def main():
         min_value=1, 
         max_value=30, 
         value=11,
-        help="六合彩特码玩法：只分析投注号码数量大于等于此值的账户"
+        help="六合彩：只分析投注号码数量大于等于此值的账户"
     )
     
     six_mark_min_avg_amount = st.sidebar.slider(
@@ -1126,7 +1242,7 @@ def main():
         max_value=20, 
         value=2,
         step=1,
-        help="六合彩特码玩法：只分析平均每号金额大于等于此值的账户"
+        help="六合彩：只分析平均每号金额大于等于此值的账户"
     )
     
     st.sidebar.subheader("🏎️ 时时彩/PK10/赛车参数设置")
@@ -1285,13 +1401,16 @@ def main():
 
                 # 筛选有效玩法数据
                 if analysis_mode == "仅分析六合彩":
-                    valid_plays = ['特码']
+                    valid_plays = ['特码', '正码一', '正码二', '正码三', '正码四', '正码五', '正码六', 
+                                 '正一特', '正二特', '正三特', '正四特', '正五特', '正六特', '平码', '平特']
                 elif analysis_mode == "仅分析时时彩/PK10/赛车":
                     valid_plays = ['冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆', '前一']
                 elif analysis_mode == "仅分析快三":
                     valid_plays = ['和值']
                 else:
-                    valid_plays = ['特码', '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆', '前一', '和值']
+                    valid_plays = ['特码', '正码一', '正码二', '正码三', '正码四', '正码五', '正码六', 
+                                 '正一特', '正二特', '正三特', '正四特', '正五特', '正六特', '平码', '平特',
+                                 '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆', '前一', '和值']
                 
                 df_target = df_clean[df_clean['玩法'].isin(valid_plays)]
                 
@@ -1325,7 +1444,7 @@ def main():
                        - **快三**: 快三, 快3, K3, 分分快三等
                     
                     2. 玩法名称不匹配 - 当前支持的玩法:
-                       - **六合彩**: 特码
+                       - **六合彩**: 特码, 正码一至正码六, 正一特至正六特, 平码, 平特
                        - **时时彩/PK10/赛车**: 冠军、亚军、季军、第四名到第十名、定位胆、前一
                        - **快三**: 和值
                     
@@ -1403,16 +1522,15 @@ def main():
         ### 🚀 系统特色功能:
 
         **🎲 全彩种支持**
-        - ✅ **六合彩**: 1-49个号码，特码玩法
+        - ✅ **六合彩**: 1-49个号码，支持特码、正码、正特、平码等多种玩法
         - ✅ **时时彩/PK10/赛车**: 1-10共10个号码，**按位置精准分析**  
         - ✅ **快三**: 3-18共16个号码，和值玩法
         - 🔄 **自动识别**: 智能识别彩种类型
 
         **📍 位置精准分析**
-        - ✅ **冠军、亚军、季军**: 分别分析每个位置的投注情况
-        - ✅ **第四名到第十名**: 完整支持所有名次位置
-        - ✅ **前一**: 支持PK10前一玩法
-        - ✅ **和值**: 支持快三和值玩法
+        - ✅ **六合彩位置**: 特码、正码一至正码六、正一特至正六特、平码、平特
+        - ✅ **PK10/赛车位置**: 冠军、亚军、季军、第四名到第十名、前一
+        - ✅ **快三位置**: 和值
         - ✅ **位置统计**: 按位置统计完美组合数量
 
         **🔍 智能数据识别**
@@ -1434,8 +1552,9 @@ def main():
         ### 🎯 各彩种分析原理:
 
         **六合彩 (49个号码)**
-        - 检测同一期号内不同账户的投注号码是否形成完美覆盖（1-49全部覆盖）
+        - 检测同一期号、同一位置内不同账户的投注号码是否形成完美覆盖（1-49全部覆盖）
         - 分析各账户的投注金额匹配度，识别可疑的协同投注行为
+        - 支持特码、正码、正特、平码等多种玩法
 
         **时时彩/PK10/赛车 (10个号码)**  
         - **按位置精准分析**: 冠军、亚军、季军等每个位置独立分析
