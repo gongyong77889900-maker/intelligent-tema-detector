@@ -1895,7 +1895,7 @@ def main():
                         'min_avg_amount': fast_three_min_avg_amount
                     }
                     
-                     all_period_results = analyzer.analyze_with_progress(
+                    all_period_results = analyzer.analyze_with_progress(
                         df_target, six_mark_params, ten_number_params, fast_three_params, analysis_mode
                     )
             
@@ -1924,6 +1924,7 @@ def main():
                                     st.write(f"  - 总唯一号码数: {len(combo['combined_numbers'])}")
                                 
                                 st.write("")
+                # ========== 调试信息结束 ==========
 
                 # 显示结果 - 使用增强版展示
                 st.header("📊 完美覆盖组合检测结果")
