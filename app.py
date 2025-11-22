@@ -1895,35 +1895,35 @@ def main():
                         'min_avg_amount': fast_three_min_avg_amount
                     }
                     
-                    all_period_results = analyzer.analyze_with_progress(
+                     all_period_results = analyzer.analyze_with_progress(
                         df_target, six_mark_params, ten_number_params, fast_three_params, analysis_mode
                     )
-
-    # 在分析完成后添加调试信息
-    if all_period_results:
-        with st.expander("🔍 调试信息 - 号码去重验证", expanded=False):
-            st.subheader("号码去重统计")
             
-            for group_key, result in list(all_period_results.items())[:5]:  # 只显示前5个结果
-                period, lottery, position = group_key
-                st.write(f"**{period} - {lottery} - {position}**")
-                
-                # 显示每个组合的号码信息
-                for combo in result['all_combinations'][:3]:  # 只显示前3个组合
-                    accounts = combo['accounts']
-                    st.write(f"- 组合: {' + '.join(accounts)}")
-                    
-                    # 显示每个账户的号码
-                    for account in accounts:
-                        numbers = combo['bet_contents'][account]
-                        st.write(f"  - {account}: {numbers}")
-                    
-                    # 显示组合后的号码
-                    if 'combined_numbers' in combo:
-                        st.write(f"  - 组合后号码: {combo['combined_numbers']}")
-                        st.write(f"  - 总唯一号码数: {len(combo['combined_numbers'])}")
-                    
-                    st.write("")
+                # ========== 添加调试信息的位置 ==========
+                if all_period_results:
+                    with st.expander("🔍 调试信息 - 号码去重验证", expanded=False):
+                        st.subheader("号码去重统计")
+                        
+                        for group_key, result in list(all_period_results.items())[:5]:  # 只显示前5个结果
+                            period, lottery, position = group_key
+                            st.write(f"**{period} - {lottery} - {position}**")
+                            
+                            # 显示每个组合的号码信息
+                            for combo in result['all_combinations'][:3]:  # 只显示前3个组合
+                                accounts = combo['accounts']
+                                st.write(f"- 组合: {' + '.join(accounts)}")
+                                
+                                # 显示每个账户的号码
+                                for account in accounts:
+                                    numbers = combo['bet_contents'][account]
+                                    st.write(f"  - {account}: {numbers}")
+                                
+                                # 显示组合后的号码
+                                if 'combined_numbers' in combo:
+                                    st.write(f"  - 组合后号码: {combo['combined_numbers']}")
+                                    st.write(f"  - 总唯一号码数: {len(combo['combined_numbers'])}")
+                                
+                                st.write("")
 
                 # 显示结果 - 使用增强版展示
                 st.header("📊 完美覆盖组合检测结果")
