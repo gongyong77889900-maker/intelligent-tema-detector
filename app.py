@@ -145,6 +145,12 @@ class MultiLotteryCoverageAnalyzer:
             '正码4': '正码四',
             '正码5': '正码五',
             '正码6': '正码六',
+            '正码1-6_正码一': '正码一',
+            '正码1-6_正码二': '正码二',
+            '正码1-6_正码三': '正码三',
+            '正码1-6_正码四': '正码四',
+            '正码1-6_正码五': '正码五',
+            '正码1-6_正码六': '正码六',
             
             # 六合彩正特玩法
             '正特': '正特',
@@ -160,10 +166,25 @@ class MultiLotteryCoverageAnalyzer:
             '正4特': '正四特',
             '正5特': '正五特',
             '正6特': '正六特',
+            '正码特': '正特',
+            '正码特_正一特': '正1特',
+            '正码特_正二特': '正2特', 
+            '正码特_正三特': '正3特',
+            '正码特_正四特': '正4特',
+            '正码特_正五特': '正5特',
+            '正码特_正六特': '正6特',
+            '正玛特': '正特',
             
             # 六合彩平码玩法
             '平码': '平码',
             '平特': '平特',
+
+            # 2. 尾数玩法映射（尾数是号码玩法）
+            '尾数': '尾数',
+            '尾数_头尾数': '尾数_头尾数',
+            '特尾': '特尾',
+            '全尾': '全尾',
+            '尾数_正特尾数': '尾数',
             
             # 时时彩/PK10/赛车玩法
             '定位胆': '定位胆',
@@ -203,8 +224,6 @@ class MultiLotteryCoverageAnalyzer:
             
             # === 新增：从第一套代码借鉴的三色彩玩法 ===
             '正码': '正码',
-            '色波': '色波',
-            '特码': '特码',
             
             # 快三玩法
             '和值': '和值'
@@ -535,6 +554,38 @@ class MultiLotteryCoverageAnalyzer:
         config = self.get_lottery_config(lottery_category)
         
         if lottery_category == 'six_mark':
+
+            if '正玛特' in play_str or '正玛' in play_str:
+                return '正特'
+            
+            # 处理正码特变体
+            if '正码特' in play_lower:
+                if '正一' in play_lower or '正1' in play_lower:
+                    return '正1特'
+                elif '正二' in play_lower or '正2' in play_lower:
+                    return '正2特'
+                elif '正三' in play_lower or '正3' in play_lower:
+                    return '正3特'
+                elif '正四' in play_lower or '正4' in play_lower:
+                    return '正4特'
+                elif '正五' in play_lower or '正5' in play_lower:
+                    return '正5特'
+                elif '正六' in play_lower or '正6' in play_lower:
+                    return '正6特'
+                else:
+                    return '正特'
+            
+            # 处理尾数玩法（尾数是号码）
+            if any(word in play_lower for word in ['尾数', '特尾', '全尾']):
+                if '特尾' in play_lower:
+                    return '特尾'
+                elif '全尾' in play_lower:
+                    return '全尾'
+                elif '头尾' in play_lower:
+                    return '尾数_头尾数'
+                else:
+                    return '尾数'
+
             # 六合彩玩法识别
             if any(word in play_lower for word in ['特码', '特玛', '特马', '特碼']):
                 return '特码'
