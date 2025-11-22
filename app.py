@@ -109,13 +109,15 @@ class MultiLotteryCoverageAnalyzer:
         
         # 增强的列名映射字典
         self.column_mappings = {
-            '会员账号': ['会员账号', '会员账户', '账号', '账户', '用户账号', '玩家账号', '用户ID', '玩家ID'],
-            '彩种': ['彩种', '彩神', '彩票种类', '游戏类型', '彩票类型', '游戏彩种', '彩票名称'],
-            '期号': ['期号', '期数', '期次', '期', '奖期', '期号信息', '期号编号'],
-            '玩法': ['玩法', '玩法分类', '投注类型', '类型', '投注玩法', '玩法类型', '分类'],
-            '内容': ['内容', '投注内容', '下注内容', '注单内容', '投注号码', '号码内容', '投注信息'],
-            '金额': ['金额', '下注总额', '投注金额', '总额', '下注金额', '投注额', '金额数值', '单注金额']
+            '会员账号': ['会员账号', '会员账户', '账号', '账户', '用户账号', '玩家账号', '用户ID', '玩家ID', '用户名称', '玩家名称'],
+            '彩种': ['彩种', '彩神', '彩票种类', '游戏类型', '彩票类型', '游戏彩种', '彩票名称', '彩系', '游戏名称'],
+            '期号': ['期号', '期数', '期次', '期', '奖期', '期号信息', '期号编号', '开奖期号', '奖期号'],
+            '玩法': ['玩法', '玩法分类', '投注类型', '类型', '投注玩法', '玩法类型', '分类', '玩法名称', '投注方式'],
+            '内容': ['内容', '投注内容', '下注内容', '注单内容', '投注号码', '号码内容', '投注信息', '号码', '选号'],
+            '金额': ['金额', '下注总额', '投注金额', '总额', '下注金额', '投注额', '金额数值', '单注金额', '投注额', '钱', '元']
         }
+        
+        self.account_keywords = ['会员', '账号', '账户', '用户', '玩家', 'id', 'name', 'user', 'player']
         
         # 玩法分类映射 - 扩展支持六合彩正码正特
         self.play_mapping = {
@@ -263,13 +265,26 @@ class MultiLotteryCoverageAnalyzer:
             if lottery.lower() in lottery_str:
                 return '10_number'
 
-        # === 新增：从第一套代码借鉴的3D系列识别 ===
         if any(word in lottery_str for word in ['排列三', '排列3', '福彩3d', '3d', '极速3d', '排列', 'p3', 'p三']):
             return '3d_series'
         
-        # === 新增：从第一套代码借鉴的三色彩识别 ===
         if any(word in lottery_str for word in ['三色', '三色彩', '三色球']):
             return 'three_color'
+
+        lottery_keywords_mapping = {
+            'six_mark': ['六合', 'lhc', '⑥合', '6合', '特码', '平特', '连肖', '六合彩', '大乐透'],
+            '10_number': ['pk10', 'pk拾', '飞艇', '赛车', '赛車', '幸运10', '北京赛车', '极速赛车', 
+                         '时时彩', 'ssc', '分分彩', '時時彩', '重庆时时彩', '腾讯分分彩'],
+            'fast_three': ['快三', '快3', 'k3', 'k三', '骰宝', '三军', '和值', '点数'],
+            '3d_series': ['排列三', '排列3', '福彩3d', '3d', '极速3d', '排列', 'p3', 'p三'],
+            'three_color': ['三色', '三色彩', '三色球']
+        }
+        
+        for category, keywords in lottery_keywords_mapping.items():
+            for keyword in keywords:
+                if keyword in lottery_str:
+                    logger.info(f"🎯 关键词识别彩种: {lottery_name} -> {category}")
+                    return category
         
         # 模糊匹配
         if any(word in lottery_str for word in ['六合', 'lhc', '⑥合', '6合']):
@@ -344,6 +359,30 @@ class MultiLotteryCoverageAnalyzer:
                 null_count = df[col].isnull().sum()
                 if null_count > 0:
                     issues.append(f"列 '{col}' 有 {null_count} 个空值")
+
+        if '彩种' in df.columns:
+            lottery_stats = df['彩种'].value_counts()
+            st.info(f"🎲 彩种分布: 共{len(lottery_stats)}种，前5: {', '.join([f'{k}({v}条)' for k,v in lottery_stats.head().items()])}")
+        
+        if '期号' in df.columns:
+            try:
+                # 尝试提取日期信息
+                period_samples = df['期号'].head(10).tolist()
+                st.info(f"📅 期号样本: {', '.join([str(p) for p in period_samples[:3]])}...")
+            except:
+                pass
+        
+        if '内容' in df.columns:
+            content_samples = df['内容'].head(5).tolist()
+            st.info(f"📝 投注内容样本:")
+            for i, sample in enumerate(content_samples):
+                st.write(f"  {i+1}. {sample}")
+        
+        if '玩法' in df.columns:
+            play_stats = df['玩法'].value_counts().head(10)
+            with st.expander("🎯 玩法分布TOP10", expanded=False):
+                for play, count in play_stats.items():
+                    st.write(f"  - {play}: {count}次")
         
         # 检查会员账号完整性
         if '会员账号' in df.columns:
@@ -884,6 +923,91 @@ class MultiLotteryCoverageAnalyzer:
         
         return None
 
+    def analyze_account_behavior(self, df):
+        """新增：账户行为分析 - 整合第二套代码的活跃度分析"""
+        account_stats = {}
+        
+        for account in df['会员账号'].unique():
+            account_data = df[df['会员账号'] == account]
+            
+            # 基础统计
+            total_periods = account_data['期号'].nunique()
+            total_records = len(account_data)
+            total_lotteries = account_data['彩种'].nunique()
+            
+            # 彩种偏好分析
+            lottery_preference = account_data['彩种'].value_counts().head(3).to_dict()
+            
+            # 玩法偏好分析  
+            play_preference = account_data['玩法'].value_counts().head(5).to_dict()
+            
+            # 活跃度等级
+            activity_level = self._get_activity_level(total_periods)
+            
+            account_stats[account] = {
+                'total_periods': total_periods,
+                'total_records': total_records,
+                'total_lotteries': total_lotteries,
+                'lottery_preference': lottery_preference,
+                'play_preference': play_preference,
+                'activity_level': activity_level,
+                'avg_records_per_period': total_records / total_periods if total_periods > 0 else 0
+            }
+        
+        return account_stats
+    
+    def _get_activity_level(self, total_periods):
+        """获取活跃度等级 - 整合第二套代码逻辑"""
+        if total_periods <= 10:
+            return '低活跃'
+        elif total_periods <= 50:
+            return '中活跃' 
+        elif total_periods <= 100:
+            return '高活跃'
+        else:
+            return '极高活跃'
+    
+    def display_account_behavior_analysis(self, account_stats):
+        """显示账户行为分析结果"""
+        st.subheader("👤 账户行为分析")
+        
+        if not account_stats:
+            st.info("暂无账户行为分析数据")
+            return
+        
+        # 转换为DataFrame便于显示
+        stats_list = []
+        for account, stats in account_stats.items():
+            stats_list.append({
+                '账户': account,
+                '活跃度': stats['activity_level'],
+                '投注期数': stats['total_periods'],
+                '总记录数': stats['total_records'],
+                '涉及彩种': stats['total_lotteries'],
+                '主要彩种': ', '.join([f"{k}({v})" for k, v in list(stats['lottery_preference'].items())[:2]]),
+                '期均记录': f"{stats['avg_records_per_period']:.1f}"
+            })
+        
+        df_stats = pd.DataFrame(stats_list)
+        df_stats = df_stats.sort_values('投注期数', ascending=False)
+        
+        st.dataframe(
+            df_stats,
+            use_container_width=True,
+            hide_index=True,
+            height=min(400, len(df_stats) * 35 + 38)
+        )
+        
+        # 活跃度分布
+        activity_dist = df_stats['活跃度'].value_counts()
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("总账户数", len(account_stats))
+        with col2:
+            st.metric("高活跃账户", activity_dist.get('高活跃', 0) + activity_dist.get('极高活跃', 0))
+        with col3:
+            st.metric("平均期数", f"{df_stats['投注期数'].mean():.1f}")
+
     def analyze_with_progress(self, df_target, six_mark_params, ten_number_params, fast_three_params, analysis_mode):
         """带进度显示的分析 - 支持精准位置分析"""
         # 根据分析模式决定分组方式
@@ -1419,6 +1543,10 @@ def main():
                 
                 for col in available_columns:
                     df_clean[col] = df_clean[col].astype(str).str.strip()
+
+                with st.spinner("📊 正在进行账户行为分析..."):
+                    account_behavior_stats = analyzer.analyze_account_behavior(df_clean)
+                    analyzer.display_account_behavior_analysis(account_behavior_stats)
                 
                 # 识别彩种类型并统一玩法分类
                 with st.spinner("正在识别彩种类型和统一玩法分类..."):
