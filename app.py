@@ -148,9 +148,9 @@ class MultiLotteryCoverageAnalyzer:
             '正码6': '正码六',
             '正码1-6': '正码',
             
-            # 正特相关
+            # 正特相关 - 增强正玛特识别
             '正特': '正特',
-            '正玛特': '正特',
+            '正玛特': '正特',  # 关键修复：添加正玛特映射
             '正码特': '正特',
             '正一特': '正1特',
             '正二特': '正2特',
@@ -170,6 +170,12 @@ class MultiLotteryCoverageAnalyzer:
             '正码特_正四特': '正4特',
             '正码特_正五特': '正5特',
             '正码特_正六特': '正6特',
+            '正玛特_正一特': '正1特',  # 关键修复：正玛特的具体位置
+            '正玛特_正二特': '正2特',
+            '正玛特_正三特': '正3特',
+            '正玛特_正四特': '正4特',
+            '正玛特_正五特': '正5特',
+            '正玛特_正六特': '正6特',
             
             # 平码相关
             '平码': '平码',
@@ -268,19 +274,19 @@ class MultiLotteryCoverageAnalyzer:
         # 位置映射 - 扩展六合彩位置
         self.position_mapping = {
             # ========== 六合彩位置 ==========
-            '特码': ['特码', '特玛', '特马', '特碼'],
+             '特码': ['特码', '特玛', '特马', '特碼'],
             '正码一': ['正码一', '正码1', '正一码'],
             '正码二': ['正码二', '正码2', '正二码'],
             '正码三': ['正码三', '正码3', '正三码'],
             '正码四': ['正码四', '正码4', '正四码'],
             '正码五': ['正码五', '正码5', '正五码'],
             '正码六': ['正码六', '正码6', '正六码'],
-            '正一特': ['正一特', '正1特', '正码特_正一特'],
-            '正二特': ['正二特', '正2特', '正码特_正二特'],
-            '正三特': ['正三特', '正3特', '正码特_正三特'],
-            '正四特': ['正四特', '正4特', '正码特_正四特'],
-            '正五特': ['正五特', '正5特', '正码特_正五特'],
-            '正六特': ['正六特', '正6特', '正码特_正六特'],
+            '正一特': ['正一特', '正1特', '正码特_正一特', '正玛特_正一特'],  # 关键修复
+            '正二特': ['正二特', '正2特', '正码特_正二特', '正玛特_正二特'],
+            '正三特': ['正三特', '正3特', '正码特_正三特', '正玛特_正三特'],
+            '正四特': ['正四特', '正4特', '正码特_正四特', '正玛特_正四特'],
+            '正五特': ['正五特', '正5特', '正码特_正五特', '正玛特_正五特'],
+            '正六特': ['正六特', '正6特', '正码特_正六特', '正玛特_正六特'],
             '平码': ['平码'],
             '平特': ['平特'],
             '尾数': ['尾数'],
@@ -585,7 +591,7 @@ class MultiLotteryCoverageAnalyzer:
         return text
     
     def normalize_play_category(self, play_method, lottery_category='six_mark'):
-        """统一玩法分类 - 完整号码投注版本"""
+        """统一玩法分类 - 增强正玛特识别"""
         play_str = str(play_method).strip()
         
         # 规范化特殊字符
@@ -608,8 +614,8 @@ class MultiLotteryCoverageAnalyzer:
                 main_play = parts[0].strip()
                 sub_play = parts[1].strip()
                 
-                # 处理正码特格式
-                if '正码特' in main_play or '正玛特' in main_play:
+                # 处理正码特和正玛特格式
+                if '正码特' in main_play or '正玛特' in main_play:  # 关键修复
                     if '正一' in sub_play or '正1' in sub_play:
                         return '正1特'
                     elif '正二' in sub_play or '正2' in sub_play:
@@ -629,7 +635,7 @@ class MultiLotteryCoverageAnalyzer:
         play_lower = play_normalized.lower()
         
         if lottery_category == 'six_mark':
-            # 六合彩号码玩法智能匹配
+            # 六合彩号码玩法智能匹配 - 增强正玛特识别
             if any(word in play_lower for word in ['特码', '特玛', '特马', '特碼']):
                 return '特码'
             elif any(word in play_lower for word in ['正码一', '正码1', '正一码']):
@@ -656,7 +662,24 @@ class MultiLotteryCoverageAnalyzer:
                 return '正5特'
             elif any(word in play_lower for word in ['正六特', '正6特']):
                 return '正6特'
-            elif any(word in play_lower for word in ['正特', '正玛特']):
+            # 关键修复：增强正玛特识别
+            elif any(word in play_lower for word in ['正玛特']):
+                # 如果正玛特后面有具体位置信息
+                if '正一' in play_lower or '正1' in play_lower:
+                    return '正1特'
+                elif '正二' in play_lower or '正2' in play_lower:
+                    return '正2特'
+                elif '正三' in play_lower or '正3' in play_lower:
+                    return '正3特'
+                elif '正四' in play_lower or '正4' in play_lower:
+                    return '正4特'
+                elif '正五' in play_lower or '正5' in play_lower:
+                    return '正5特'
+                elif '正六' in play_lower or '正6' in play_lower:
+                    return '正6特'
+                else:
+                    return '正特'
+            elif any(word in play_lower for word in ['正特', '正码特']):
                 return '正特'
             elif any(word in play_lower for word in ['平码']):
                 return '平码'
