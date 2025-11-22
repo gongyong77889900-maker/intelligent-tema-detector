@@ -121,9 +121,10 @@ class MultiLotteryCoverageAnalyzer:
         
         # 玩法分类映射 - 扩展支持六合彩正码正特
         self.play_mapping = {
-            # 六合彩特码玩法
+            # ========== 六合彩号码玩法 ==========
+            # 特码相关
             '特码': '特码',
-            '特码A': '特码', 
+            '特码A': '特码',
             '特码B': '特码',
             '特码球': '特码',
             '特码_特码': '特码',
@@ -131,7 +132,7 @@ class MultiLotteryCoverageAnalyzer:
             '特马': '特码',
             '特碼': '特码',
             
-            # 六合彩正码玩法
+            # 正码相关
             '正码': '正码',
             '正码一': '正码一',
             '正码二': '正码二',
@@ -145,70 +146,56 @@ class MultiLotteryCoverageAnalyzer:
             '正码4': '正码四',
             '正码5': '正码五',
             '正码6': '正码六',
-            '正码1-6_正码一': '正码一',
-            '正码1-6_正码二': '正码二',
-            '正码1-6_正码三': '正码三',
-            '正码1-6_正码四': '正码四',
-            '正码1-6_正码五': '正码五',
-            '正码1-6_正码六': '正码六',
+            '正码1-6': '正码',
             
-            # 六合彩正特玩法
+            # 正特相关
             '正特': '正特',
-            '正一特': '正一特',
-            '正二特': '正二特',
-            '正三特': '正三特',
-            '正四特': '正四特',
-            '正五特': '正五特',
-            '正六特': '正六特',
-            '正1特': '正一特',
-            '正2特': '正二特',
-            '正3特': '正三特',
-            '正4特': '正四特',
-            '正5特': '正五特',
-            '正6特': '正六特',
-            # 其他变体格式
-            '正码特-正一特': '正1特',
-            '正码特-正二特': '正2特',
-            '正码特-正三特': '正3特',
-            '正码特-正四特': '正4特',
-            '正码特-正五特': '正5特',
-            '正码特-正六特': '正6特',
-            
-            '正码特_正1特': '正1特',
-            '正码特_正2特': '正2特',
-            '正码特_正3特': '正3特',
-            '正码特_正4特': '正4特',
-            '正码特_正5特': '正5特',
-            '正码特_正6特': '正6特',
-            
-            # 确保基础映射
-            '正码特': '正特',
             '正玛特': '正特',
+            '正码特': '正特',
+            '正一特': '正1特',
+            '正二特': '正2特',
+            '正三特': '正3特',
+            '正四特': '正4特',
+            '正五特': '正5特',
+            '正六特': '正6特',
+            '正1特': '正1特',
+            '正2特': '正2特',
+            '正3特': '正3特',
+            '正4特': '正4特',
+            '正5特': '正5特',
+            '正6特': '正6特',
+            '正码特_正一特': '正1特',
+            '正码特_正二特': '正2特',
+            '正码特_正三特': '正3特',
+            '正码特_正四特': '正4特',
+            '正码特_正五特': '正5特',
+            '正码特_正六特': '正6特',
             
-            # 六合彩平码玩法
+            # 平码相关
             '平码': '平码',
             '平特': '平特',
-
-            # 2. 尾数玩法映射（尾数是号码玩法）
+            
+            # 尾数相关
             '尾数': '尾数',
             '尾数_头尾数': '尾数_头尾数',
             '特尾': '特尾',
             '全尾': '全尾',
             '尾数_正特尾数': '尾数',
             
-            # 时时彩/PK10/赛车玩法
+            # ========== 时时彩/PK10/赛车号码玩法 ==========
+            # 定位胆相关
             '定位胆': '定位胆',
             '一字定位': '定位胆',
             '一字': '定位胆',
             '定位': '定位胆',
-            '大小单双': '定位胆',
-            '龙虎': '定位胆',
+            
+            # 名次玩法
             '冠军': '冠军',
             '亚军': '亚军',
             '季军': '季军',
-            '第一名': '第一名',
-            '第二名': '第二名', 
-            '第三名': '第三名',
+            '第一名': '冠军',
+            '第二名': '亚军',
+            '第三名': '季军',
             '第四名': '第四名',
             '第五名': '第五名',
             '第六名': '第六名',
@@ -216,32 +203,71 @@ class MultiLotteryCoverageAnalyzer:
             '第八名': '第八名',
             '第九名': '第九名',
             '第十名': '第十名',
-            '前一': '前一',
-
-            # === 新增：从第一套代码借鉴的3D系列玩法 ===
+            '第1名': '冠军',
+            '第2名': '亚军',
+            '第3名': '季军',
+            '第4名': '第四名',
+            '第5名': '第五名',
+            '第6名': '第六名',
+            '第7名': '第七名',
+            '第8名': '第八名',
+            '第9名': '第九名',
+            '第10名': '第十名',
+            '前一': '冠军',
+            
+            # 分组名次
+            '1-5名': '1-5名',
+            '6-10名': '6-10名',
+            '1~5名': '1-5名',
+            '6~10名': '6-10名',
+            '定位胆_第1~5名': '定位胆_第1~5名',
+            '定位胆_第6~10名': '定位胆_第6~10名',
+            
+            # 球位玩法（时时彩）
+            '第1球': '第1球',
+            '第2球': '第2球',
+            '第3球': '第3球',
+            '第4球': '第4球',
+            '第5球': '第5球',
+            '1-5球': '1-5球',
+            
+            # 位数玩法（时时彩）
+            '万位': '万位',
+            '千位': '千位',
             '百位': '百位',
-            '十位': '十位', 
+            '十位': '十位',
+            '个位': '个位',
+            '定位_万位': '万位',
+            '定位_千位': '千位',
+            '定位_百位': '百位',
+            '定位_十位': '十位',
+            '定位_个位': '个位',
+            
+            # ========== 快三号码玩法 ==========
+            '和值': '和值',
+            '和值_大小单双': '和值',
+            '点数': '和值',
+            
+            # ========== 3D系列号码玩法 ==========
+            '百位': '百位',
+            '十位': '十位',
             '个位': '个位',
             '百十': '百十',
             '百个': '百个',
             '十个': '十个',
             '百十个': '百十个',
-            '定位胆_百位': '定位胆_百位',
-            '定位胆_十位': '定位胆_十位',
-            '定位胆_个位': '定位胆_个位',
-            '两面': '两面',
-            '大小单双': '两面',
+            '定位胆_百位': '百位',
+            '定位胆_十位': '十位',
+            '定位胆_个位': '个位',
             
-            # === 新增：从第一套代码借鉴的三色彩玩法 ===
-            '正码': '正码',
-            
-            # 快三玩法
-            '和值': '和值'
+            # ========== 其他号码玩法 ==========
+            '总和': '总和',
+            '斗牛': '斗牛'
         }
         
         # 位置映射 - 扩展六合彩位置
         self.position_mapping = {
-            # 六合彩位置
+            # ========== 六合彩位置 ==========
             '特码': ['特码', '特玛', '特马', '特碼'],
             '正码一': ['正码一', '正码1', '正一码'],
             '正码二': ['正码二', '正码2', '正二码'],
@@ -249,17 +275,20 @@ class MultiLotteryCoverageAnalyzer:
             '正码四': ['正码四', '正码4', '正四码'],
             '正码五': ['正码五', '正码5', '正五码'],
             '正码六': ['正码六', '正码6', '正六码'],
-            '正一特': ['正一特', '正1特', '正码特_正一特', '正码特-正一特'],
-            '正二特': ['正二特', '正2特', '正码特_正二特', '正码特-正二特'],
-            '正三特': ['正三特', '正3特', '正码特_正三特', '正码特-正三特'],
-            '正四特': ['正四特', '正4特', '正码特_正四特', '正码特-正四特'],
-            '正五特': ['正五特', '正5特', '正码特_正五特', '正码特-正五特'],
-            '正六特': ['正六特', '正6特', '正码特_正六特', '正码特-正六特'],
+            '正一特': ['正一特', '正1特', '正码特_正一特'],
+            '正二特': ['正二特', '正2特', '正码特_正二特'],
+            '正三特': ['正三特', '正3特', '正码特_正三特'],
+            '正四特': ['正四特', '正4特', '正码特_正四特'],
+            '正五特': ['正五特', '正5特', '正码特_正五特'],
+            '正六特': ['正六特', '正6特', '正码特_正六特'],
             '平码': ['平码'],
             '平特': ['平特'],
+            '尾数': ['尾数'],
+            '特尾': ['特尾'],
+            '全尾': ['全尾'],
             
-            # PK10/赛车位置
-            '冠军': ['冠军', '第一名', '1st'],
+            # ========== 时时彩/PK10/赛车位置 ==========
+            '冠军': ['冠军', '第一名', '1st', '前一'],
             '亚军': ['亚军', '第二名', '2nd'],
             '季军': ['季军', '第三名', '3rd'],
             '第四名': ['第四名', '第四位', '4th'],
@@ -269,10 +298,19 @@ class MultiLotteryCoverageAnalyzer:
             '第八名': ['第八名', '第八位', '8th'],
             '第九名': ['第九名', '第九位', '9th'],
             '第十名': ['第十名', '第十位', '10th'],
-            '前一': ['前一', '前一位', '第一位'],
+            '第1球': ['第1球', '万位'],
+            '第2球': ['第2球', '千位'],
+            '第3球': ['第3球', '百位'],
+            '第4球': ['第4球', '十位'],
+            '第5球': ['第5球', '个位'],
             
-            # 快三位置
-            '和值': ['和值', '和数', '和']
+            # ========== 快三位置 ==========
+            '和值': ['和值', '和数', '和'],
+            
+            # ========== 3D系列位置 ==========
+            '百位': ['百位'],
+            '十位': ['十位'],
+            '个位': ['个位']
         }
     
     def identify_lottery_category(self, lottery_name):
@@ -547,93 +585,51 @@ class MultiLotteryCoverageAnalyzer:
         return text
     
     def normalize_play_category(self, play_method, lottery_category='six_mark'):
-        """统一玩法分类 - 增强复杂格式识别"""
+        """统一玩法分类 - 完整号码投注版本"""
         play_str = str(play_method).strip()
         
+        # 规范化特殊字符
+        import re
+        play_normalized = re.sub(r'\s+', ' ', play_str)
+        
         # 1. 直接映射（完全匹配）
-        if play_str in self.play_mapping:
-            return self.play_mapping[play_str]
+        if play_normalized in self.play_mapping:
+            return self.play_mapping[play_normalized]
         
         # 2. 关键词匹配（包含匹配）
         for key, value in self.play_mapping.items():
-            if key in play_str:
+            if key in play_normalized:
                 return value
         
-        # 3. 根据彩种类型智能匹配
-        play_lower = play_str.lower()
+        # 3. 处理特殊格式（下划线、连字符分隔）
+        if '_' in play_normalized or '-' in play_normalized:
+            parts = re.split(r'[_-]', play_normalized)
+            if len(parts) >= 2:
+                main_play = parts[0].strip()
+                sub_play = parts[1].strip()
+                
+                # 处理正码特格式
+                if '正码特' in main_play or '正玛特' in main_play:
+                    if '正一' in sub_play or '正1' in sub_play:
+                        return '正1特'
+                    elif '正二' in sub_play or '正2' in sub_play:
+                        return '正2特'
+                    elif '正三' in sub_play or '正3' in sub_play:
+                        return '正3特'
+                    elif '正四' in sub_play or '正4' in sub_play:
+                        return '正4特'
+                    elif '正五' in sub_play or '正5' in sub_play:
+                        return '正5特'
+                    elif '正六' in sub_play or '正6' in sub_play:
+                        return '正6特'
+                    else:
+                        return '正特'
+        
+        # 4. 根据彩种类型智能匹配
+        play_lower = play_normalized.lower()
         
         if lottery_category == 'six_mark':
-            # === 增强复杂格式识别 ===
-            # 处理 "正码特_正一特" 这类格式
-            if '正码特_' in play_str or '正码特-' in play_str:
-                if '正一' in play_str or '正1' in play_str:
-                    return '正1特'
-                elif '正二' in play_str or '正2' in play_str:
-                    return '正2特'
-                elif '正三' in play_str or '正3' in play_str:
-                    return '正3特'
-                elif '正四' in play_str or '正4' in play_str:
-                    return '正4特'
-                elif '正五' in play_str or '正5' in play_str:
-                    return '正5特'
-                elif '正六' in play_str or '正6' in play_str:
-                    return '正6特'
-                else:
-                    return '正特'
-            
-            # 处理其他下划线或连字符分隔的格式
-            if '_' in play_str or '-' in play_str:
-                parts = re.split(r'[_-]', play_str)
-                if len(parts) >= 2:
-                    main_play = parts[0].strip()
-                    sub_play = parts[1].strip()
-                    
-                    # 正码特相关
-                    if '正码特' in main_play or '正玛特' in main_play:
-                        if '正一' in sub_play or '正1' in sub_play:
-                            return '正1特'
-                        elif '正二' in sub_play or '正2' in sub_play:
-                            return '正2特'
-                        elif '正三' in sub_play or '正3' in sub_play:
-                            return '正3特'
-                        elif '正四' in sub_play or '正4' in sub_play:
-                            return '正4特'
-                        elif '正五' in sub_play or '正5' in sub_play:
-                            return '正5特'
-                        elif '正六' in sub_play or '正6' in sub_play:
-                            return '正6特'
-                        else:
-                            return '正特'
-            
-            # 处理正码特变体
-            if '正码特' in play_lower:
-                if '正一' in play_lower or '正1' in play_lower:
-                    return '正1特'
-                elif '正二' in play_lower or '正2' in play_lower:
-                    return '正2特'
-                elif '正三' in play_lower or '正3' in play_lower:
-                    return '正3特'
-                elif '正四' in play_lower or '正4' in play_lower:
-                    return '正4特'
-                elif '正五' in play_lower or '正5' in play_lower:
-                    return '正5特'
-                elif '正六' in play_lower or '正6' in play_lower:
-                    return '正6特'
-                else:
-                    return '正特'
-            
-            # 处理尾数玩法（尾数是号码）
-            if any(word in play_lower for word in ['尾数', '特尾', '全尾']):
-                if '特尾' in play_lower:
-                    return '特尾'
-                elif '全尾' in play_lower:
-                    return '全尾'
-                elif '头尾' in play_lower:
-                    return '尾数_头尾数'
-                else:
-                    return '尾数'
-
-            # 六合彩玩法识别
+            # 六合彩号码玩法智能匹配
             if any(word in play_lower for word in ['特码', '特玛', '特马', '特碼']):
                 return '特码'
             elif any(word in play_lower for word in ['正码一', '正码1', '正一码']):
@@ -649,42 +645,93 @@ class MultiLotteryCoverageAnalyzer:
             elif any(word in play_lower for word in ['正码六', '正码6', '正六码']):
                 return '正码六'
             elif any(word in play_lower for word in ['正一特', '正1特']):
-                return '正一特'
+                return '正1特'
             elif any(word in play_lower for word in ['正二特', '正2特']):
-                return '正二特'
+                return '正2特'
             elif any(word in play_lower for word in ['正三特', '正3特']):
-                return '正三特'
+                return '正3特'
             elif any(word in play_lower for word in ['正四特', '正4特']):
-                return '正四特'
+                return '正4特'
             elif any(word in play_lower for word in ['正五特', '正5特']):
-                return '正五特'
+                return '正5特'
             elif any(word in play_lower for word in ['正六特', '正6特']):
-                return '正六特'
-            elif '平码' in play_lower:
-                return '平码'
-            elif '平特' in play_lower:
-                return '平特'
-            elif '正码' in play_lower:
-                return '正码'
-            elif '正特' in play_lower:
+                return '正6特'
+            elif any(word in play_lower for word in ['正特', '正玛特']):
                 return '正特'
+            elif any(word in play_lower for word in ['平码']):
+                return '平码'
+            elif any(word in play_lower for word in ['平特']):
+                return '平特'
+            elif any(word in play_lower for word in ['尾数', '特尾', '全尾']):
+                if '特尾' in play_lower:
+                    return '特尾'
+                elif '全尾' in play_lower:
+                    return '全尾'
+                elif '头尾' in play_lower:
+                    return '尾数_头尾数'
+                else:
+                    return '尾数'
+        
         elif lottery_category == '10_number':
-            # 增强赛车玩法识别
-            if any(word in play_lower for word in ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎']):
+            # 时时彩/PK10/赛车号码玩法智能匹配
+            if any(word in play_lower for word in ['冠军', '第一名', '第1名', '1st', '前一']):
+                return '冠军'
+            elif any(word in play_lower for word in ['亚军', '第二名', '第2名', '2nd']):
+                return '亚军'
+            elif any(word in play_lower for word in ['季军', '第三名', '第3名', '3rd']):
+                return '季军'
+            elif any(word in play_lower for word in ['第四名', '第4名', '4th']):
+                return '第四名'
+            elif any(word in play_lower for word in ['第五名', '第5名', '5th']):
+                return '第五名'
+            elif any(word in play_lower for word in ['第六名', '第6名', '6th']):
+                return '第六名'
+            elif any(word in play_lower for word in ['第七名', '第7名', '7th']):
+                return '第七名'
+            elif any(word in play_lower for word in ['第八名', '第8名', '8th']):
+                return '第八名'
+            elif any(word in play_lower for word in ['第九名', '第9名', '9th']):
+                return '第九名'
+            elif any(word in play_lower for word in ['第十名', '第10名', '10th']):
+                return '第十名'
+            elif any(word in play_lower for word in ['万位', '第一位', '第一球']):
+                return '第1球'
+            elif any(word in play_lower for word in ['千位', '第二位', '第二球']):
+                return '第2球'
+            elif any(word in play_lower for word in ['百位', '第三位', '第三球']):
+                return '第3球'
+            elif any(word in play_lower for word in ['十位', '第四位', '第四球']):
+                return '第4球'
+            elif any(word in play_lower for word in ['个位', '第五位', '第五球']):
+                return '第5球'
+            elif any(word in play_lower for word in ['定位胆', '一字定位', '一字', '定位']):
                 return '定位胆'
-            # 识别名次玩法（冠军、亚军、季军、第一名到第十名）
-            if re.search(r'冠\s*军|亚\s*军|季\s*军', play_str) or re.search(r'第[一二三四五六七八九十]名', play_str) or re.search(r'第\d+名', play_str):
-                # 使用位置标准化函数
-                return self.normalize_position(play_str)
-            # 识别前一玩法
-            if '前一' in play_lower or '前一位' in play_lower:
-                return '前一'
+            elif any(word in play_lower for word in ['1-5名', '1~5名']):
+                return '1-5名'
+            elif any(word in play_lower for word in ['6-10名', '6~10名']):
+                return '6-10名'
+        
         elif lottery_category == 'fast_three':
-            # 识别快三玩法
+            # 快三号码玩法智能匹配
             if any(word in play_lower for word in ['和值', '和数', '和']):
                 return '和值'
         
-        return play_str
+        elif lottery_category == '3d_series':
+            # 3D系列号码玩法智能匹配
+            if any(word in play_lower for word in ['百位']):
+                return '百位'
+            elif any(word in play_lower for word in ['十位']):
+                return '十位'
+            elif any(word in play_lower for word in ['个位']):
+                return '个位'
+        
+        # 5. 通用号码玩法匹配
+        if any(word in play_lower for word in ['总和']):
+            return '总和'
+        elif any(word in play_lower for word in ['斗牛']):
+            return '斗牛'
+        
+        return play_normalized
     
     @lru_cache(maxsize=1000)
     def cached_extract_numbers(self, content, lottery_category='six_mark'):
