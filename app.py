@@ -527,10 +527,10 @@ class MultiLotteryCoverageAnalyzer:
         return issues
     
     def normalize_position(self, play_method):
-        """统一位置名称 - 增强正玛特位置识别"""
+        """统一位置名称 - 增强正玛特位置识别优先级"""
         play_str = str(play_method).strip()
         
-        # 特殊处理：正玛特相关位置
+        # ========== 最高优先级：正玛特独立映射 ==========
         if '正玛特' in play_str:
             if '正一' in play_str or '正1' in play_str:
                 return '正一特'
@@ -654,27 +654,27 @@ class MultiLotteryCoverageAnalyzer:
         return text
     
     def normalize_play_category(self, play_method, lottery_category='six_mark'):
-        """统一玩法分类 - 增强正玛特识别"""
+        """统一玩法分类 - 增强正玛特识别优先级"""
         play_str = str(play_method).strip()
         
         # 规范化特殊字符
         import re
         play_normalized = re.sub(r'\s+', ' ', play_str)
         
-        # 特殊处理：正玛特相关格式
+        # ========== 最高优先级：正玛特独立映射 ==========
         if '正玛特' in play_normalized:
             if '正一' in play_normalized or '正1' in play_normalized:
-                return '正1特'
+                return '正一特'
             elif '正二' in play_normalized or '正2' in play_normalized:
-                return '正2特'
+                return '正二特'
             elif '正三' in play_normalized or '正3' in play_normalized:
-                return '正3特'
+                return '正三特'
             elif '正四' in play_normalized or '正4' in play_normalized:
-                return '正4特'
+                return '正四特'
             elif '正五' in play_normalized or '正5' in play_normalized:
-                return '正5特'
+                return '正五特'
             elif '正六' in play_normalized or '正6' in play_normalized:
-                return '正6特'
+                return '正六特'
             else:
                 return '正特'
         
