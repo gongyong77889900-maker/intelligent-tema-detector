@@ -1749,9 +1749,27 @@ def main():
     
     if uploaded_file is not None:
         try:
-            # 读取文件
+            # 读取文件 - 增强编码处理
             if uploaded_file.name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
+                try:
+                    # 先尝试UTF-8
+                    df = pd.read_csv(uploaded_file)
+                except UnicodeDecodeError:
+                    # 如果UTF-8失败，尝试其他编码
+                    uploaded_file.seek(0)  # 重置文件指针
+                    try:
+                        df = pd.read_csv(uploaded_file, encoding='gbk')
+                        st.info("📝 检测到文件使用GBK编码，已自动处理")
+                    except:
+                        uploaded_file.seek(0)
+                        try:
+                            df = pd.read_csv(uploaded_file, encoding='gb2312')
+                            st.info("📝 检测到文件使用GB2312编码，已自动处理")
+                        except:
+                            uploaded_file.seek(0)
+                            # 最后尝试忽略错误
+                            df = pd.read_csv(uploaded_file, encoding_errors='ignore')
+                            st.warning("⚠️ 使用错误忽略模式读取文件，部分特殊字符可能丢失")
             else:
                 df = pd.read_excel(uploaded_file)
             
