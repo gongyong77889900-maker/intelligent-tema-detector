@@ -618,12 +618,43 @@ class PlayCategoryNormalizer:
     def _create_category_mapping(self) -> Dict[str, str]:
         """创建玩法分类映射"""
         mapping = {
-            # 快三玩法
+            # ========== PK10/赛车专用映射 ==========
+            '冠军': '冠军',
+            '亚军': '亚军', 
+            '季军': '季军',
+            '第四名': '第四名',
+            '第五名': '第五名',
+            '第六名': '第六名',
+            '第七名': '第七名',
+            '第八名': '第八名',
+            '第九名': '第九名',
+            '第十名': '第十名',
+            '第1名': '冠军',
+            '第2名': '亚军',
+            '第3名': '季军',
+            '第4名': '第四名',
+            '第5名': '第五名',
+            '第6名': '第六名',
+            '第7名': '第七名',
+            '第8名': '第八名',
+            '第9名': '第九名',
+            '第10名': '第十名',
+            '第一名': '冠军',
+            '第二名': '亚军',
+            '第三名': '季军',
+            '定位胆': '定位胆',
+            '一字定位': '定位胆',
+            '双面': '两面',
+            '大小单双': '两面',
+            '冠亚和': '冠亚和',
+            '冠亚和值': '冠亚和',
+            
+            # ========== 快三玩法 ==========
             '和值': '和值', '和值_大小单双': '和值', '两面': '两面',
             '二不同号': '二不同号', '三不同号': '三不同号', '独胆': '独胆',
             '点数': '和值', '三军': '独胆', '三軍': '独胆',
             
-            # 六合彩玩法
+            # ========== 六合彩玩法 ==========
             '特码': '特码', '正1特': '正1特', '正码特_正一特': '正1特',
             '正2特': '正2特', '正码特_正二特': '正2特', '正3特': '正3特',
             '正码特_正三特': '正3特', '正4特': '正4特', '正码特_正四特': '正4特',
@@ -633,23 +664,16 @@ class PlayCategoryNormalizer:
             '连肖': '连肖', '连尾': '连尾', '龙虎': '龙虎', '五行': '五行',
             '色波': '色波', '半波': '半波',
             
-            # 3D系列玩法
+            # ========== 3D系列玩法 ==========
             '两面': '两面', '大小单双': '两面', '百位': '百位', '十位': '十位', 
             '个位': '个位', '百十': '百十', '百个': '百个', '十个': '十个',
             '百十个': '百十个', '定位胆': '定位胆', '定位胆_百位': '定位胆_百位',
             '定位胆_十位': '定位胆_十位', '定位胆_个位': '定位胆_个位',
             
-            # 时时彩玩法
+            # ========== 时时彩玩法 ==========
             '斗牛': '斗牛', '1-5球': '1-5球', '第1球': '第1球', '第2球': '第2球',
             '第3球': '第3球', '第4球': '第4球', '第5球': '第5球', '总和': '总和',
             '正码': '正码', '定位胆': '定位胆',
-            
-            # PK拾/赛车玩法
-            '前一': '冠军', '定位胆': '定位胆', '1-5名': '1-5名', '6-10名': '6-10名',
-            '冠军': '冠军', '亚军': '亚军', '季军': '第三名', '第3名': '第三名',
-            '第4名': '第四名', '第5名': '第五名', '第6名': '第六名',
-            '第7名': '第七名', '第8名': '第八名', '第9名': '第九名',
-            '第10名': '第十名', '双面': '两面', '冠亚和': '冠亚和'
         }
         return mapping
     
@@ -824,8 +848,20 @@ class PlayCategoryNormalizer:
         }
     
     def _create_position_mapping(self) -> Dict[str, List[str]]:
-        """创建位置映射 - 第一套代码的位置映射"""
+        """创建位置映射 - 增强PK10位置映射"""
         return {
+            # ========== PK10/赛车位置 ==========
+            '冠军': ['冠军', '第1名', '第一名', '前一', '冠 军', '冠　军', '1st', '第一位', '定位胆_冠军'],
+            '亚军': ['亚军', '第2名', '第二名', '亚 军', '亚　军', '2nd', '第二位', '定位胆_亚军'],
+            '季军': ['季军', '第3名', '第三名', '季 军', '季　军', '3rd', '第三位', '定位胆_季军'],
+            '第四名': ['第四名', '第4名', '第四位', '4th', '定位胆_第四名'],
+            '第五名': ['第五名', '第5名', '第五位', '5th', '定位胆_第五名'],
+            '第六名': ['第六名', '第6名', '第六位', '6th', '定位胆_第六名'],
+            '第七名': ['第七名', '第7名', '第七位', '7th', '定位胆_第七名'],
+            '第八名': ['第八名', '第8名', '第八位', '8th', '定位胆_第八名'],
+            '第九名': ['第九名', '第9名', '第九位', '9th', '定位胆_第九名'],
+            '第十名': ['第十名', '第10名', '第十位', '10th', '定位胆_第十名'],
+            
             # ========== 六合彩位置 ==========
             '特码': ['特码', '特玛', '特马', '特碼'],
             '正码一': ['正码一', '正码1', '正一码'],
@@ -834,7 +870,7 @@ class PlayCategoryNormalizer:
             '正码四': ['正码四', '正码4', '正四码'],
             '正码五': ['正码五', '正码5', '正五码'],
             '正码六': ['正码六', '正码6', '正六码'],
-            '正一特': ['正一特', '正1特', '正码特_正一特', '正玛特_正一特'],  # 关键修复
+            '正一特': ['正一特', '正1特', '正码特_正一特', '正玛特_正一特'],
             '正二特': ['正二特', '正2特', '正码特_正二特', '正玛特_正二特'],
             '正三特': ['正三特', '正3特', '正码特_正三特', '正玛特_正三特'],
             '正四特': ['正四特', '正4特', '正码特_正四特', '正玛特_正四特'],
@@ -859,17 +895,7 @@ class PlayCategoryNormalizer:
             '正五特': ['正玛特_正五特', '正玛特_正5特'],
             '正六特': ['正玛特_正六特', '正玛特_正6特'],
             
-            # ========== 时时彩/PK10/赛车位置 ==========
-            '冠军': ['冠军', '第一名', '1st', '前一'],
-            '亚军': ['亚军', '第二名', '2nd'],
-            '季军': ['季军', '第三名', '3rd'],
-            '第四名': ['第四名', '第四位', '4th'],
-            '第五名': ['第五名', '第五位', '5th'],
-            '第六名': ['第六名', '第六位', '6th'],
-            '第七名': ['第七名', '第七位', '7th'],
-            '第八名': ['第八名', '第八位', '8th'],
-            '第九名': ['第九名', '第九位', '9th'],
-            '第十名': ['第十名', '第十位', '10th'],
+            # ========== 时时彩位置 ==========
             '第1球': ['第1球', '万位'],
             '第2球': ['第2球', '千位'],
             '第3球': ['第3球', '百位'],
@@ -978,6 +1004,35 @@ class PlayCategoryNormalizer:
         
         # 4. 根据彩种类型智能匹配
         play_lower = play_normalized.lower()
+
+        # 增强PK10/赛车智能匹配
+        if lottery_category in ['10_number', 'PK10']:
+            if any(word in play_lower for word in ['冠军', '第一名', '第1名', '1st', '前一']):
+                return '冠军'
+            elif any(word in play_lower for word in ['亚军', '第二名', '第2名', '2nd']):
+                return '亚军'
+            elif any(word in play_lower for word in ['季军', '第三名', '第3名', '3rd']):
+                return '季军'
+            elif any(word in play_lower for word in ['第四名', '第4名', '4th']):
+                return '第四名'
+            elif any(word in play_lower for word in ['第五名', '第5名', '5th']):
+                return '第五名'
+            elif any(word in play_lower for word in ['第六名', '第6名', '6th']):
+                return '第六名'
+            elif any(word in play_lower for word in ['第七名', '第7名', '7th']):
+                return '第七名'
+            elif any(word in play_lower for word in ['第八名', '第8名', '8th']):
+                return '第八名'
+            elif any(word in play_lower for word in ['第九名', '第9名', '9th']):
+                return '第九名'
+            elif any(word in play_lower for word in ['第十名', '第10名', '10th']):
+                return '第十名'
+            elif any(word in play_lower for word in ['定位胆', '一字定位', '一字', '定位']):
+                return '定位胆'
+            elif any(word in play_lower for word in ['双面', '两面', '大小单双']):
+                return '两面'
+            elif any(word in play_lower for word in ['冠亚和', '冠亚和值']):
+                return '冠亚和'
         
         if lottery_category == 'six_mark':
             # 六合彩号码玩法智能匹配 - 增强正玛特识别
@@ -1391,6 +1446,10 @@ class ContentParser:
                 return ""
             
             content_str = str(content).strip()
+
+            # 特殊处理PK10彩种
+            if lottery_type in ['10_number', 'PK10']:
+                return self.content_parser.enhanced_extract_direction_pk10(content_str, play_category)
             
             # 使用修复的内容解析器提取方向（保持变异形式独立性）
             directions = self.extract_basic_directions(content_str, self.config)
@@ -1447,6 +1506,119 @@ class ContentParser:
                 return matching_directions[0]
         
         return directions[0]
+
+    def enhanced_extract_numbers_pk10(self, content: str, play_category: str) -> List[int]:
+        """增强PK10号码提取 - 专门处理PK10格式"""
+        content_str = str(content).strip()
+        numbers = []
+        
+        try:
+            # PK10号码范围是1-10
+            number_range = set(range(1, 11))
+            
+            # 处理PK10常见格式
+            # 格式1: "1,2,3,4,5"
+            if re.match(r'^(\d{1,2},)*\d{1,2}$', content_str):
+                numbers = [int(x.strip()) for x in content_str.split(',') if x.strip().isdigit()]
+                numbers = [num for num in numbers if num in number_range]
+                return list(set(numbers))
+            
+            # 格式2: "冠军:1,2,3" 或 "冠军:1 2 3"
+            if ':' in content_str:
+                parts = content_str.split(':', 1)
+                if len(parts) == 2:
+                    number_part = parts[1].strip()
+                    # 提取数字
+                    number_matches = re.findall(r'\b\d{1,2}\b', number_part)
+                    for match in number_matches:
+                        num = int(match)
+                        if num in number_range:
+                            numbers.append(num)
+                    return list(set(numbers))
+            
+            # 格式3: 竖线分隔格式 "1,2,3|4,5|6,7,8|9|10"
+            if '|' in content_str:
+                # 对于PK10，我们只关心当前玩法位置对应的号码
+                # 这里简化处理，提取所有号码
+                all_parts = content_str.split('|')
+                for part in all_parts:
+                    part_numbers = re.findall(r'\b\d{1,2}\b', part)
+                    for num_str in part_numbers:
+                        num = int(num_str)
+                        if num in number_range:
+                            numbers.append(num)
+                return list(set(numbers))
+            
+            # 通用数字提取
+            number_matches = re.findall(r'\b\d{1,2}\b', content_str)
+            for match in number_matches:
+                num = int(match)
+                if num in number_range:
+                    numbers.append(num)
+            
+            return list(set(numbers))
+            
+        except Exception as e:
+            logger.warning(f"PK10号码提取失败: {content_str}, 错误: {str(e)}")
+            return []
+    
+    def enhanced_extract_direction_pk10(self, content: str, play_category: str) -> str:
+        """增强PK10方向提取"""
+        content_str = str(content).strip()
+        
+        if not content_str:
+            return ""
+        
+        content_lower = content_str.lower()
+        
+        # 提取位置信息
+        position = self._extract_pk10_position(play_category, content_str)
+        
+        # 提取方向
+        directions = self.extract_basic_directions(content_str, self.config)
+        
+        if not directions:
+            return ""
+        
+        # 选择主要方向
+        main_direction = self._select_primary_direction(directions, content_str)
+        
+        if not main_direction:
+            return ""
+        
+        # 组合位置和方向
+        if position and position != '未知位置':
+            return f"{position}-{main_direction}"
+        else:
+            return main_direction
+    
+    def _extract_pk10_position(self, play_category: str, content: str) -> str:
+        """提取PK10位置信息"""
+        play_str = str(play_category).strip()
+        content_str = str(content).strip()
+        
+        # 先从玩法分类中提取
+        position_keywords = self.config.position_keywords.get('PK10', {})
+        
+        for position, keywords in position_keywords.items():
+            for keyword in keywords:
+                if keyword in play_str:
+                    return position
+        
+        # 如果玩法分类中没有，从内容中提取
+        for position, keywords in position_keywords.items():
+            for keyword in keywords:
+                if keyword in content_str:
+                    return position
+        
+        # 特殊处理定位胆
+        if '定位胆' in play_str or '定位胆' in content_str:
+            # 从内容中提取具体位置
+            for position in ['冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名']:
+                if position in content_str:
+                    return position
+        
+        return '未知位置'
 
 # ==================== 完美覆盖分析器 ====================
 class PerfectCoverageAnalyzer:
@@ -1608,6 +1780,10 @@ class PerfectCoverageAnalyzer:
         
         config = self.get_lottery_config(lottery_category)
         total_numbers = config['total_numbers']
+
+        # 对于PK10，特别处理定位胆玩法
+        if lottery_category == '10_number' and position == '定位胆':
+            return self._analyze_pk10_position_dantou(group, period, lottery, min_number_count, min_avg_amount)
         
         # 增强：记录最终使用的位置名称
         final_position = position
@@ -2119,6 +2295,134 @@ class PerfectCoverageAnalyzer:
                 export_data.append(export_record)
         
         return pd.DataFrame(export_data)
+
+    def _analyze_pk10_position_dantou(self, group: pd.DataFrame, period: str, lottery: str, 
+                                    min_number_count: int, min_avg_amount: float) -> Optional[Dict]:
+        """专门分析PK10定位胆玩法"""
+        has_amount_column = '金额' in group.columns
+        
+        # 按位置分组分析
+        position_results = {}
+        
+        for _, row in group.iterrows():
+            account = row['会员账号']
+            content = row['内容']
+            play_method = row['玩法']
+            
+            # 提取具体位置
+            position_parser = ContentParser(self.config)
+            specific_position = position_parser._extract_pk10_position(play_method, content)
+            
+            if specific_position == '未知位置':
+                continue
+            
+            if specific_position not in position_results:
+                position_results[specific_position] = {
+                    'accounts': {},
+                    'amount_stats': {},
+                    'bet_contents': {}
+                }
+            
+            # 提取号码
+            numbers = position_parser.enhanced_extract_numbers_pk10(content, play_method)
+            
+            if numbers:
+                if account not in position_results[specific_position]['accounts']:
+                    position_results[specific_position]['accounts'][account] = set()
+                
+                position_results[specific_position]['accounts'][account].update(numbers)
+                
+                # 累计金额
+                if has_amount_column:
+                    amount = position_parser.cached_extract_amount(str(row['金额']))
+                    if account not in position_results[specific_position]['amount_stats']:
+                        position_results[specific_position]['amount_stats'][account] = {
+                            'total_amount': 0,
+                            'number_count': 0
+                        }
+                    
+                    position_results[specific_position]['amount_stats'][account]['total_amount'] += amount
+                    position_results[specific_position]['amount_stats'][account]['number_count'] += len(numbers)
+                
+                # 记录投注内容
+                if account not in position_results[specific_position]['bet_contents']:
+                    position_results[specific_position]['bet_contents'][account] = set()
+                
+                position_results[specific_position]['bet_contents'][account].update([f"{num:02d}" for num in numbers])
+        
+        # 对每个位置进行分析
+        all_combinations = []
+        
+        for position, data in position_results.items():
+            account_numbers = {}
+            account_amount_stats = {}
+            account_bet_contents = {}
+            
+            for account, numbers_set in data['accounts'].items():
+                numbers_list = sorted(numbers_set)
+                account_numbers[account] = numbers_list
+                account_bet_contents[account] = ", ".join(numbers_list)
+                
+                # 计算金额统计
+                if account in data['amount_stats']:
+                    stats = data['amount_stats'][account]
+                    number_count = len(numbers_list)
+                    avg_amount_per_number = stats['total_amount'] / number_count if number_count > 0 else 0
+                    
+                    account_amount_stats[account] = {
+                        'number_count': number_count,
+                        'total_amount': stats['total_amount'],
+                        'avg_amount_per_number': avg_amount_per_number
+                    }
+                else:
+                    account_amount_stats[account] = {
+                        'number_count': len(numbers_list),
+                        'total_amount': 0,
+                        'avg_amount_per_number': 0
+                    }
+            
+            # 筛选有效账户
+            filtered_account_numbers = {}
+            filtered_account_amount_stats = {}
+            filtered_account_bet_contents = {}
+            
+            for account, numbers in account_numbers.items():
+                stats = account_amount_stats[account]
+                if len(numbers) >= min_number_count and stats['avg_amount_per_number'] >= min_avg_amount:
+                    filtered_account_numbers[account] = numbers
+                    filtered_account_amount_stats[account] = account_amount_stats[account]
+                    filtered_account_bet_contents[account] = account_bet_contents[account]
+            
+            if len(filtered_account_numbers) < 2:
+                continue
+            
+            # 寻找完美组合 (PK10号码范围1-10)
+            position_combinations = self.find_perfect_combinations(
+                filtered_account_numbers, 
+                filtered_account_amount_stats, 
+                filtered_account_bet_contents,
+                min_avg_amount,
+                10  # PK10总共10个号码
+            )
+            
+            for combo_list in position_combinations.values():
+                for combo in combo_list:
+                    combo['position'] = position
+                    all_combinations.append(combo)
+        
+        if all_combinations:
+            return {
+                'period': period,
+                'lottery': lottery,
+                'position': '定位胆',
+                'lottery_category': '10_number',
+                'total_combinations': len(all_combinations),
+                'all_combinations': all_combinations,
+                'filtered_accounts': len(set().union(*[set(combo['accounts']) for combo in all_combinations])),
+                'total_numbers': 10
+            }
+        
+        return None
 
 # ==================== 对刷检测器 ====================
 class WashTradeDetector:
@@ -2969,6 +3273,20 @@ def main():
                         min_value=1, max_value=30, value=11,
                         help="六合彩：只分析投注号码数量大于等于此值的账户"
                     )
+
+                    # PK10专用参数
+                    st.sidebar.subheader("🏎️ PK10/赛车专用参数")
+                    pk10_min_number_count = st.sidebar.slider(
+                        "PK10-号码数量阈值", 
+                        min_value=1, max_value=10, value=3,
+                        help="PK10/赛车：只分析投注号码数量大于等于此值的账户"
+                    )
+                    
+                    pk10_min_avg_amount = st.sidebar.slider(
+                        "PK10-平均金额阈值", 
+                        min_value=0, max_value=10, value=1, step=1,
+                        help="PK10/赛车：只分析平均每号金额大于等于此值的账户"
+                    )
                     
                     six_mark_min_avg_amount = st.sidebar.slider(
                         "六合彩-平均金额阈值", 
@@ -3007,8 +3325,8 @@ def main():
                             'min_avg_amount': six_mark_min_avg_amount
                         }
                         ten_number_params = {
-                            'min_number_count': ten_number_min_number_count,
-                            'min_avg_amount': ten_number_min_avg_amount
+                            'min_number_count': pk10_min_number_count,  # 使用PK10专用参数
+                            'min_avg_amount': pk10_min_avg_amount
                         }
                         fast_three_params = {
                             'min_number_count': fast_three_min_number_count,
