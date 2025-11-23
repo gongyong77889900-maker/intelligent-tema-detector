@@ -527,7 +527,7 @@ class MultiLotteryCoverageAnalyzer:
         return issues
     
     def normalize_position(self, play_method):
-        """统一位置名称 - 增强正玛特位置识别优先级"""
+        """统一位置名称 - 增强正码特位置识别"""
         play_str = str(play_method).strip()
         
         # ========== 最高优先级：正玛特独立映射 ==========
@@ -539,9 +539,26 @@ class MultiLotteryCoverageAnalyzer:
             elif '正三' in play_str or '正3' in play_str:
                 return '正三特'
             elif '正四' in play_str or '正4' in play_str:
-                return '正四特'
+                return '正四特'  # 新增
             elif '正五' in play_str or '正5' in play_str:
-                return '正五特'
+                return '正五特'  # 新增
+            elif '正六' in play_str or '正6' in play_str:
+                return '正六特'
+            else:
+                return '正特'
+        
+        # ========== 新增：正码特独立映射 ==========
+        if '正码特' in play_str:
+            if '正一' in play_str or '正1' in play_str:
+                return '正一特'
+            elif '正二' in play_str or '正2' in play_str:
+                return '正二特'
+            elif '正三' in play_str or '正3' in play_str:
+                return '正三特'
+            elif '正四' in play_str or '正4' in play_str:
+                return '正四特'  # 新增
+            elif '正五' in play_str or '正5' in play_str:
+                return '正五特'  # 新增
             elif '正六' in play_str or '正6' in play_str:
                 return '正六特'
             else:
@@ -654,7 +671,7 @@ class MultiLotteryCoverageAnalyzer:
         return text
     
     def normalize_play_category(self, play_method, lottery_category='six_mark'):
-        """统一玩法分类 - 增强正玛特识别优先级"""
+        """统一玩法分类 - 增强正码特识别"""
         play_str = str(play_method).strip()
         
         # 规范化特殊字符
@@ -670,9 +687,26 @@ class MultiLotteryCoverageAnalyzer:
             elif '正三' in play_normalized or '正3' in play_normalized:
                 return '正三特'
             elif '正四' in play_normalized or '正4' in play_normalized:
-                return '正四特'
+                return '正四特'  # 新增
             elif '正五' in play_normalized or '正5' in play_normalized:
-                return '正五特'
+                return '正五特'  # 新增
+            elif '正六' in play_normalized or '正6' in play_normalized:
+                return '正六特'
+            else:
+                return '正特'
+        
+        # ========== 新增：正码特独立映射 ==========
+        if '正码特' in play_normalized:
+            if '正一' in play_normalized or '正1' in play_normalized:
+                return '正一特'
+            elif '正二' in play_normalized or '正2' in play_normalized:
+                return '正二特'
+            elif '正三' in play_normalized or '正3' in play_normalized:
+                return '正三特'
+            elif '正四' in play_normalized or '正4' in play_normalized:
+                return '正四特'  # 新增
+            elif '正五' in play_normalized or '正5' in play_normalized:
+                return '正五特'  # 新增
             elif '正六' in play_normalized or '正6' in play_normalized:
                 return '正六特'
             else:
