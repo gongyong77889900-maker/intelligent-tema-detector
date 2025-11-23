@@ -671,19 +671,23 @@ class MultiLotteryCoverageAnalyzer:
         return text
 
     def enhanced_extract_position_from_content(self, play_method, content, lottery_category):
-        """从内容中提取具体位置信息 - 针对定位胆等复合玩法"""
+        """从内容中提取具体位置信息 - 针对复合玩法"""
         play_str = str(play_method).strip()
         content_str = str(content).strip()
         
-        # 如果是定位胆玩法，从内容中提取具体位置
-        if play_str == '定位胆' and ':' in content_str:
+        # 需要提取具体位置的通用玩法列表
+        general_plays_need_extraction = ['定位胆', '一字定位', '定位', '一字', '名次']
+        
+        # 如果是需要提取位置的通用玩法，从内容中提取具体位置
+        if play_str in general_plays_need_extraction and ':' in content_str:
             # 提取位置信息（如"亚军:03,04,05"中的"亚军"）
             position_match = re.match(r'^([^:]+):', content_str)
             if position_match:
                 position = position_match.group(1).strip()
                 
-                # 映射位置名称
+                # 扩展位置名称映射
                 position_mapping = {
+                    # PK10/赛车位置
                     '冠军': '冠军', '亚军': '亚军', '季军': '季军',
                     '第四名': '第四名', '第五名': '第五名', '第六名': '第六名',
                     '第七名': '第七名', '第八名': '第八名', '第九名': '第九名', '第十名': '第十名',
@@ -692,11 +696,42 @@ class MultiLotteryCoverageAnalyzer:
                     '第7名': '第七名', '第8名': '第八名', '第9名': '第九名', '第10名': '第十名',
                     '第一名': '冠军', '第二名': '亚军', '第三名': '季军',
                     '第四位': '第四名', '第五位': '第五名', '第六位': '第六名',
-                    '第七位': '第七名', '第八位': '第八名', '第九位': '第九名', '第十位': '第十名'
+                    '第七位': '第七名', '第八位': '第八名', '第九位': '第九名', '第十位': '第十名',
+                    
+                    # 六合彩位置（以防万一）
+                    '特码': '特码', '正码一': '正码一', '正码二': '正码二', '正码三': '正码三',
+                    '正码四': '正码四', '正码五': '正码五', '正码六': '正码六',
+                    '正一特': '正一特', '正二特': '正二特', '正三特': '正三特',
+                    '正四特': '正四特', '正五特': '正五特', '正六特': '正六特',
+                    
+                    # 时时彩球位
+                    '第1球': '第1球', '第2球': '第2球', '第3球': '第3球', '第4球': '第4球', '第5球': '第5球',
+                    '万位': '第1球', '千位': '第2球', '百位': '第3球', '十位': '第4球', '个位': '第5球',
+                    
+                    # 快三
+                    '和值': '和值'
                 }
                 
                 normalized_position = position_mapping.get(position, position)
                 return normalized_position
+        
+        # 特殊处理：检查其他可能包含位置信息的格式
+        # 例如："冠军 01,02,03" 或 "冠军-01,02,03"
+        if play_str in general_plays_need_extraction:
+            # 尝试匹配 "位置 号码" 格式
+            position_patterns = [
+                r'^([\u4e00-\u9fa5]+)\s+([\d,]+)',  # "冠军 01,02,03"
+                r'^([\u4e00-\u9fa5]+)-([\d,]+)',    # "冠军-01,02,03"
+                r'^([\u4e00-\u9fa5]+)：([\d,]+)',   # "冠军：01,02,03"（全角冒号）
+            ]
+            
+            for pattern in position_patterns:
+                match = re.match(pattern, content_str)
+                if match:
+                    position = match.group(1).strip()
+                    normalized_position = position_mapping.get(position, position)
+                    if normalized_position != position:  # 如果成功映射
+                        return normalized_position
         
         return play_str
     
