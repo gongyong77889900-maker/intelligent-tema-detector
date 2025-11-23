@@ -1588,6 +1588,48 @@ class ComprehensiveWashTradeDetector:
         self.performance_stats = {}
 
         self._cache_clear()
+
+    def enhanced_coverage_detection(self, df, coverage_params):
+        """增强号码覆盖检测 - 借鉴第二套代码逻辑"""
+        try:
+            # 1. 数据预处理 - 借鉴第二套代码
+            df_coverage = self.prepare_data_for_coverage_detection(df)
+            
+            # 2. 按彩种类型分别分析
+            coverage_results = {}
+            
+            # 六合彩分析
+            df_six_mark = df_coverage[df_coverage['彩种类型'] == 'six_mark']
+            if len(df_six_mark) > 0:
+                six_mark_results = self.analyze_six_mark_coverage(
+                    df_six_mark, 
+                    coverage_params['six_mark']
+                )
+                coverage_results.update(six_mark_results)
+            
+            # 时时彩/PK10分析
+            df_10_number = df_coverage[df_coverage['彩种类型'] == '10_number']
+            if len(df_10_number) > 0:
+                ten_number_results = self.analyze_ten_number_coverage(
+                    df_10_number,
+                    coverage_params['ten_number']
+                )
+                coverage_results.update(ten_number_results)
+                
+            # 快三分析
+            df_fast_three = df_coverage[df_coverage['彩种类型'] == 'fast_three']
+            if len(df_fast_three) > 0:
+                fast_three_results = self.analyze_fast_three_coverage(
+                    df_fast_three,
+                    coverage_params['fast_three']
+                )
+                coverage_results.update(fast_three_results)
+                
+            return coverage_results
+            
+        except Exception as e:
+            logger.error(f"号码覆盖检测失败: {str(e)}")
+            return {}
     
     def _cache_clear(self):
         """清空缓存"""
@@ -1599,6 +1641,131 @@ class ComprehensiveWashTradeDetector:
             self.content_parser.cached_extract_numbers.cache_clear()
         if hasattr(self.coverage_analyzer, 'cached_extract_amount'):
             self.coverage_analyzer.cached_extract_amount.cache_clear()
+
+    def analyze_single_group_coverage(self, group, period, lottery, position, min_number_count, min_avg_amount, total_numbers):
+        """分析单个组的号码覆盖"""
+        account_numbers = {}
+        account_amounts = {}
+        account_contents = {}
+        
+        for account in group['会员账号'].unique():
+            account_data = group[group['会员账号'] == account]
+            
+            # 合并该账户的所有号码
+            all_numbers = set()
+            total_amount = 0
+            
+            for _, row in account_data.iterrows():
+                numbers = row['投注号码'] if '投注号码' in row else []
+                all_numbers.update(numbers)
+                
+                if '投注金额' in row:
+                    total_amount += row['投注金额']
+            
+            if len(all_numbers) >= min_number_count:
+                account_numbers[account] = sorted(all_numbers)
+                account_amounts[account] = total_amount
+                account_contents[account] = ", ".join([f"{num:02d}" for num in sorted(all_numbers)])
+        
+        # 寻找完美组合
+        if len(account_numbers) >= 2:
+            combinations = self.find_coverage_combinations(
+                account_numbers, account_amounts, account_contents, 
+                min_avg_amount, total_numbers
+            )
+            
+            if combinations:
+                return {
+                    'period': period,
+                    'lottery': lottery,
+                    'position': position,
+                    'total_combinations': len(combinations),
+                    'combinations': combinations,
+                    'total_numbers': total_numbers
+                }
+        
+        return None
+    
+    def find_coverage_combinations(self, account_numbers, account_amounts, account_contents, min_avg_amount, total_numbers):
+        """寻找号码覆盖组合"""
+        combinations = []
+        accounts = list(account_numbers.keys())
+        
+        # 检查2账户组合
+        for i in range(len(accounts)):
+            for j in range(i + 1, len(accounts)):
+                acc1, acc2 = accounts[i], accounts[j]
+                
+                combined_numbers = set(account_numbers[acc1]) | set(account_numbers[acc2])
+                
+                if len(combined_numbers) == total_numbers:
+                    # 计算金额匹配度
+                    amount1 = account_amounts[acc1]
+                    amount2 = account_amounts[acc2]
+                    
+                    if amount1 > 0 and amount2 > 0:
+                        similarity = min(amount1, amount2) / max(amount1, amount2)
+                        
+                        # 检查平均金额
+                        avg_per_number1 = amount1 / len(account_numbers[acc1])
+                        avg_per_number2 = amount2 / len(account_numbers[acc2])
+                        
+                        if min(avg_per_number1, avg_per_number2) >= min_avg_amount:
+                            combinations.append({
+                                'accounts': [acc1, acc2],
+                                'numbers_count': [len(account_numbers[acc1]), len(account_numbers[acc2])],
+                                'total_amount': amount1 + amount2,
+                                'similarity': similarity * 100,
+                                'individual_amounts': {acc1: amount1, acc2: amount2},
+                                'bet_contents': {acc1: account_contents[acc1], acc2: account_contents[acc2]}
+                            })
+        
+        # 检查3账户组合
+        for i in range(len(accounts)):
+            for j in range(i + 1, len(accounts)):
+                for k in range(j + 1, len(accounts)):
+                    acc1, acc2, acc3 = accounts[i], accounts[j], accounts[k]
+                    
+                    combined_numbers = (set(account_numbers[acc1]) | 
+                                      set(account_numbers[acc2]) | 
+                                      set(account_numbers[acc3]))
+                    
+                    if len(combined_numbers) == total_numbers:
+                        amount1 = account_amounts[acc1]
+                        amount2 = account_amounts[acc2]
+                        amount3 = account_amounts[acc3]
+                        
+                        if amount1 > 0 and amount2 > 0 and amount3 > 0:
+                            amounts = [amount1, amount2, amount3]
+                            similarity = min(amounts) / max(amounts)
+                            
+                            avg_per_number1 = amount1 / len(account_numbers[acc1])
+                            avg_per_number2 = amount2 / len(account_numbers[acc2])
+                            avg_per_number3 = amount3 / len(account_numbers[acc3])
+                            
+                            if min(avg_per_number1, avg_per_number2, avg_per_number3) >= min_avg_amount:
+                                combinations.append({
+                                    'accounts': [acc1, acc2, acc3],
+                                    'numbers_count': [
+                                        len(account_numbers[acc1]),
+                                        len(account_numbers[acc2]),
+                                        len(account_numbers[acc3])
+                                    ],
+                                    'total_amount': amount1 + amount2 + amount3,
+                                    'similarity': similarity * 100,
+                                    'individual_amounts': {
+                                        acc1: amount1, 
+                                        acc2: amount2, 
+                                        acc3: amount3
+                                    },
+                                    'bet_contents': {
+                                        acc1: account_contents[acc1],
+                                        acc2: account_contents[acc2],
+                                        acc3: account_contents[acc3]
+                                    }
+                                })
+        
+        return combinations
     
     @lru_cache(maxsize=2000)
     def cached_extract_bet_amount(self, amount_text):
@@ -1697,6 +1864,106 @@ class ComprehensiveWashTradeDetector:
             self.df_valid = df_valid
 
             return df_valid
+
+    def prepare_data_for_coverage_detection(self, df):
+        """为号码覆盖检测准备数据 - 借鉴第二套代码逻辑"""
+        df_coverage = df.copy()
+        
+        # 彩种类型识别
+        df_coverage['彩种类型'] = df_coverage['彩种'].apply(
+            lambda x: self.coverage_analyzer.identify_lottery_category(x)
+        )
+        
+        # 玩法分类统一
+        df_coverage['玩法'] = df_coverage.apply(
+            lambda row: self.coverage_analyzer.normalize_play_category(
+                row['玩法'], 
+                row['彩种类型'] if '彩种类型' in df_coverage.columns else 'six_mark'
+            ), 
+            axis=1
+        )
+        
+        # 提取号码
+        df_coverage['投注号码'] = df_coverage.apply(
+            lambda row: self.coverage_analyzer.enhanced_extract_numbers(
+                row['内容'], 
+                row['彩种类型'] if '彩种类型' in df_coverage.columns else 'six_mark'
+            ),
+            axis=1
+        )
+        
+        # 提取金额
+        if '金额' in df_coverage.columns:
+            df_coverage['投注金额'] = df_coverage['金额'].apply(
+                self.coverage_analyzer.cached_extract_amount
+            )
+        
+        return df_coverage
+    
+    def analyze_six_mark_coverage(self, df, params):
+        """分析六合彩号码覆盖"""
+        results = {}
+        min_number_count = params['min_number_count']
+        min_avg_amount = params['min_avg_amount']
+        
+        # 按期号、彩种、玩法分组
+        grouped = df.groupby(['期号', '彩种', '玩法'])
+        
+        for (period, lottery, position), group in grouped:
+            if len(group) < 2:
+                continue
+                
+            # 分析该组的号码覆盖
+            result = self.analyze_single_group_coverage(
+                group, period, lottery, position, 
+                min_number_count, min_avg_amount, 49  # 六合彩49个号码
+            )
+            if result:
+                results[(period, lottery, position)] = result
+        
+        return results
+    
+    def analyze_ten_number_coverage(self, df, params):
+        """分析10个号码彩种覆盖"""
+        results = {}
+        min_number_count = params['min_number_count']
+        min_avg_amount = params['min_avg_amount']
+        
+        grouped = df.groupby(['期号', '彩种', '玩法'])
+        
+        for (period, lottery, position), group in grouped:
+            if len(group) < 2:
+                continue
+                
+            result = self.analyze_single_group_coverage(
+                group, period, lottery, position,
+                min_number_count, min_avg_amount, 10  # 10个号码
+            )
+            if result:
+                results[(period, lottery, position)] = result
+        
+        return results
+    
+    def analyze_fast_three_coverage(self, df, params):
+        """分析快三号码覆盖"""
+        results = {}
+        min_number_count = params['min_number_count']
+        min_avg_amount = params['min_avg_amount']
+        
+        grouped = df.groupby(['期号', '彩种', '玩法'])
+        
+        for (period, lottery, position), group in grouped:
+            if len(group) < 2:
+                continue
+                
+            result = self.analyze_single_group_coverage(
+                group, period, lottery, position,
+                min_number_count, min_avg_amount, 16  # 快三和值16个号码
+            )
+            if result:
+                results[(period, lottery, position)] = result
+        
+        return results
             
         except Exception as e:
             logger.error(f"数据处理增强失败: {str(e)}")
@@ -2270,18 +2537,11 @@ class ComprehensiveWashTradeDetector:
                 direction_patterns = self.detect_all_wash_trades()
                 all_results['direction_patterns'] = direction_patterns
         
-        # 2. 号码覆盖检测
+        # 2. 号码覆盖检测 - 使用新增的增强检测方法
         if detection_mode in ['coverage_only', 'comprehensive']:
             with st.spinner("🔢 正在进行号码覆盖检测..."):
-                # 准备数据用于覆盖分析
-                df_for_coverage = self.prepare_data_for_coverage_analysis(df)
-                coverage_patterns = self.coverage_analyzer.analyze_with_progress(
-                    df_for_coverage, 
-                    coverage_params['six_mark'], 
-                    coverage_params['ten_number'], 
-                    coverage_params['fast_three'], 
-                    "自动识别所有彩种"
-                )
+                # 使用新增的增强号码覆盖检测
+                coverage_patterns = self.enhanced_coverage_detection(df, coverage_params)
                 all_results['coverage_patterns'] = coverage_patterns
         
         # 3. 结果整合
@@ -2387,6 +2647,188 @@ class ComprehensiveWashTradeDetector:
         
         else:
             st.info("未发现对刷行为")
+
+    def display_coverage_results(self, coverage_results):
+        """显示号码覆盖检测结果"""
+        if not coverage_results:
+            st.info("🎉 未发现号码覆盖组合")
+            return
+        
+        st.subheader("🔢 号码覆盖检测结果")
+        
+        # 计算统计
+        total_combinations = sum(result['total_combinations'] for result in coverage_results.values())
+        total_periods = len(coverage_results)
+        
+        # 按彩种类型统计
+        category_stats = defaultdict(int)
+        for result in coverage_results.values():
+            category = result.get('lottery_category', '未知')
+            category_stats[category] += result['total_combinations']
+        
+        # 显示总体统计
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("总完美组合数", total_combinations)
+        with col2:
+            st.metric("分析期数", total_periods)
+        with col3:
+            st.metric("涉及位置", len(set(key[2] for key in coverage_results.keys())))
+        with col4:
+            st.metric("彩种类型", len(category_stats))
+        
+        # 显示彩种类型统计
+        st.subheader("🎲 彩种类型分布")
+        category_display = {
+            'six_mark': '六合彩',
+            '10_number': '时时彩/PK10/赛车', 
+            'fast_three': '快三'
+        }
+        
+        cols = st.columns(len(category_stats))
+        for i, (category, count) in enumerate(category_stats.items()):
+            with cols[i % len(cols)]:
+                display_name = category_display.get(category, category)
+                st.metric(display_name, f"{count}组")
+        
+        # 显示参与账户统计
+        st.subheader("👥 参与账户统计")
+        account_stats = self._calculate_coverage_account_stats(coverage_results)
+        
+        if account_stats:
+            df_stats = pd.DataFrame(account_stats)
+            st.dataframe(
+                df_stats,
+                use_container_width=True,
+                hide_index=True,
+                height=min(400, len(df_stats) * 35 + 38)
+            )
+        
+        # 显示详细组合
+        st.subheader("📈 详细组合分析")
+        self._display_detailed_coverage_combinations(coverage_results)
+    
+    def _calculate_coverage_account_stats(self, coverage_results):
+        """计算号码覆盖检测的账户统计"""
+        account_participation = defaultdict(lambda: {
+            'periods': set(),
+            'lotteries': set(),
+            'positions': set(),
+            'total_combinations': 0,
+            'total_bet_amount': 0
+        })
+        
+        for result in coverage_results.values():
+            for combo in result['combinations']:
+                for account in combo['accounts']:
+                    account_info = account_participation[account]
+                    account_info['periods'].add(result['period'])
+                    account_info['lotteries'].add(result['lottery'])
+                    account_info['positions'].add(result['position'])
+                    account_info['total_combinations'] += 1
+                    account_info['total_bet_amount'] += combo['individual_amounts'][account]
+        
+        account_stats = []
+        for account, info in account_participation.items():
+            stat_record = {
+                '账户': account,
+                '参与组合数': info['total_combinations'],
+                '涉及期数': len(info['periods']),
+                '涉及彩种': len(info['lotteries']),
+                '涉及位置': ', '.join(sorted(info['positions'])),
+                '总投注金额': info['total_bet_amount'],
+                '平均每期金额': info['total_bet_amount'] / len(info['periods']) if info['periods'] else 0
+            }
+            account_stats.append(stat_record)
+        
+        return sorted(account_stats, key=lambda x: x['参与组合数'], reverse=True)
+    
+    def _display_detailed_coverage_combinations(self, coverage_results):
+        """显示详细的号码覆盖组合"""
+        # 按账户组合分组
+        account_pair_groups = defaultdict(lambda: defaultdict(list))
+        
+        for group_key, result in coverage_results.items():
+            lottery = result['lottery']
+            position = result['position']
+            
+            for combo in result['combinations']:
+                # 创建账户组合键
+                accounts = combo['accounts']
+                account_pair = " ↔ ".join(sorted(accounts))
+                
+                # 创建彩种键
+                lottery_key = f"{lottery} - {position}"
+                
+                # 存储组合信息
+                combo_info = {
+                    'period': result['period'],
+                    'combo': combo,
+                    'lottery_category': result['lottery_category'],
+                    'total_numbers': result['total_numbers']
+                }
+                
+                account_pair_groups[account_pair][lottery_key].append(combo_info)
+        
+        # 显示每个账户组合
+        for account_pair, lottery_groups in account_pair_groups.items():
+            for lottery_key, combos in lottery_groups.items():
+                # 按期号排序
+                combos.sort(key=lambda x: x['period'])
+                
+                # 创建折叠框标题
+                combo_count = len(combos)
+                title = f"**{account_pair}** - {lottery_key}（{combo_count}个组合）"
+                
+                with st.expander(title, expanded=True):
+                    # 显示每个组合
+                    for idx, combo_info in enumerate(combos, 1):
+                        combo = combo_info['combo']
+                        period = combo_info['period']
+                        lottery_category = combo_info['lottery_category']
+                        
+                        # 组合标题
+                        st.markdown(f"**完美组合 {idx}:** {account_pair}")
+                        
+                        # 组合信息
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.write(f"**账户数量:** {len(combo['accounts'])}个")
+                        with col2:
+                            st.write(f"**期号:** {period}")
+                        with col3:
+                            st.write(f"**总金额:** ¥{combo['total_amount']:,.2f}")
+                        with col4:
+                            similarity = combo['similarity']
+                            indicator = "🟢" if similarity >= 90 else "🟡" if similarity >= 80 else "🟠" if similarity >= 70 else "🔴"
+                            st.write(f"**金额匹配度:** {similarity:.1f}% {indicator}")
+                        
+                        # 彩种类型信息
+                        category_display = {
+                            'six_mark': '六合彩',
+                            '10_number': '时时彩/PK10/赛车',
+                            'fast_three': '快三'
+                        }
+                        category_name = category_display.get(lottery_category, lottery_category)
+                        st.write(f"**彩种类型:** {category_name}")
+                        st.write(f"**号码总数:** {combo_info['total_numbers']}个")
+                        
+                        # 各账户详情
+                        st.write("**各账户详情:**")
+                        
+                        for account in combo['accounts']:
+                            amount_info = combo['individual_amounts'][account]
+                            numbers_count = combo['numbers_count'][combo['accounts'].index(account)]
+                            numbers_content = combo['bet_contents'][account]
+                            
+                            st.write(f"- **{account}**: {numbers_count}个数字")
+                            st.write(f"  - 总投注: ¥{amount_info:,.2f}")
+                            st.write(f"  - 平均每号: ¥{amount_info/numbers_count:,.2f}")
+                            st.write(f"  - 投注内容: {numbers_content}")
+                        
+                        # 添加分隔线（除了最后一个组合）
+                        if idx < len(combos):
+                            st.markdown("---")
     
     def display_direction_results(self, patterns):
         """显示方向对刷检测结果"""
