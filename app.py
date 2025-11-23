@@ -683,12 +683,10 @@ class MultiLotteryCoverageAnalyzer:
         content_str = str(content).strip()
         
         # 需要提取具体位置的通用玩法列表
-        general_plays_need_extraction = ['定位胆', '一字定位', '定位', '一字', '名次', '冠军', '亚军']
+        general_plays_need_extraction = ['定位胆', '一字定位', '定位', '一字', '名次']
         
         # 如果是需要提取位置的通用玩法，从内容中提取具体位置
-        if play_str in general_plays_need_extraction and (':' in content_str or '：' in content_str):
-            separator = ':' if ':' in content_str else '：'
-            position_match = re.match(r'^([^:：]+)[:：]', content_str)
+        if play_str in general_plays_need_extraction and ':' in content_str:
             # 提取位置信息（如"亚军:03,04,05"中的"亚军"）
             position_match = re.match(r'^([^:]+):', content_str)
             if position_match:
