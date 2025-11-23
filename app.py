@@ -669,6 +669,36 @@ class MultiLotteryCoverageAnalyzer:
         text = text.strip()
         
         return text
+
+    def enhanced_extract_position_from_content(self, play_method, content, lottery_category):
+        """从内容中提取具体位置信息 - 针对定位胆等复合玩法"""
+        play_str = str(play_method).strip()
+        content_str = str(content).strip()
+        
+        # 如果是定位胆玩法，从内容中提取具体位置
+        if play_str == '定位胆' and ':' in content_str:
+            # 提取位置信息（如"亚军:03,04,05"中的"亚军"）
+            position_match = re.match(r'^([^:]+):', content_str)
+            if position_match:
+                position = position_match.group(1).strip()
+                
+                # 映射位置名称
+                position_mapping = {
+                    '冠军': '冠军', '亚军': '亚军', '季军': '季军',
+                    '第四名': '第四名', '第五名': '第五名', '第六名': '第六名',
+                    '第七名': '第七名', '第八名': '第八名', '第九名': '第九名', '第十名': '第十名',
+                    '第1名': '冠军', '第2名': '亚军', '第3名': '季军',
+                    '第4名': '第四名', '第5名': '第五名', '第6名': '第六名',
+                    '第7名': '第七名', '第8名': '第八名', '第9名': '第九名', '第10名': '第十名',
+                    '第一名': '冠军', '第二名': '亚军', '第三名': '季军',
+                    '第四位': '第四名', '第五位': '第五名', '第六位': '第六名',
+                    '第七位': '第七名', '第八位': '第八名', '第九位': '第九名', '第十位': '第十名'
+                }
+                
+                normalized_position = position_mapping.get(position, position)
+                return normalized_position
+        
+        return play_str
     
     def normalize_play_category(self, play_method, lottery_category='six_mark'):
         """统一玩法分类 - 增强正码特识别"""
@@ -1130,7 +1160,7 @@ class MultiLotteryCoverageAnalyzer:
         return all_results
 
     def analyze_period_lottery_position(self, group, period, lottery, position, min_number_count, min_avg_amount):
-        """分析特定期数、彩种和位置 - 支持精准位置分析"""
+        """分析特定期数、彩种和位置 - 支持从内容中提取位置"""
         has_amount_column = '金额' in group.columns
         
         # 识别彩种类型
@@ -1140,6 +1170,9 @@ class MultiLotteryCoverageAnalyzer:
         
         config = self.get_lottery_config(lottery_category)
         total_numbers = config['total_numbers']
+        
+        # 增强：记录最终使用的位置名称
+        final_position = position
         
         account_numbers = {}
         account_amount_stats = {}
@@ -1211,7 +1244,7 @@ class MultiLotteryCoverageAnalyzer:
             return {
                 'period': period,
                 'lottery': lottery,
-                'position': position,
+                'position': final_position,  # 使用最终位置
                 'lottery_category': lottery_category,
                 'total_combinations': total_combinations,
                 'all_combinations': all_combinations,
@@ -1874,6 +1907,25 @@ def main():
                         ), 
                         axis=1
                     )
+
+                # ========== 新增：从内容中提取具体位置信息 ==========
+                with st.spinner("正在从投注内容中提取具体位置信息..."):
+                    # 创建临时列来存储从内容中提取的位置
+                    df_clean['提取位置'] = df_clean.apply(
+                        lambda row: analyzer.enhanced_extract_position_from_content(
+                            row['玩法'], row['内容'], row['彩种类型'] if '彩种类型' in df_clean.columns else 'six_mark'
+                        ), 
+                        axis=1
+                    )
+                    
+                    # 对于成功提取到具体位置的记录，更新玩法列为提取的位置
+                    mask = df_clean['提取位置'] != df_clean['玩法']
+                    if mask.sum() > 0:
+                        st.success(f"✅ 从内容中提取到 {mask.sum()} 条记录的具体位置信息")
+                        df_clean.loc[mask, '玩法'] = df_clean.loc[mask, '提取位置']
+                    
+                    # 删除临时列
+                    df_clean = df_clean.drop('提取位置', axis=1)
                 
                 if has_amount_column:
                     # 应用金额提取
