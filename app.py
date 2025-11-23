@@ -185,6 +185,14 @@ class MultiLotteryCoverageAnalyzer:
             '正玛特_正四特': '正4特',
             '正玛特_正五特': '正5特',
             '正玛特_正六特': '正6特',
+            # 正玛特相关映射
+            '正玛特': '正特',
+            '正玛特_正一特': '正1特',
+            '正玛特_正二特': '正2特', 
+            '正玛特_正三特': '正3特',
+            '正玛特_正四特': '正4特',
+            '正玛特_正五特': '正5特',
+            '正玛特_正六特': '正6特',
             
             # 平码相关
             '平码': '平码',
@@ -308,6 +316,12 @@ class MultiLotteryCoverageAnalyzer:
             '正码四': ['正码1-6_正码四'],
             '正码五': ['正码1-6_正码五'],
             '正码六': ['正码1-6_正码六'],
+            '正一特': ['正玛特_正一特', '正玛特_正1特'],
+            '正二特': ['正玛特_正二特', '正玛特_正2特'],
+            '正三特': ['正玛特_正三特', '正玛特_正3特'],
+            '正四特': ['正玛特_正四特', '正玛特_正4特'],
+            '正五特': ['正玛特_正五特', '正玛特_正5特'],
+            '正六特': ['正玛特_正六特', '正玛特_正6特'],
             
             # ========== 时时彩/PK10/赛车位置 ==========
             '冠军': ['冠军', '第一名', '1st', '前一'],
@@ -513,8 +527,25 @@ class MultiLotteryCoverageAnalyzer:
         return issues
     
     def normalize_position(self, play_method):
-        """统一位置名称 - 增强正码1-6位置识别"""
+        """统一位置名称 - 增强正玛特位置识别"""
         play_str = str(play_method).strip()
+        
+        # 特殊处理：正玛特相关位置
+        if '正玛特' in play_str:
+            if '正一' in play_str or '正1' in play_str:
+                return '正一特'
+            elif '正二' in play_str or '正2' in play_str:
+                return '正二特'
+            elif '正三' in play_str or '正3' in play_str:
+                return '正三特'
+            elif '正四' in play_str or '正4' in play_str:
+                return '正四特'
+            elif '正五' in play_str or '正5' in play_str:
+                return '正五特'
+            elif '正六' in play_str or '正6' in play_str:
+                return '正六特'
+            else:
+                return '正特'
         
         # 特殊处理：正码1-6 正码 -> 正码
         if play_str == '正码1-6 正码':
@@ -623,12 +654,29 @@ class MultiLotteryCoverageAnalyzer:
         return text
     
     def normalize_play_category(self, play_method, lottery_category='six_mark'):
-        """统一玩法分类 - 增强正码1-6识别"""
+        """统一玩法分类 - 增强正玛特识别"""
         play_str = str(play_method).strip()
         
         # 规范化特殊字符
         import re
         play_normalized = re.sub(r'\s+', ' ', play_str)
+        
+        # 特殊处理：正玛特相关格式
+        if '正玛特' in play_normalized:
+            if '正一' in play_normalized or '正1' in play_normalized:
+                return '正1特'
+            elif '正二' in play_normalized or '正2' in play_normalized:
+                return '正2特'
+            elif '正三' in play_normalized or '正3' in play_normalized:
+                return '正3特'
+            elif '正四' in play_normalized or '正4' in play_normalized:
+                return '正4特'
+            elif '正五' in play_normalized or '正5' in play_normalized:
+                return '正5特'
+            elif '正六' in play_normalized or '正6' in play_normalized:
+                return '正6特'
+            else:
+                return '正特'
         
         # 特殊处理：正码1-6 正码 -> 正码
         if play_normalized == '正码1-6 正码':
