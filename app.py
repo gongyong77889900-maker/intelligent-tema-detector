@@ -147,6 +147,15 @@ class MultiLotteryCoverageAnalyzer:
             '正码5': '正码五',
             '正码6': '正码六',
             '正码1-6': '正码',
+            # 新增映射
+            '正码1-6 正码': '正码',
+            '正码1-6_正码': '正码',
+            '正码1-6_正码一': '正码一',
+            '正码1-6_正码二': '正码二',
+            '正码1-6_正码三': '正码三',
+            '正码1-6_正码四': '正码四',
+            '正码1-6_正码五': '正码五',
+            '正码1-6_正码六': '正码六',
             
             # 正特相关 - 增强正玛特识别
             '正特': '正特',
@@ -292,6 +301,13 @@ class MultiLotteryCoverageAnalyzer:
             '尾数': ['尾数'],
             '特尾': ['特尾'],
             '全尾': ['全尾'],
+            '正码': ['正码1-6 正码', '正码1-6_正码'],
+            '正码一': ['正码1-6_正码一'],
+            '正码二': ['正码1-6_正码二'],
+            '正码三': ['正码1-6_正码三'],
+            '正码四': ['正码1-6_正码四'],
+            '正码五': ['正码1-6_正码五'],
+            '正码六': ['正码1-6_正码六'],
             
             # ========== 时时彩/PK10/赛车位置 ==========
             '冠军': ['冠军', '第一名', '1st', '前一'],
@@ -497,8 +513,24 @@ class MultiLotteryCoverageAnalyzer:
         return issues
     
     def normalize_position(self, play_method):
-        """统一位置名称 - 扩展六合彩正码正特位置识别"""
+        """统一位置名称 - 增强正码1-6位置识别"""
         play_str = str(play_method).strip()
+        
+        # 特殊处理：正码1-6 正码 -> 正码
+        if play_str == '正码1-6 正码':
+            return '正码'
+        
+        # 特殊处理：正码1-6_正码 -> 正码
+        if play_str == '正码1-6_正码':
+            return '正码'
+        
+        # 特殊处理：正码特_正五特 -> 正五特
+        if '正码特_正五特' in play_str or '正玛特_正五特' in play_str:
+            return '正五特'
+        
+        # 特殊处理：正码1-6_正码一 -> 正码一
+        if '正码1-6_正码一' in play_str:
+            return '正码一'
         
         # 直接映射
         for standard_pos, variants in self.position_mapping.items():
@@ -591,12 +623,28 @@ class MultiLotteryCoverageAnalyzer:
         return text
     
     def normalize_play_category(self, play_method, lottery_category='six_mark'):
-        """统一玩法分类 - 增强正玛特识别"""
+        """统一玩法分类 - 增强正码1-6识别"""
         play_str = str(play_method).strip()
         
         # 规范化特殊字符
         import re
         play_normalized = re.sub(r'\s+', ' ', play_str)
+        
+        # 特殊处理：正码1-6 正码 -> 正码
+        if play_normalized == '正码1-6 正码':
+            return '正码'
+        
+        # 特殊处理：正码1-6_正码 -> 正码  
+        if play_normalized == '正码1-6_正码':
+            return '正码'
+        
+        # 特殊处理：正码特_正五特 -> 正5特
+        if '正码特_正五特' in play_normalized or '正玛特_正五特' in play_normalized:
+            return '正5特'
+        
+        # 特殊处理：正码1-6_正码一 -> 正码一
+        if '正码1-6_正码一' in play_normalized:
+            return '正码一'
         
         # 1. 直接映射（完全匹配）
         if play_normalized in self.play_mapping:
