@@ -12,7 +12,7 @@ from functools import lru_cache
 
 # 设置页面
 st.set_page_config(
-    page_title="彩票完美覆盖分析系统 - 多彩种精准分析版",
+    page_title="彩票完美覆盖分析系统",
     page_icon="🎯",
     layout="wide"
 )
@@ -39,7 +39,6 @@ COVERAGE_CONFIG = {
             '新澳门六合彩', '澳门六合彩', '香港六合彩', '一分六合彩',
             '五分六合彩', '三分六合彩', '香港⑥合彩', '分分六合彩',
             '台湾大乐透', '大发六合彩', '快乐6合彩',
-            # 新增彩种
             '幸运六合彩', '极速六合彩', '腾讯六合彩', '五分彩六合',
             '三分彩六合', '一分彩六合', '幸运⑥合', '极速⑥合'
         ],
@@ -48,7 +47,6 @@ COVERAGE_CONFIG = {
             '分分时时彩', '五分时时彩', '三分时时彩', '北京时时彩',
             'PK10', '北京PK10', 'PK拾', '幸运PK10', '赛车', '大发赛车',
             '幸运28', '北京28', '加拿大28', '极速PK10', '分分PK10', '大发快三',
-            # 新增彩种
             '幸运飞艇', '澳洲幸运10', '极速飞艇', '澳洲飞艇',
             '北京赛车', '极速赛车', '幸运赛車', '分分赛车',
             '腾讯分分彩', '五分时时彩', '三分时时彩', '一分时时彩',
@@ -57,11 +55,9 @@ COVERAGE_CONFIG = {
         'fast_three': [
             '快三', '快3', 'K3', '分分快三', '五分快三', '三分快三',
             '北京快三', '江苏快三', '安徽快三', '大发快三',
-            # 新增彩种
             '澳洲快三', '宾果快三', '加州快三', '幸运快三',
             '澳门快三', '香港快三', '台湾快三', '极速快三'
         ],
-        # 新增彩种类型
         '3d_series': [
             '排列三', '排列3', '福彩3D', '3D', '极速3D',
             '幸运排列3', '一分排列3', '三分排列3', '五分排列3',
@@ -168,7 +164,6 @@ class MultiLotteryCoverageAnalyzer:
             '正码5': '正码五',
             '正码6': '正码六',
             '正码1-6': '正码',
-            # 新增映射
             '正码1-6 正码': '正码',
             '正码1-6_正码': '正码',
             '正码1-6_正码一': '正码一',
@@ -178,9 +173,9 @@ class MultiLotteryCoverageAnalyzer:
             '正码1-6_正码五': '正码五',
             '正码1-6_正码六': '正码六',
             
-            # 正特相关 - 增强正玛特识别
+            # 正特相关
             '正特': '正特',
-            '正玛特': '正特',  # 关键修复：添加正玛特映射
+            '正玛特': '正特',
             '正码特': '正特',
             '正一特': '正1特',
             '正二特': '正2特',
@@ -200,13 +195,12 @@ class MultiLotteryCoverageAnalyzer:
             '正码特_正四特': '正4特',
             '正码特_正五特': '正5特',
             '正码特_正六特': '正6特',
-            '正玛特_正一特': '正1特',  # 关键修复：正玛特的具体位置
+            '正玛特_正一特': '正1特',
             '正玛特_正二特': '正2特',
             '正玛特_正三特': '正3特',
             '正玛特_正四特': '正4特',
             '正玛特_正五特': '正5特',
             '正玛特_正六特': '正6特',
-            # 正玛特相关映射
             '正玛特': '正特',
             '正玛特_正一特': '正1特',
             '正玛特_正二特': '正2特', 
@@ -760,13 +754,12 @@ class MultiLotteryCoverageAnalyzer:
         return play_str
 
     def enhanced_normalize_special_characters(self, text):
-        """增强特殊字符处理 - 从第一套代码借鉴"""
+        """增强特殊字符处理"""
         if not text:
             return text
-        
-        # 从第一套代码借鉴的空白字符处理
+
         import re
-        text = re.sub(r'\s+', ' ', text)  # 将所有空白字符替换为普通空格
+        text = re.sub(r'\s+', ' ', text)
         text = text.strip()
         
         return text
@@ -1391,7 +1384,6 @@ class MultiLotteryCoverageAnalyzer:
 
     def analyze_period_lottery_position(self, group, period, lottery, position, min_number_count, min_avg_amount):
         """分析特定期数、彩种和位置 - 支持从内容中提取位置"""
-        # 修复类型问题：确保参数是正确类型
         min_number_count = int(min_number_count)
         min_avg_amount = float(min_avg_amount)
         
@@ -1489,7 +1481,7 @@ class MultiLotteryCoverageAnalyzer:
         return None
 
     def analyze_account_behavior(self, df):
-        """新增：账户行为分析 - 整合第二套代码的活跃度分析"""
+        """新增：账户行为分析"""
         account_stats = {}
         
         for account in df['会员账号'].unique():
@@ -1522,7 +1514,7 @@ class MultiLotteryCoverageAnalyzer:
         return account_stats
     
     def _get_activity_level(self, total_periods):
-        """获取活跃度等级 - 整合第二套代码逻辑"""
+        """获取活跃度等级"""
         if total_periods <= 10:
             return '低活跃'
         elif total_periods <= 50:
@@ -1813,7 +1805,7 @@ class MultiLotteryCoverageAnalyzer:
         return account_stats
 
     def _calculate_detailed_account_stats(self, all_period_results):
-        """详细账户统计 - 从第一套代码借鉴"""
+        """详细账户统计"""
         account_stats = []
         account_participation = defaultdict(lambda: {
             'periods': set(),
@@ -2142,7 +2134,6 @@ def main():
                         axis=1
                     )
 
-                # ========== 新增：从内容中提取具体位置信息 ==========
                 with st.spinner("正在从投注内容中提取具体位置信息..."):
                     # 创建临时列来存储从内容中提取的位置
                     df_clean['提取位置'] = df_clean.apply(
