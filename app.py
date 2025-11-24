@@ -554,31 +554,36 @@ class MultiLotteryCoverageAnalyzer:
         if '期号' in df.columns:
             try:
                 # 尝试提取期号中的数字部分
-                period_numeric = df['期号'].astype(str).str.extract(r'(\d+)')[0].astype(float)
-                period_diff = period_numeric.diff().dropna()
-                if len(period_diff) > 1:
-                    max_gap = period_diff.max()
-                    if max_gap > 1000:  # 期号跳跃过大
-                        issues.append(f"期号连续性异常，最大间隔: {max_gap}")
-            except:
-                pass
+                period_numeric = df['期号'].astype(str).str.extract(r'(\d+)')[0]
+                if not period_numeric.empty:
+                    period_numeric = period_numeric.astype(float)
+                    period_diff = period_numeric.diff().dropna()
+                    if len(period_diff) > 1:
+                        max_gap = period_diff.max()
+                        if max_gap > 1000:  # 期号跳跃过大
+                            issues.append(f"期号连续性异常，最大间隔: {max_gap}")
+            except Exception as e:
+                logger.warning(f"期号连续性检查失败: {e}")
         
         # 🆕 新增：检查账户行为模式
         if '会员账号' in df.columns and '金额' in df.columns:
-            account_stats = df.groupby('会员账号').agg({
-                '金额': ['count', 'sum'],
-                '期号': 'nunique'
-            }).round(2)
-            
-            # 检测异常账户（投注次数过多或金额异常）
-            max_bets = account_stats[('金额', 'count')].max()
-            max_amount = account_stats[('金额', 'sum')].max()
-            
-            if max_bets > 10000:  # 单个账户投注超过1万次
-                issues.append(f"发现异常活跃账户，最大投注次数: {max_bets}")
-            
-            if max_amount > 1000000:  # 单个账户总金额超过100万
-                issues.append(f"发现大额投注账户，最大投注总额: {max_amount:,.2f}")
+            try:
+                account_stats = df.groupby('会员账号').agg({
+                    '金额': ['count', 'sum'],
+                    '期号': 'nunique'
+                }).round(2)
+                
+                # 检测异常账户（投注次数过多或金额异常）
+                max_bets = account_stats[('金额', 'count')].max()
+                max_amount = account_stats[('金额', 'sum')].max()
+                
+                if max_bets > 10000:  # 单个账户投注超过1万次
+                    issues.append(f"发现异常活跃账户，最大投注次数: {max_bets}")
+                
+                if max_amount > 1000000:  # 单个账户总金额超过100万
+                    issues.append(f"发现大额投注账户，最大投注总额: {max_amount:,.2f}")
+            except Exception as e:
+                logger.warning(f"账户行为分析失败: {e}")
         
         # 检查会员账号完整性
         if '会员账号' in df.columns:
@@ -588,9 +593,12 @@ class MultiLotteryCoverageAnalyzer:
                 issues.append(f"发现 {len(truncated_accounts)} 个可能被截断的会员账号")
             
             # 检查账号长度异常
-            account_lengths = df['会员账号'].str.len()
-            if account_lengths.max() > 50:
-                issues.append("发现异常长度的会员账号")
+            try:
+                account_lengths = df['会员账号'].str.len()
+                if account_lengths.max() > 50:
+                    issues.append("发现异常长度的会员账号")
+            except:
+                pass
             
             # 显示账号格式样本
             unique_accounts = df['会员账号'].unique()[:5]
@@ -1296,8 +1304,8 @@ class MultiLotteryCoverageAnalyzer:
                         account_amount_stats[acc2]['avg_amount_per_number']
                     ]
                     
-                    # 检查平均金额是否达到阈值
-                    if min(avg_amounts) < min_avg_amount:
+                    # 检查平均金额是否达到阈值 - 修复类型比较问题
+                    if min(avg_amounts) < float(min_avg_amount):
                         continue
                     
                     similarity = self.calculate_similarity(avg_amounts)
@@ -1348,8 +1356,8 @@ class MultiLotteryCoverageAnalyzer:
                             account_amount_stats[acc3]['avg_amount_per_number']
                         ]
                         
-                        # 检查平均金额是否达到阈值
-                        if min(avg_amounts) < min_avg_amount:
+                        # 检查平均金额是否达到阈值 - 修复类型比较问题
+                        if min(avg_amounts) < float(min_avg_amount):
                             continue
                         
                         similarity = self.calculate_similarity(avg_amounts)
@@ -1383,6 +1391,10 @@ class MultiLotteryCoverageAnalyzer:
 
     def analyze_period_lottery_position(self, group, period, lottery, position, min_number_count, min_avg_amount):
         """分析特定期数、彩种和位置 - 支持从内容中提取位置"""
+        # 修复类型问题：确保参数是正确类型
+        min_number_count = int(min_number_count)
+        min_avg_amount = float(min_avg_amount)
+        
         has_amount_column = '金额' in group.columns
         
         # 识别彩种类型
@@ -1437,7 +1449,7 @@ class MultiLotteryCoverageAnalyzer:
 
         for account, numbers in account_numbers.items():
             stats = account_amount_stats[account]
-            # 同时检查数字数量和平均金额阈值
+            # 同时检查数字数量和平均金额阈值 - 修复类型比较问题
             if len(numbers) >= min_number_count and stats['avg_amount_per_number'] >= min_avg_amount:
                 filtered_account_numbers[account] = numbers
                 filtered_account_amount_stats[account] = account_amount_stats[account]
@@ -1913,7 +1925,7 @@ class MultiLotteryCoverageAnalyzer:
             'fast_three': '快三'
         }
         
-        for group_key, result in all_period_results.items():
+        for group_key, result in all_period_results.values():
             lottery_category = result['lottery_category']
             total_numbers = result['total_numbers']
             
