@@ -768,14 +768,14 @@ class MultiLotteryCoverageAnalyzer:
         play_str = str(play_method).strip()
         content_str = str(content).strip()
         
-        # 如果是定位胆玩法，从内容中提取具体位置
-        if play_str == '定位胆' and ':' in content_str:
+        # 🆕 增强定位胆玩法识别
+        if play_str == '定位胆' and (':' in content_str or '：' in content_str):
             # 提取位置信息（如"亚军:03,04,05"中的"亚军"）
-            position_match = re.match(r'^([^:]+):', content_str)
+            position_match = re.match(r'^([^:：]+)[:：]', content_str)
             if position_match:
                 position = position_match.group(1).strip()
                 
-                # 映射位置名称
+                # 🆕 增强位置名称映射
                 position_mapping = {
                     '冠军': '冠军', '亚军': '亚军', '季军': '季军',
                     '第四名': '第四名', '第五名': '第五名', '第六名': '第六名',
@@ -785,11 +785,43 @@ class MultiLotteryCoverageAnalyzer:
                     '第7名': '第七名', '第8名': '第八名', '第9名': '第九名', '第10名': '第十名',
                     '第一名': '冠军', '第二名': '亚军', '第三名': '季军',
                     '第四位': '第四名', '第五位': '第五名', '第六位': '第六名',
-                    '第七位': '第七名', '第八位': '第八名', '第九位': '第九名', '第十位': '第十名'
+                    '第七位': '第七名', '第八位': '第八名', '第九位': '第九名', '第十位': '第十名',
+                    '1st': '冠军', '2nd': '亚军', '3rd': '季军', '4th': '第四名', '5th': '第五名',
+                    '6th': '第六名', '7th': '第七名', '8th': '第八名', '9th': '第九名', '10th': '第十名',
+                    '前一': '冠军', '前二': '亚军', '前三': '季军',
+                    # 🆕 新增：处理可能的空格和格式变体
+                    '冠 军': '冠军', '亚 军': '亚军', '季 军': '季军',
+                    '冠　军': '冠军', '亚　军': '亚军', '季　军': '季军',
+                    # 🆕 新增：处理数字格式
+                    '第 1 名': '冠军', '第 2 名': '亚军', '第 3 名': '季军',
+                    '第1 名': '冠军', '第2 名': '亚军', '第3 名': '季军',
                 }
                 
                 normalized_position = position_mapping.get(position, position)
+                logger.info(f"🎯 定位胆位置提取: {position} -> {normalized_position}")
                 return normalized_position
+        
+        # 🆕 新增：处理没有冒号但内容明确包含位置名称的情况
+        if play_str == '定位胆':
+            content_lower = content_str.lower()
+            position_keywords = {
+                '冠军': ['冠军', '第一名', '第1名', '1st', '前一'],
+                '亚军': ['亚军', '第二名', '第2名', '2nd'],
+                '季军': ['季军', '第三名', '第3名', '3rd'],
+                '第四名': ['第四名', '第4名', '4th'],
+                '第五名': ['第五名', '第5名', '5th'],
+                '第六名': ['第六名', '第6名', '6th'],
+                '第七名': ['第七名', '第7名', '7th'],
+                '第八名': ['第八名', '第8名', '8th'],
+                '第九名': ['第九名', '第9名', '9th'],
+                '第十名': ['第十名', '第10名', '10th']
+            }
+            
+            for position, keywords in position_keywords.items():
+                for keyword in keywords:
+                    if keyword in content_lower:
+                        logger.info(f"🎯 定位胆关键词位置提取: {content_str} -> {position}")
+                        return position
         
         return play_str
     
@@ -1015,23 +1047,49 @@ class MultiLotteryCoverageAnalyzer:
         return self.enhanced_extract_numbers(content, lottery_category)
     
     def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
-        """增强号码提取 - 支持更多格式"""
+        """增强号码提取 - 专门处理定位胆格式"""
         content_str = str(content).strip()
         numbers = []
         
         try:
-            config = self.get_lottery_config(lottery_category)
-            number_range = config['number_range']
-            
             # 🆕 新增：处理空内容
             if not content_str or content_str.lower() in ['', 'null', 'none', 'nan']:
                 return []
+            
+            config = self.get_lottery_config(lottery_category)
+            number_range = config['number_range']
             
             # 🆕 新增：处理特殊字符和空白
             content_str = re.sub(r'[\s\u3000]+', ' ', content_str)  # 处理全角空格和空白
             
             # 🆕 新增：处理括号内的内容
             content_str = re.sub(r'[\(（].*?[\)）]', '', content_str)
+            
+            # 🆕 新增：专门处理定位胆格式（位置:号码） - 最高优先级
+            if ':' in content_str or '：' in content_str:
+                # 提取冒号后面的号码部分
+                colon_patterns = [
+                    r'^[^:：]+[:：]\s*([\d,\s]+)$',  # 亚军:01,02,03
+                    r'^[^:：]+[:：]\s*(\d+(?:\s*,\s*\d+)*)$',  # 亚军:01, 02, 03
+                    r'^([^:：]+)[:：].*$'  # 通用模式，提取冒号前的内容作为备选
+                ]
+                
+                for pattern in colon_patterns:
+                    match = re.match(pattern, content_str)
+                    if match:
+                        number_part = match.group(1).strip()
+                        # 清理号码部分
+                        number_part = re.sub(r'\s+', '', number_part)  # 移除所有空格
+                        if number_part:
+                            # 按逗号分割提取数字
+                            number_strs = number_part.split(',')
+                            for num_str in number_strs:
+                                if num_str.isdigit():
+                                    num = int(num_str)
+                                    if num in number_range:
+                                        numbers.append(num)
+                            if numbers:  # 如果成功提取到号码，直接返回
+                                return list(set(numbers))
             
             # 🆕 新增：处理多种分隔符格式
             separators = [',', '，', ' ', ';', '；', '、', '/', '\\', '|']
@@ -1061,8 +1119,8 @@ class MultiLotteryCoverageAnalyzer:
                             num = int(num_str)
                             if 1 <= num <= 49:
                                 numbers.append(num)
-                elif lottery_category in ['10_number', '3d_series']:
-                    # 10个号码彩种：1位数字
+                elif lottery_category in ['10_number', '3d_series', 'fast_three']:
+                    # 10个号码彩种和快三：1位数字
                     for char in clean_content:
                         if char.isdigit():
                             num = int(char)
@@ -1095,10 +1153,18 @@ class MultiLotteryCoverageAnalyzer:
                     if num in number_range:
                         numbers.append(num)
             
-            # 原有的格式处理
-            if re.match(r'^(\d{1,2},)*\d{1,2}$', content_str):
+            # 🆕 新增：处理常见格式：3,4,5,6,15,16,17,18
+            if not numbers and re.match(r'^(\d{1,2},)*\d{1,2}$', content_str):
                 new_numbers = [int(x.strip()) for x in content_str.split(',') if x.strip().isdigit()]
                 numbers.extend(new_numbers)
+            
+            # 🆕 新增：提取所有1-2位数字（作为最后的手段）
+            if not numbers:
+                number_matches = re.findall(r'\b\d{1,2}\b', content_str)
+                for match in number_matches:
+                    num = int(match)
+                    if num in number_range:
+                        numbers.append(num)
             
             # 🆕 新增：去重并排序
             numbers = list(set(numbers))
@@ -1106,7 +1172,7 @@ class MultiLotteryCoverageAnalyzer:
             numbers.sort()
             
             return numbers
-            
+                
         except Exception as e:
             logger.warning(f"号码提取失败: {content_str}, 错误: {str(e)}")
             return []
