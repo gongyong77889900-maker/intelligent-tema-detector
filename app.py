@@ -1273,13 +1273,16 @@ class MultiLotteryCoverageAnalyzer:
             return "🔴"
     
     def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers):
-        """寻找完美组合 - 支持任意号码数量的彩种"""
-        all_results = {2: [], 3: [], 4: []}
+        """寻找完美组合 - 支持2,3,4个账户的组合"""
+        all_results = {2: [], 3: [], 4: []}  # 修改：增加4账户组合
         all_accounts = list(account_numbers.keys())
+        
+        # 性能优化：如果账户数不足4个，跳过4账户搜索
+        enable_4_account_search = len(all_accounts) >= 4
         
         account_sets = {account: set(numbers) for account, numbers in account_numbers.items()}
         
-        # 搜索2账户组合
+        # 搜索2账户组合（现有代码）
         for i, acc1 in enumerate(all_accounts):
             count1 = len(account_numbers[acc1])
             for j in range(i+1, len(all_accounts)):
@@ -1297,7 +1300,6 @@ class MultiLotteryCoverageAnalyzer:
                         account_amount_stats[acc2]['avg_amount_per_number']
                     ]
                     
-                    # 检查平均金额是否达到阈值 - 修复类型比较问题
                     if min(avg_amounts) < float(min_avg_amount):
                         continue
                     
@@ -1325,7 +1327,7 @@ class MultiLotteryCoverageAnalyzer:
                     }
                     all_results[2].append(result_data)
         
-        # 搜索3账户组合
+        # 搜索3账户组合（现有代码）
         for i, acc1 in enumerate(all_accounts):
             count1 = len(account_numbers[acc1])
             for j in range(i+1, len(all_accounts)):
@@ -1349,7 +1351,6 @@ class MultiLotteryCoverageAnalyzer:
                             account_amount_stats[acc3]['avg_amount_per_number']
                         ]
                         
-                        # 检查平均金额是否达到阈值 - 修复类型比较问题
                         if min(avg_amounts) < float(min_avg_amount):
                             continue
                         
@@ -1379,6 +1380,69 @@ class MultiLotteryCoverageAnalyzer:
                             }
                         }
                         all_results[3].append(result_data)
+        
+        # 🆕 新增：搜索4账户组合
+        if enable_4_account_search:
+            for i, acc1 in enumerate(all_accounts):
+                count1 = len(account_numbers[acc1])
+                for j in range(i+1, len(all_accounts)):
+                    acc2 = all_accounts[j]
+                    count2 = len(account_numbers[acc2])
+                    for k in range(j+1, len(all_accounts)):
+                        acc3 = all_accounts[k]
+                        count3 = len(account_numbers[acc3])
+                        for l in range(k+1, len(all_accounts)):
+                            acc4 = all_accounts[l]
+                            count4 = len(account_numbers[acc4])
+                            
+                            if count1 + count2 + count3 + count4 != total_numbers:
+                                continue
+                            
+                            combined_set = account_sets[acc1] | account_sets[acc2] | account_sets[acc3] | account_sets[acc4]
+                            if len(combined_set) == total_numbers:
+                                total_amount = (account_amount_stats[acc1]['total_amount'] + 
+                                              account_amount_stats[acc2]['total_amount'] + 
+                                              account_amount_stats[acc3]['total_amount'] +
+                                              account_amount_stats[acc4]['total_amount'])
+                                avg_amounts = [
+                                    account_amount_stats[acc1]['avg_amount_per_number'],
+                                    account_amount_stats[acc2]['avg_amount_per_number'],
+                                    account_amount_stats[acc3]['avg_amount_per_number'],
+                                    account_amount_stats[acc4]['avg_amount_per_number']
+                                ]
+                                
+                                if min(avg_amounts) < float(min_avg_amount):
+                                    continue
+                                
+                                similarity = self.calculate_similarity(avg_amounts)
+                                
+                                result_data = {
+                                    'accounts': [acc1, acc2, acc3, acc4],
+                                    'account_count': 4,
+                                    'total_amount': total_amount,
+                                    'avg_amount_per_number': total_amount / total_numbers,
+                                    'similarity': similarity,
+                                    'similarity_indicator': self.get_similarity_indicator(similarity),
+                                    'individual_amounts': {
+                                        acc1: account_amount_stats[acc1]['total_amount'],
+                                        acc2: account_amount_stats[acc2]['total_amount'],
+                                        acc3: account_amount_stats[acc3]['total_amount'],
+                                        acc4: account_amount_stats[acc4]['total_amount']
+                                    },
+                                    'individual_avg_per_number': {
+                                        acc1: account_amount_stats[acc1]['avg_amount_per_number'],
+                                        acc2: account_amount_stats[acc2]['avg_amount_per_number'],
+                                        acc3: account_amount_stats[acc3]['avg_amount_per_number'],
+                                        acc4: account_amount_stats[acc4]['avg_amount_per_number']
+                                    },
+                                    'bet_contents': {
+                                        acc1: account_bet_contents[acc1],
+                                        acc2: account_bet_contents[acc2],
+                                        acc3: account_bet_contents[acc3],
+                                        acc4: account_bet_contents[acc4]
+                                    }
+                                }
+                                all_results[4].append(result_data)
         
         return all_results
 
