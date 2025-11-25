@@ -2271,28 +2271,6 @@ def main():
     # 侧边栏设置 - 分别设置不同彩种的阈值
     st.sidebar.header("⚙️ 分析参数设置")
     
-    # === 新增：组合数量筛选功能 ===
-    st.sidebar.subheader("🔢 组合数量设置")
-    
-    # 组合数量选择
-    combination_settings = st.sidebar.multiselect(
-        "检测的组合类型:",
-        options=["2账户组合", "3账户组合", "4账户组合"],
-        default=["2账户组合", "3账户组合", "4账户组合"],  # 默认全选
-        help="选择要检测的账户组合类型"
-    )
-    
-    # 转换为内部使用的标识
-    detect_2_account = "2账户组合" in combination_settings
-    detect_3_account = "3账户组合" in combination_settings  
-    detect_4_account = "4账户组合" in combination_settings
-    
-    # 显示当前选择的组合类型
-    if combination_settings:
-        st.sidebar.info(f"🔍 将检测: {', '.join(combination_settings)}")
-    else:
-        st.sidebar.warning("⚠️ 未选择任何组合类型，将不会检测任何组合")
-    
     # 文件上传
     st.sidebar.header("📁 数据上传")
     uploaded_file = st.sidebar.file_uploader(
