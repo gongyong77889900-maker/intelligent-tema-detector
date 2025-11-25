@@ -2143,7 +2143,7 @@ def main():
         "快三-号码数量阈值", 
         min_value=1, 
         max_value=16, 
-        value=3,
+        value=4,
         help="快三和值玩法：只分析投注号码数量大于等于此值的账户"
     )
     
