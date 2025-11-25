@@ -1086,48 +1086,57 @@ class MultiLotteryCoverageAnalyzer:
         return self.enhanced_extract_numbers(content, lottery_category)
     
     def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
-        """增强号码提取 - 修复金额和号码混合的问题"""
+        """增强号码提取 - 专门处理定位胆格式"""
         content_str = str(content).strip()
         numbers = []
         
         try:
+            # 🆕 新增：处理空内容
             if not content_str or content_str.lower() in ['', 'null', 'none', 'nan']:
                 return []
             
             config = self.get_lottery_config(lottery_category)
             number_range = config['number_range']
             
-            # 🆕 修复：先移除可能的金额部分
-            # 处理格式如："25,亚军:03,04,05,06,07" 或 "50,3,4,5,6,15,16,17,18"
-            clean_content = content_str
+            # 🆕 新增：处理特殊字符和空白
+            content_str = re.sub(r'[\s\u3000]+', ' ', content_str)  # 处理全角空格和空白
             
-            # 如果包含中文位置信息，提取冒号后面的部分
+            # 🆕 新增：处理括号内的内容
+            content_str = re.sub(r'[\(（].*?[\)）]', '', content_str)
+            
+            # 🆕 新增：专门处理定位胆格式（位置:号码） - 最高优先级
             if ':' in content_str or '：' in content_str:
+                # 提取冒号后面的号码部分
                 colon_patterns = [
-                    r'^[^:：]+[:：]\s*([\d,\s]+)$',  # 亚军:03,04,05,06,07
-                    r'^[^:：]+[:：]\s*(\d+(?:\s*,\s*\d+)*)$'  # 亚军:03, 04, 05, 06, 07
+                    r'^[^:：]+[:：]\s*([\d,\s]+)$',  # 亚军:01,02,03
+                    r'^[^:：]+[:：]\s*(\d+(?:\s*,\s*\d+)*)$',  # 亚军:01, 02, 03
+                    r'^([^:：]+)[:：].*$'  # 通用模式，提取冒号前的内容作为备选
                 ]
                 
                 for pattern in colon_patterns:
                     match = re.match(pattern, content_str)
                     if match:
-                        clean_content = match.group(1).strip()
-                        break
+                        number_part = match.group(1).strip()
+                        # 清理号码部分
+                        number_part = re.sub(r'\s+', '', number_part)  # 移除所有空格
+                        if number_part:
+                            # 按逗号分割提取数字
+                            number_strs = number_part.split(',')
+                            for num_str in number_strs:
+                                if num_str.isdigit():
+                                    num = int(num_str)
+                                    if num in number_range:
+                                        numbers.append(num)
+                            if numbers:  # 如果成功提取到号码，直接返回
+                                return list(set(numbers))
             
-            # 🆕 修复：处理开头是金额的格式
-            # 例如："50,3,4,5,6,15,16,17,18" -> 应该只提取3,4,5,6,15,16,17,18
-            if re.match(r'^\d+,\d', clean_content):
-                first_comma = clean_content.find(',')
-                if first_comma > 0:
-                    clean_content = clean_content[first_comma+1:].strip()
-            
-            # 原有的号码提取逻辑...
-            # 处理多种分隔符格式
+            # 🆕 新增：处理多种分隔符格式
             separators = [',', '，', ' ', ';', '；', '、', '/', '\\', '|']
             
+            # 尝试多种分隔符拆分
             for sep in separators:
-                if sep in clean_content:
-                    parts = clean_content.split(sep)
+                if sep in content_str:
+                    parts = content_str.split(sep)
                     for part in parts:
                         part_clean = part.strip()
                         if part_clean.isdigit():
@@ -1196,7 +1205,7 @@ class MultiLotteryCoverageAnalyzer:
                     if num in number_range:
                         numbers.append(num)
             
-            # 去重并排序
+            # 🆕 新增：去重并排序
             numbers = list(set(numbers))
             numbers = [num for num in numbers if num in number_range]
             numbers.sort()
@@ -1213,7 +1222,7 @@ class MultiLotteryCoverageAnalyzer:
         return self.extract_bet_amount(amount_text)
     
     def extract_bet_amount(self, amount_text):
-        """金额提取函数 - 修复版：专门处理包含多个逗号的格式"""
+        """金额提取函数 - 增强版"""
         try:
             if pd.isna(amount_text) or amount_text is None:
                 return 0.0
@@ -1225,37 +1234,6 @@ class MultiLotteryCoverageAnalyzer:
             if text == '':
                 return 0.0
             
-            # 🆕 新增：专门处理包含中文和逗号的混合格式
-            # 例如："25,亚军:03,04,05,06,07" 应该只提取25
-            if ':' in text or '：' in text or any(char in text for char in ['亚', '冠', '季', '军', '名', '球', '位']):
-                # 这是包含位置信息的格式，金额在开头
-                # 提取第一个逗号或冒号之前的部分
-                first_sep = re.search(r'[,:：]', text)
-                if first_sep:
-                    amount_part = text[:first_sep.start()].strip()
-                    # 清理金额部分
-                    amount_part = re.sub(r'[^\d.]', '', amount_part)
-                    if amount_part and amount_part != '.':
-                        try:
-                            amount = float(amount_part)
-                            if amount >= 0:
-                                return amount
-                        except:
-                            pass
-            
-            # 🆕 新增：处理纯数字逗号分隔的情况
-            # 例如："50,3,4,5,6,15,16,17,18" 应该只提取50
-            if re.match(r'^\d+,\d', text):
-                # 提取第一个逗号前的数字
-                first_comma = text.find(',')
-                if first_comma > 0:
-                    amount_part = text[:first_comma].strip()
-                    if amount_part.isdigit():
-                        amount = float(amount_part)
-                        if amount >= 0:
-                            return amount
-            
-            # 原有的提取逻辑（作为备选）
             # 方法1: 直接转换（处理纯数字）
             try:
                 # 移除所有非数字字符（除了点和负号）
@@ -1277,9 +1255,16 @@ class MultiLotteryCoverageAnalyzer:
             except:
                 pass
             
-            # 方法3: 使用正则表达式提取各种格式
+            # 方法3: 处理"5.000"这种格式
+            if re.match(r'^\d+\.\d{3}$', text):
+                try:
+                    amount = float(text)
+                    return amount
+                except:
+                    pass
+            
+            # 方法4: 使用正则表达式提取各种格式
             patterns = [
-                r'^(\d+)[,:]',  # 🆕 新增：匹配开头的数字后跟逗号或冒号
                 r'投注\s*[:：]?\s*([\d,.]+)',
                 r'金额\s*[:：]?\s*([\d,.]+)',
                 r'下注金额\s*([\d,.]+)',
@@ -1287,7 +1272,7 @@ class MultiLotteryCoverageAnalyzer:
                 r'￥\s*([\d,.]+)',
                 r'¥\s*([\d,.]+)',
                 r'([\d,.]+)\s*RMB',
-                r'^([\d,.]+)$'  # 🆕 修改：只匹配整个字符串都是数字的情况
+                r'([\d,.]+)$'
             ]
             
             for pattern in patterns:
@@ -2158,7 +2143,7 @@ def main():
         "快三-号码数量阈值", 
         min_value=1, 
         max_value=16, 
-        value=3,
+        value=4,
         help="快三和值玩法：只分析投注号码数量大于等于此值的账户"
     )
     
