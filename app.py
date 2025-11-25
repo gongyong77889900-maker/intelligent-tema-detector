@@ -421,33 +421,8 @@ class MultiLotteryCoverageAnalyzer:
         
         # 记录过滤统计
         removed_count = len(df) - len(filtered_df)
-        logger.info(f"📊 过滤非号码投注: 移除 {removed_count} 条记录，保留 {len(filtered_df)} 条记录")
         
         return filtered_df
-
-    def debug_amount_extraction(self, df, target_accounts=None):
-        """调试金额提取过程"""
-        debug_data = []
-        
-        for idx, row in df.iterrows():
-            account = row['会员账号']
-            play = row['玩法']
-            content = row['内容']
-            original_amount = row.get('金额', '')
-            extracted_amount = self.cached_extract_amount(original_amount)
-            
-            # 如果指定了特定账户，只记录这些账户
-            if target_accounts is None or account in target_accounts:
-                debug_data.append({
-                    '账号': account,
-                    '玩法': play,
-                    '投注内容': content,
-                    '原始金额': original_amount,
-                    '提取金额': extracted_amount
-                })
-        
-        debug_df = pd.DataFrame(debug_data)
-        return debug_df
 
     def fixed_extract_amount(self, amount_str):
         """修复的金额提取方法"""
@@ -528,7 +503,6 @@ class MultiLotteryCoverageAnalyzer:
         for category, keywords in lottery_keywords_mapping.items():
             for keyword in keywords:
                 if keyword in lottery_str:
-                    logger.info(f"🎯 关键词识别彩种: {lottery_name} -> {category}")
                     return category
         
         # 模糊匹配
@@ -554,8 +528,6 @@ class MultiLotteryCoverageAnalyzer:
         column_mapping = {}
         actual_columns = [str(col).strip() for col in df.columns]
         
-        st.info(f"🔍 检测到的列名: {actual_columns}")
-        
         for standard_col, possible_names in self.column_mappings.items():
             found = False
             for actual_col in actual_columns:
@@ -568,7 +540,6 @@ class MultiLotteryCoverageAnalyzer:
                         actual_col_lower in possible_name_lower or
                         len(set(possible_name_lower) & set(actual_col_lower)) / len(possible_name_lower) > 0.7):
                         column_mapping[actual_col] = standard_col
-                        st.success(f"✅ 识别列名: {actual_col} -> {standard_col}")
                         found = True
                         break
                 if found:
@@ -589,7 +560,6 @@ class MultiLotteryCoverageAnalyzer:
     
     def validate_data_quality(self, df):
         """数据质量验证"""
-        logger.info("正在进行数据质量验证...")
         issues = []
         
         # 检查必要列
@@ -605,113 +575,6 @@ class MultiLotteryCoverageAnalyzer:
                 if null_count > 0:
                     issues.append(f"列 '{col}' 有 {null_count} 个空值")
 
-        if '彩种' in df.columns:
-            lottery_stats = df['彩种'].value_counts()
-            st.info(f"🎲 彩种分布: 共{len(lottery_stats)}种，前5: {', '.join([f'{k}({v}条)' for k,v in lottery_stats.head().items()])}")
-        
-        if '期号' in df.columns:
-            try:
-                # 尝试提取日期信息
-                period_samples = df['期号'].head(10).tolist()
-                st.info(f"📅 期号样本: {', '.join([str(p) for p in period_samples[:3]])}...")
-            except:
-                pass
-        
-        if '内容' in df.columns:
-            content_samples = df['内容'].head(5).tolist()
-            st.info(f"📝 投注内容样本:")
-            for i, sample in enumerate(content_samples):
-                st.write(f"  {i+1}. {sample}")
-        
-        if '玩法' in df.columns:
-            play_stats = df['玩法'].value_counts().head(10)
-            with st.expander("🎯 玩法分布TOP10", expanded=False):
-                for play, count in play_stats.items():
-                    st.write(f"  - {play}: {count}次")
-
-        # 🆕 新增：检查号码格式有效性
-        if '内容' in df.columns:
-            sample_contents = df['内容'].head(10)
-            invalid_number_formats = 0
-            
-            for content in sample_contents:
-                content_str = str(content)
-                # 检查是否包含有效数字
-                if not re.search(r'\d', content_str):
-                    invalid_number_formats += 1
-                    continue
-                
-                # 检查是否包含明显无效字符
-                invalid_chars = re.findall(r'[^\d\s,\-~～*√★☆♥♦♣♠]', content_str)
-                if invalid_chars:
-                    invalid_number_formats += 1
-            
-            if invalid_number_formats > len(sample_contents) * 0.3:  # 30%样本无效
-                issues.append(f"发现 {invalid_number_formats} 个可能无效的号码格式")
-        
-        # 🆕 新增：检查期号连续性
-        if '期号' in df.columns:
-            try:
-                # 尝试提取期号中的数字部分
-                period_numeric = df['期号'].astype(str).str.extract(r'(\d+)')[0]
-                if not period_numeric.empty:
-                    period_numeric = period_numeric.astype(float)
-                    period_diff = period_numeric.diff().dropna()
-                    if len(period_diff) > 1:
-                        max_gap = period_diff.max()
-                        if max_gap > 1000:  # 期号跳跃过大
-                            issues.append(f"期号连续性异常，最大间隔: {max_gap}")
-            except Exception as e:
-                logger.warning(f"期号连续性检查失败: {e}")
-        
-        # 🆕 新增：检查账户行为模式
-        if '会员账号' in df.columns and '金额' in df.columns:
-            try:
-                account_stats = df.groupby('会员账号').agg({
-                    '金额': ['count', 'sum'],
-                    '期号': 'nunique'
-                }).round(2)
-                
-                # 检测异常账户（投注次数过多或金额异常）
-                max_bets = account_stats[('金额', 'count')].max()
-                max_amount = account_stats[('金额', 'sum')].max()
-                
-                if max_bets > 10000:  # 单个账户投注超过1万次
-                    issues.append(f"发现异常活跃账户，最大投注次数: {max_bets}")
-                
-                if max_amount > 1000000:  # 单个账户总金额超过100万
-                    issues.append(f"发现大额投注账户，最大投注总额: {max_amount:,.2f}")
-            except Exception as e:
-                logger.warning(f"账户行为分析失败: {e}")
-        
-        # 检查会员账号完整性
-        if '会员账号' in df.columns:
-            # 检查截断账号
-            truncated_accounts = df[df['会员账号'].str.contains(r'\.\.\.|…', na=False)]
-            if len(truncated_accounts) > 0:
-                issues.append(f"发现 {len(truncated_accounts)} 个可能被截断的会员账号")
-            
-            # 检查账号长度异常
-            try:
-                account_lengths = df['会员账号'].str.len()
-                if account_lengths.max() > 50:
-                    issues.append("发现异常长度的会员账号")
-            except:
-                pass
-            
-            # 显示账号格式样本
-            unique_accounts = df['会员账号'].unique()[:5]
-            sample_info = " | ".join([f"'{acc}'" for acc in unique_accounts])
-            st.info(f"会员账号格式样本: {sample_info}")
-        
-        # 检查期号格式
-        if '期号' in df.columns:
-            # 修复期号格式问题
-            df['期号'] = df['期号'].astype(str).str.replace(r'\.0$', '', regex=True)
-            invalid_periods = df[~df['期号'].str.match(r'^[\dA-Za-z]+$')]
-            if len(invalid_periods) > 0:
-                issues.append(f"发现 {len(invalid_periods)} 条无效期号记录")
-        
         # 检查重复数据
         duplicate_count = df.duplicated().sum()
         if duplicate_count > 0:
@@ -725,7 +588,7 @@ class MultiLotteryCoverageAnalyzer:
             st.success("✅ 数据质量检查通过")
         
         return issues
-    
+
     def normalize_position(self, play_method):
         """统一位置名称 - 增强正码特位置识别"""
         play_str = str(play_method).strip()
@@ -739,9 +602,9 @@ class MultiLotteryCoverageAnalyzer:
             elif '正三' in play_str or '正3' in play_str:
                 return '正三特'
             elif '正四' in play_str or '正4' in play_str:
-                return '正四特'  # 新增
+                return '正四特'
             elif '正五' in play_str or '正5' in play_str:
-                return '正五特'  # 新增
+                return '正五特'
             elif '正六' in play_str or '正6' in play_str:
                 return '正六特'
             else:
@@ -756,9 +619,9 @@ class MultiLotteryCoverageAnalyzer:
             elif '正三' in play_str or '正3' in play_str:
                 return '正三特'
             elif '正四' in play_str or '正4' in play_str:
-                return '正四特'  # 新增
+                return '正四特'
             elif '正五' in play_str or '正5' in play_str:
-                return '正五特'  # 新增
+                return '正五特'
             elif '正六' in play_str or '正6' in play_str:
                 return '正六特'
             else:
@@ -904,7 +767,6 @@ class MultiLotteryCoverageAnalyzer:
                 }
                 
                 normalized_position = position_mapping.get(position, position)
-                logger.info(f"🎯 定位胆位置提取: {position} -> {normalized_position}")
                 return normalized_position
         
         # 🆕 新增：处理没有冒号但内容明确包含位置名称的情况
@@ -926,7 +788,6 @@ class MultiLotteryCoverageAnalyzer:
             for position, keywords in position_keywords.items():
                 for keyword in keywords:
                     if keyword in content_lower:
-                        logger.info(f"🎯 定位胆关键词位置提取: {content_str} -> {position}")
                         return position
         
         return play_str
@@ -948,9 +809,9 @@ class MultiLotteryCoverageAnalyzer:
             elif '正三' in play_normalized or '正3' in play_normalized:
                 return '正三特'
             elif '正四' in play_normalized or '正4' in play_normalized:
-                return '正四特'  # 新增
+                return '正四特'
             elif '正五' in play_normalized or '正5' in play_normalized:
-                return '正五特'  # 新增
+                return '正五特'
             elif '正六' in play_normalized or '正6' in play_normalized:
                 return '正六特'
             else:
@@ -965,9 +826,9 @@ class MultiLotteryCoverageAnalyzer:
             elif '正三' in play_normalized or '正3' in play_normalized:
                 return '正三特'
             elif '正四' in play_normalized or '正4' in play_normalized:
-                return '正四特'  # 新增
+                return '正四特'
             elif '正五' in play_normalized or '正5' in play_normalized:
-                return '正五特'  # 新增
+                return '正五特'
             elif '正六' in play_normalized or '正6' in play_normalized:
                 return '正六特'
             else:
@@ -1280,7 +1141,6 @@ class MultiLotteryCoverageAnalyzer:
             return numbers
                 
         except Exception as e:
-            logger.warning(f"号码提取失败: {content_str}, 错误: {str(e)}")
             return []
     
     @lru_cache(maxsize=500)
@@ -1339,7 +1199,6 @@ class MultiLotteryCoverageAnalyzer:
             return 0.0
             
         except Exception as e:
-            logger.warning(f"金额提取失败: {amount_text}, 错误: {str(e)}")
             return 0.0
     
     def calculate_similarity(self, avgs):
@@ -1873,51 +1732,6 @@ class MultiLotteryCoverageAnalyzer:
         st.subheader("📈 详细组合分析")
         self._display_by_account_pair_lottery(account_pair_groups, analysis_mode)
 
-    def _calculate_account_stats(self, all_period_results, analysis_mode):
-        """计算账户统计信息"""
-        account_combinations = defaultdict(list)
-        
-        for group_key, result in all_period_results.items():
-            for combo in result['all_combinations']:
-                for account in combo['accounts']:
-                    account_info = {
-                        'period': result['period'],
-                        'lottery': result['lottery'],
-                        'lottery_category': result['lottery_category'],
-                        'combo_info': combo
-                    }
-                    
-                    if 'position' in result and result['position']:
-                        account_info['position'] = result['position']
-                    
-                    account_combinations[account].append(account_info)
-        
-        account_stats = []
-        for account, combinations in account_combinations.items():
-            # 计算该账户在所有组合中的总投注金额
-            total_bet_amount = sum(
-                combo['combo_info']['individual_amounts'][account] 
-                for combo in combinations
-            )
-            
-            stat_record = {
-                '账户': account,
-                '参与组合数': len(combinations),
-                '涉及期数': len(set(c['period'] for c in combinations)),
-                '涉及彩种': len(set(c['lottery'] for c in combinations)),
-                '总投注金额': total_bet_amount
-            }
-            
-            # 添加位置信息
-            positions = set(c.get('position', '') for c in combinations)
-            positions.discard('')  # 移除空字符串
-            if positions:
-                stat_record['涉及位置'] = ', '.join(sorted(positions))
-            
-            account_stats.append(stat_record)
-        
-        return account_stats
-
     def _calculate_detailed_account_stats(self, all_period_results):
         """详细账户统计"""
         account_stats = []
@@ -2147,9 +1961,6 @@ def main():
         help="快三和值玩法：只分析平均每号金额大于等于5的账户"  # 更新帮助文本
     )
     
-    # 调试模式
-    debug_mode = st.sidebar.checkbox("调试模式", value=False)
-    
     if uploaded_file is not None:
         try:
             # 读取文件 - 增强编码处理
@@ -2162,17 +1973,14 @@ def main():
                     uploaded_file.seek(0)  # 重置文件指针
                     try:
                         df = pd.read_csv(uploaded_file, encoding='gbk')
-                        st.info("📝 检测到文件使用GBK编码，已自动处理")
                     except:
                         uploaded_file.seek(0)
                         try:
                             df = pd.read_csv(uploaded_file, encoding='gb2312')
-                            st.info("📝 检测到文件使用GB2312编码，已自动处理")
                         except:
                             uploaded_file.seek(0)
                             # 最后尝试忽略错误
                             df = pd.read_csv(uploaded_file, encoding_errors='ignore')
-                            st.warning("⚠️ 使用错误忽略模式读取文件，部分特殊字符可能丢失")
             else:
                 df = pd.read_excel(uploaded_file)
             
@@ -2427,9 +2235,6 @@ def main():
         
         except Exception as e:
             st.error(f"❌ 处理文件时出错: {str(e)}")
-            if debug_mode:
-                import traceback
-                st.code(traceback.format_exc())
     
     else:
         st.info("💡 **彩票完美覆盖分析系统 - 多彩种精准分析版**")
