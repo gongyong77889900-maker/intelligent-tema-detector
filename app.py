@@ -1666,7 +1666,7 @@ class MultiLotteryCoverageAnalyzer:
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position, 
                             six_mark_params['min_number_count'], 
-                            min_avg_amount
+                            six_mark_params['min_avg_amount']
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
@@ -1681,7 +1681,7 @@ class MultiLotteryCoverageAnalyzer:
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position,
                             ten_number_params['min_number_count'],
-                            min_avg_amount
+                            ten_number_params['min_avg_amount']
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
@@ -1696,7 +1696,7 @@ class MultiLotteryCoverageAnalyzer:
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position,
                             fast_three_params['min_number_count'],
-                            min_avg_amount
+                            fast_three_params['min_avg_amount']
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
