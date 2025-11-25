@@ -1323,7 +1323,7 @@ class MultiLotteryCoverageAnalyzer:
             return "🔴"
     
     def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers):
-        """寻找完美组合 - 专注于2-4账户组合"""
+        """寻找完美组合 - 支持任意号码数量的彩种"""
         all_results = {2: [], 3: [], 4: []}
         all_accounts = list(account_numbers.keys())
         
@@ -1347,6 +1347,7 @@ class MultiLotteryCoverageAnalyzer:
                         account_amount_stats[acc2]['avg_amount_per_number']
                     ]
                     
+                    # 检查平均金额是否达到阈值 - 修复类型比较问题
                     if min(avg_amounts) < float(min_avg_amount):
                         continue
                     
@@ -1398,6 +1399,7 @@ class MultiLotteryCoverageAnalyzer:
                             account_amount_stats[acc3]['avg_amount_per_number']
                         ]
                         
+                        # 检查平均金额是否达到阈值 - 修复类型比较问题
                         if min(avg_amounts) < float(min_avg_amount):
                             continue
                         
@@ -1428,259 +1430,10 @@ class MultiLotteryCoverageAnalyzer:
                         }
                         all_results[3].append(result_data)
         
-        # 搜索4账户组合
-        for i, acc1 in enumerate(all_accounts):
-            count1 = len(account_numbers[acc1])
-            for j in range(i+1, len(all_accounts)):
-                acc2 = all_accounts[j]
-                count2 = len(account_numbers[acc2])
-                for k in range(j+1, len(all_accounts)):
-                    acc3 = all_accounts[k]
-                    count3 = len(account_numbers[acc3])
-                    for l in range(k+1, len(all_accounts)):
-                        acc4 = all_accounts[l]
-                        count4 = len(account_numbers[acc4])
-                        
-                        if count1 + count2 + count3 + count4 != total_numbers:
-                            continue
-                        
-                        combined_set = account_sets[acc1] | account_sets[acc2] | account_sets[acc3] | account_sets[acc4]
-                        if len(combined_set) == total_numbers:
-                            total_amount = (account_amount_stats[acc1]['total_amount'] + 
-                                          account_amount_stats[acc2]['total_amount'] + 
-                                          account_amount_stats[acc3]['total_amount'] +
-                                          account_amount_stats[acc4]['total_amount'])
-                            avg_amounts = [
-                                account_amount_stats[acc1]['avg_amount_per_number'],
-                                account_amount_stats[acc2]['avg_amount_per_number'],
-                                account_amount_stats[acc3]['avg_amount_per_number'],
-                                account_amount_stats[acc4]['avg_amount_per_number']
-                            ]
-                            
-                            if min(avg_amounts) < float(min_avg_amount):
-                                continue
-                            
-                            similarity = self.calculate_similarity(avg_amounts)
-                            
-                            result_data = {
-                                'accounts': [acc1, acc2, acc3, acc4],
-                                'account_count': 4,
-                                'total_amount': total_amount,
-                                'avg_amount_per_number': total_amount / total_numbers,
-                                'similarity': similarity,
-                                'similarity_indicator': self.get_similarity_indicator(similarity),
-                                'individual_amounts': {
-                                    acc1: account_amount_stats[acc1]['total_amount'],
-                                    acc2: account_amount_stats[acc2]['total_amount'],
-                                    acc3: account_amount_stats[acc3]['total_amount'],
-                                    acc4: account_amount_stats[acc4]['total_amount']
-                                },
-                                'individual_avg_per_number': {
-                                    acc1: account_amount_stats[acc1]['avg_amount_per_number'],
-                                    acc2: account_amount_stats[acc2]['avg_amount_per_number'],
-                                    acc3: account_amount_stats[acc3]['avg_amount_per_number'],
-                                    acc4: account_amount_stats[acc4]['avg_amount_per_number']
-                                },
-                                'bet_contents': {
-                                    acc1: account_bet_contents[acc1],
-                                    acc2: account_bet_contents[acc2],
-                                    acc3: account_bet_contents[acc3],
-                                    acc4: account_bet_contents[acc4]
-                                }
-                            }
-                            all_results[4].append(result_data)
-        
         return all_results
 
-    def optimized_find_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers,
-                                   detect_2=True, detect_3=True, detect_4=True):
-        """优化版的组合查找 - 减少不必要的计算"""
-        all_results = {2: [], 3: [], 4: []}
-        all_accounts = list(account_numbers.keys())
-        
-        # 如果账户数量很少，直接返回空结果
-        if len(all_accounts) < 2:
-            return all_results
-        
-        account_sets = {account: set(numbers) for account, numbers in account_numbers.items()}
-        
-        # 预筛选符合条件的账户
-        valid_accounts = []
-        for account in all_accounts:
-            stats = account_amount_stats[account]
-            if stats['avg_amount_per_number'] >= float(min_avg_amount):
-                valid_accounts.append(account)
-        
-        # 如果有效账户不足，直接返回
-        if len(valid_accounts) < 2:
-            return all_results
-        
-        # 搜索2账户组合
-        if detect_2 and len(valid_accounts) >= 2:
-            for i, acc1 in enumerate(valid_accounts):
-                count1 = len(account_numbers[acc1])
-                for j in range(i+1, len(valid_accounts)):
-                    acc2 = valid_accounts[j]
-                    count2 = len(account_numbers[acc2])
-                    
-                    # 快速检查号码数量是否可能满足
-                    if count1 + count2 < total_numbers:
-                        continue
-                    
-                    combined_set = account_sets[acc1] | account_sets[acc2]
-                    if len(combined_set) == total_numbers:
-                        # ... 原有的2账户组合创建逻辑保持不变
-                        total_amount = account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount']
-                        avg_amounts = [
-                            account_amount_stats[acc1]['avg_amount_per_number'],
-                            account_amount_stats[acc2]['avg_amount_per_number']
-                        ]
-                        
-                        similarity = self.calculate_similarity(avg_amounts)
-                        
-                        result_data = {
-                            'accounts': [acc1, acc2],
-                            'account_count': 2,
-                            'total_amount': total_amount,
-                            'avg_amount_per_number': total_amount / total_numbers,
-                            'similarity': similarity,
-                            'similarity_indicator': self.get_similarity_indicator(similarity),
-                            'individual_amounts': {
-                                acc1: account_amount_stats[acc1]['total_amount'],
-                                acc2: account_amount_stats[acc2]['total_amount']
-                            },
-                            'individual_avg_per_number': {
-                                acc1: account_amount_stats[acc1]['avg_amount_per_number'],
-                                acc2: account_amount_stats[acc2]['avg_amount_per_number']
-                            },
-                            'bet_contents': {
-                                acc1: account_bet_contents[acc1],
-                                acc2: account_bet_contents[acc2]
-                            }
-                        }
-                        all_results[2].append(result_data)
-        
-        # 搜索3账户组合 - 类似的优化逻辑
-        if detect_3 and len(valid_accounts) >= 3:
-            for i, acc1 in enumerate(valid_accounts):
-                count1 = len(account_numbers[acc1])
-                for j in range(i+1, len(valid_accounts)):
-                    acc2 = valid_accounts[j]
-                    count2 = len(account_numbers[acc2])
-                    for k in range(j+1, len(valid_accounts)):
-                        acc3 = valid_accounts[k]
-                        count3 = len(account_numbers[acc3])
-                        
-                        # 快速检查
-                        if count1 + count2 + count3 < total_numbers:
-                            continue
-                        
-                        combined_set = account_sets[acc1] | account_sets[acc2] | account_sets[acc3]
-                        if len(combined_set) == total_numbers:
-                            # ... 原有的3账户组合创建逻辑
-                            total_amount = (account_amount_stats[acc1]['total_amount'] + 
-                                          account_amount_stats[acc2]['total_amount'] + 
-                                          account_amount_stats[acc3]['total_amount'])
-                            avg_amounts = [
-                                account_amount_stats[acc1]['avg_amount_per_number'],
-                                account_amount_stats[acc2]['avg_amount_per_number'],
-                                account_amount_stats[acc3]['avg_amount_per_number']
-                            ]
-                            
-                            similarity = self.calculate_similarity(avg_amounts)
-                            
-                            result_data = {
-                                'accounts': [acc1, acc2, acc3],
-                                'account_count': 3,
-                                'total_amount': total_amount,
-                                'avg_amount_per_number': total_amount / total_numbers,
-                                'similarity': similarity,
-                                'similarity_indicator': self.get_similarity_indicator(similarity),
-                                'individual_amounts': {
-                                    acc1: account_amount_stats[acc1]['total_amount'],
-                                    acc2: account_amount_stats[acc2]['total_amount'],
-                                    acc3: account_amount_stats[acc3]['total_amount']
-                                },
-                                'individual_avg_per_number': {
-                                    acc1: account_amount_stats[acc1]['avg_amount_per_number'],
-                                    acc2: account_amount_stats[acc2]['avg_amount_per_number'],
-                                    acc3: account_amount_stats[acc3]['avg_amount_per_number']
-                                },
-                                'bet_contents': {
-                                    acc1: account_bet_contents[acc1],
-                                    acc2: account_bet_contents[acc2],
-                                    acc3: account_bet_contents[acc3]
-                                }
-                            }
-                            all_results[3].append(result_data)
-        
-        # 搜索4账户组合 - 类似的优化逻辑
-        if detect_4 and len(valid_accounts) >= 4:
-            for i, acc1 in enumerate(valid_accounts):
-                count1 = len(account_numbers[acc1])
-                for j in range(i+1, len(valid_accounts)):
-                    acc2 = valid_accounts[j]
-                    count2 = len(account_numbers[acc2])
-                    for k in range(j+1, len(valid_accounts)):
-                        acc3 = valid_accounts[k]
-                        count3 = len(account_numbers[acc3])
-                        for l in range(k+1, len(valid_accounts)):
-                            acc4 = valid_accounts[l]
-                            count4 = len(account_numbers[acc4])
-                            
-                            # 快速检查
-                            if count1 + count2 + count3 + count4 < total_numbers:
-                                continue
-                            
-                            combined_set = account_sets[acc1] | account_sets[acc2] | account_sets[acc3] | account_sets[acc4]
-                            if len(combined_set) == total_numbers:
-                                # ... 原有的4账户组合创建逻辑
-                                total_amount = (account_amount_stats[acc1]['total_amount'] + 
-                                              account_amount_stats[acc2]['total_amount'] + 
-                                              account_amount_stats[acc3]['total_amount'] +
-                                              account_amount_stats[acc4]['total_amount'])
-                                avg_amounts = [
-                                    account_amount_stats[acc1]['avg_amount_per_number'],
-                                    account_amount_stats[acc2]['avg_amount_per_number'],
-                                    account_amount_stats[acc3]['avg_amount_per_number'],
-                                    account_amount_stats[acc4]['avg_amount_per_number']
-                                ]
-                                
-                                similarity = self.calculate_similarity(avg_amounts)
-                                
-                                result_data = {
-                                    'accounts': [acc1, acc2, acc3, acc4],
-                                    'account_count': 4,
-                                    'total_amount': total_amount,
-                                    'avg_amount_per_number': total_amount / total_numbers,
-                                    'similarity': similarity,
-                                    'similarity_indicator': self.get_similarity_indicator(similarity),
-                                    'individual_amounts': {
-                                        acc1: account_amount_stats[acc1]['total_amount'],
-                                        acc2: account_amount_stats[acc2]['total_amount'],
-                                        acc3: account_amount_stats[acc3]['total_amount'],
-                                        acc4: account_amount_stats[acc4]['total_amount']
-                                    },
-                                    'individual_avg_per_number': {
-                                        acc1: account_amount_stats[acc1]['avg_amount_per_number'],
-                                        acc2: account_amount_stats[acc2]['avg_amount_per_number'],
-                                        acc3: account_amount_stats[acc3]['avg_amount_per_number'],
-                                        acc4: account_amount_stats[acc4]['avg_amount_per_number']
-                                    },
-                                    'bet_contents': {
-                                        acc1: account_bet_contents[acc1],
-                                        acc2: account_bet_contents[acc2],
-                                        acc3: account_bet_contents[acc3],
-                                        acc4: account_bet_contents[acc4]
-                                    }
-                                }
-                                all_results[4].append(result_data)
-        
-        return all_results
-
-    def analyze_period_lottery_position(self, group, period, lottery, position, min_number_count, min_avg_amount,
-                                       detect_2_account=True, detect_3_account=True, detect_4_account=True):
-        """分析特定期数、彩种和位置 - 添加组合筛选参数"""
+    def analyze_period_lottery_position(self, group, period, lottery, position, min_number_count, min_avg_amount):
+        """分析特定期数、彩种和位置 - 简化版本（假设数据已经过滤）"""
         min_number_count = int(min_number_count)
         min_avg_amount = float(min_avg_amount)
         
@@ -1749,16 +1502,12 @@ class MultiLotteryCoverageAnalyzer:
         if len(filtered_account_numbers) < 2:
             return None
     
-        # 使用优化版的组合查找方法
-        all_results = self.optimized_find_combinations(
+        all_results = self.find_perfect_combinations(
             filtered_account_numbers, 
             filtered_account_amount_stats, 
             filtered_account_bet_contents,
             effective_min_avg_amount,
-            total_numbers,
-            detect_2_account,
-            detect_3_account,
-            detect_4_account
+            total_numbers
         )
     
         total_combinations = sum(len(results) for results in all_results.values())
@@ -1868,9 +1617,8 @@ class MultiLotteryCoverageAnalyzer:
         with col3:
             st.metric("平均期数", f"{df_stats['投注期数'].mean():.1f}")
 
-    def analyze_with_progress(self, df_target, six_mark_params, ten_number_params, fast_three_params, analysis_mode,
-                             detect_2_account=True, detect_3_account=True, detect_4_account=True):
-        """带进度显示的分析 - 支持组合类型筛选"""
+    def analyze_with_progress(self, df_target, six_mark_params, ten_number_params, fast_three_params, analysis_mode):
+        """带进度显示的分析 - 使用增强阈值管理"""
         
         # 根据分析模式决定分组方式
         if analysis_mode == "仅分析六合彩":
@@ -1918,8 +1666,7 @@ class MultiLotteryCoverageAnalyzer:
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position, 
                             six_mark_params['min_number_count'], 
-                            threshold_config['min_avg_amount'],
-                            detect_2_account, detect_3_account, detect_4_account  # 新增参数
+                            six_mark_params['min_avg_amount']
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
@@ -1934,8 +1681,7 @@ class MultiLotteryCoverageAnalyzer:
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position,
                             ten_number_params['min_number_count'],
-                            threshold_config['min_avg_amount'],
-                            detect_2_account, detect_3_account, detect_4_account  # 新增参数
+                            ten_number_params['min_avg_amount']
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
@@ -1950,8 +1696,7 @@ class MultiLotteryCoverageAnalyzer:
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position,
                             fast_three_params['min_number_count'],
-                            threshold_config['min_avg_amount'],
-                            detect_2_account, detect_3_account, detect_4_account  # 新增参数
+                            fast_three_params['min_avg_amount']
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
@@ -1977,8 +1722,7 @@ class MultiLotteryCoverageAnalyzer:
             
             if len(group) >= 2:
                 result = self.analyze_period_lottery_position(
-                    group, period, lottery, position, min_number_count, effective_min_avg_amount,
-                    detect_2_account, detect_3_account, detect_4_account  # 新增参数
+                    group, period, lottery, position, min_number_count, effective_min_avg_amount
                 )
                 if result:
                     all_period_results[(period, lottery, position)] = result
@@ -1988,9 +1732,8 @@ class MultiLotteryCoverageAnalyzer:
         
         return all_period_results
 
-    def display_enhanced_results(self, all_period_results, analysis_mode, 
-                                detect_2_account=True, detect_3_account=True, detect_4_account=True):
-        """增强结果展示 - 支持组合类型筛选"""
+    def display_enhanced_results(self, all_period_results, analysis_mode):
+        """增强结果展示 - 按照新的要求展示"""
         if not all_period_results:
             st.info("🎉 未发现完美覆盖组合")
             return
@@ -1998,26 +1741,11 @@ class MultiLotteryCoverageAnalyzer:
         # 按账户组合和彩种分组
         account_pair_groups = defaultdict(lambda: defaultdict(list))
         
-        # 统计各类型组合数量
-        combination_stats = {2: 0, 3: 0, 4: 0}
-        
         for group_key, result in all_period_results.items():
             lottery = result['lottery']
             position = result.get('position', None)
             
             for combo in result['all_combinations']:
-                account_count = combo['account_count']
-                
-                # 根据设置过滤组合类型
-                if account_count == 2 and not detect_2_account:
-                    continue
-                elif account_count == 3 and not detect_3_account:
-                    continue
-                elif account_count == 4 and not detect_4_account:
-                    continue
-                    
-                combination_stats[account_count] += 1
-                
                 # 创建账户组合键
                 accounts = combo['accounts']
                 account_pair = " ↔ ".join(sorted(accounts))
@@ -2037,23 +1765,6 @@ class MultiLotteryCoverageAnalyzer:
                 }
                 
                 account_pair_groups[account_pair][lottery_key].append(combo_info)
-        
-        # 显示组合类型统计
-        st.subheader("🔢 组合类型统计")
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.metric("2账户组合", combination_stats[2])
-        with col2:
-            st.metric("3账户组合", combination_stats[3])
-        with col3:
-            st.metric("4账户组合", combination_stats[4])
-        
-        # 如果没有找到任何组合，提前返回
-        total_combinations = sum(combination_stats.values())
-        if total_combinations == 0:
-            st.info("🎉 在当前设置下未发现完美覆盖组合")
-            return
         
         # 显示彩种类型统计 - 修改为只显示组数
         st.subheader("🎲 彩种类型统计")
@@ -2275,28 +1986,6 @@ def main():
     
     # 侧边栏设置 - 分别设置不同彩种的阈值
     st.sidebar.header("⚙️ 分析参数设置")
-    
-    # === 新增：组合数量筛选功能 ===
-    st.sidebar.subheader("🔢 组合数量设置")
-    
-    # 组合数量选择
-    combination_settings = st.sidebar.multiselect(
-        "检测的组合类型:",
-        options=["2账户组合", "3账户组合", "4账户组合"],
-        default=["2账户组合", "3账户组合", "4账户组合"],  # 默认全选
-        help="选择要检测的账户组合类型"
-    )
-    
-    # 转换为内部使用的标识
-    detect_2_account = "2账户组合" in combination_settings
-    detect_3_account = "3账户组合" in combination_settings  
-    detect_4_account = "4账户组合" in combination_settings
-    
-    # 显示当前选择的组合类型
-    if combination_settings:
-        st.sidebar.info(f"🔍 将检测: {', '.join(combination_settings)}")
-    else:
-        st.sidebar.warning("⚠️ 未选择任何组合类型，将不会检测任何组合")
     
     # 文件上传
     st.sidebar.header("📁 数据上传")
@@ -2591,16 +2280,12 @@ def main():
                     }
                     
                     all_period_results = analyzer.analyze_with_progress(
-                        df_target, six_mark_params, ten_number_params, fast_three_params, analysis_mode,
-                        detect_2_account, detect_3_account, detect_4_account  # 传递组合设置
+                        df_target, six_mark_params, ten_number_params, fast_three_params, analysis_mode
                     )
-                
+
                 # 显示结果 - 使用增强版展示
                 st.header("📊 完美覆盖组合检测结果")
-                analyzer.display_enhanced_results(
-                    all_period_results, analysis_mode,
-                    detect_2_account, detect_3_account, detect_4_account  # 传递组合设置
-                )
+                analyzer.display_enhanced_results(all_period_results, analysis_mode)
                 
                 # 导出功能
                 if all_period_results:
