@@ -385,6 +385,44 @@ class MultiLotteryCoverageAnalyzer:
             '选九': ['选九', '九中九', '9中9', '选9', 'xuan9', 'x9'],
             '选十': ['选十', '十中十', '10中10', '选10', 'xuan10', 'x10']
         }
+
+    def get_lottery_thresholds(self, lottery_category, user_min_avg_amount):
+        """根据彩种类型获取阈值配置"""
+        base_thresholds = {
+            'six_mark': {
+                'min_avg_amount': 10.0,  # 六合彩强制10
+                'description': '六合彩'
+            },
+            '10_number': {
+                'min_avg_amount': 5.0,   # 时时彩/PK10/赛车强制5
+                'description': '时时彩/PK10/赛车'
+            },
+            'fast_three': {
+                'min_avg_amount': 5.0,   # 快三强制5
+                'description': '快三'
+            },
+            '3d_series': {
+                'min_avg_amount': 5.0,   # 3D系列强制5
+                'description': '3D系列'
+            },
+            'five_star': {
+                'min_avg_amount': 5.0,   # 五星彩强制5
+                'description': '五星彩'
+            }
+        }
+        
+        config = base_thresholds.get(lottery_category, {
+            'min_avg_amount': 5.0,  # 其他彩种默认5
+            'description': '其他彩种'
+        })
+        
+        # 使用用户设置和基础阈值中的较大值
+        effective_min_avg_amount = max(float(user_min_avg_amount), config['min_avg_amount'])
+        
+        return {
+            'min_avg_amount': effective_min_avg_amount,
+            'description': config['description']
+        }
     
     def identify_lottery_category(self, lottery_name):
         """识别彩种类型 - 增强六合彩识别"""
@@ -1447,17 +1485,20 @@ class MultiLotteryCoverageAnalyzer:
         return all_results
 
     def analyze_period_lottery_position(self, group, period, lottery, position, min_number_count, min_avg_amount):
-        """分析特定期数、彩种和位置 - 支持从内容中提取位置"""
+        """分析特定期数、彩种和位置 - 使用增强阈值管理"""
         min_number_count = int(min_number_count)
         min_avg_amount = float(min_avg_amount)
         
-        has_amount_column = '金额' in group.columns
-        
-        # 识别彩种类型
+        # 增强：使用统一的阈值管理
         lottery_category = self.identify_lottery_category(lottery)
         if not lottery_category:
             return None
         
+        # 获取有效的金额阈值
+        threshold_config = self.get_lottery_thresholds(lottery_category, min_avg_amount)
+        effective_min_avg_amount = threshold_config['min_avg_amount']
+        
+        has_amount_column = '金额' in group.columns
         config = self.get_lottery_config(lottery_category)
         total_numbers = config['total_numbers']
         
@@ -1467,7 +1508,7 @@ class MultiLotteryCoverageAnalyzer:
         account_numbers = {}
         account_amount_stats = {}
         account_bet_contents = {}
-
+    
         for account in group['会员账号'].unique():
             account_data = group[group['会员账号'] == account]
             
@@ -1497,33 +1538,33 @@ class MultiLotteryCoverageAnalyzer:
                     'total_amount': total_amount,
                     'avg_amount_per_number': avg_amount_per_number
                 }
-
-        # 筛选有效账户 - 使用阈值
+    
+        # 筛选有效账户 - 使用增强的金额阈值
         filtered_account_numbers = {}
         filtered_account_amount_stats = {}
         filtered_account_bet_contents = {}
-
+    
         for account, numbers in account_numbers.items():
             stats = account_amount_stats[account]
-            # 同时检查数字数量和平均金额阈值 - 修复类型比较问题
-            if len(numbers) >= min_number_count and stats['avg_amount_per_number'] >= min_avg_amount:
+            # 使用有效的金额阈值
+            if len(numbers) >= min_number_count and stats['avg_amount_per_number'] >= effective_min_avg_amount:
                 filtered_account_numbers[account] = numbers
                 filtered_account_amount_stats[account] = account_amount_stats[account]
                 filtered_account_bet_contents[account] = account_bet_contents[account]
-
+    
         if len(filtered_account_numbers) < 2:
             return None
-
+    
         all_results = self.find_perfect_combinations(
             filtered_account_numbers, 
             filtered_account_amount_stats, 
             filtered_account_bet_contents,
-            min_avg_amount,
+            effective_min_avg_amount,  # 使用增强的阈值
             total_numbers
         )
-
+    
         total_combinations = sum(len(results) for results in all_results.values())
-
+    
         if total_combinations > 0:
             all_combinations = []
             for results in all_results.values():
@@ -1630,66 +1671,85 @@ class MultiLotteryCoverageAnalyzer:
             st.metric("平均期数", f"{df_stats['投注期数'].mean():.1f}")
 
     def analyze_with_progress(self, df_target, six_mark_params, ten_number_params, fast_three_params, analysis_mode):
-        """带进度显示的分析 - 支持精准位置分析"""
+        """带进度显示的分析 - 使用增强阈值管理"""
+        
         # 根据分析模式决定分组方式
         if analysis_mode == "仅分析六合彩":
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
             min_number_count = six_mark_params['min_number_count']
             min_avg_amount = six_mark_params['min_avg_amount']
+            
+            # 使用阈值管理
+            threshold_config = self.get_lottery_thresholds('six_mark', min_avg_amount)
+            effective_min_avg_amount = threshold_config['min_avg_amount']
+            
         elif analysis_mode == "仅分析时时彩/PK10/赛车":
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
             min_number_count = ten_number_params['min_number_count']
             min_avg_amount = ten_number_params['min_avg_amount']
+            
+            # 使用阈值管理
+            threshold_config = self.get_lottery_thresholds('10_number', min_avg_amount)
+            effective_min_avg_amount = threshold_config['min_avg_amount']
+            
         elif analysis_mode == "仅分析快三":
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
             min_number_count = fast_three_params['min_number_count']
             min_avg_amount = fast_three_params['min_avg_amount']
+            
+            # 使用阈值管理
+            threshold_config = self.get_lottery_thresholds('fast_three', min_avg_amount)
+            effective_min_avg_amount = threshold_config['min_avg_amount']
+            
         else:  # 自动识别所有彩种
-            # 分别处理不同彩种
+            # 分别处理不同彩种，使用各自的增强阈值
             df_six_mark = df_target[df_target['彩种类型'] == 'six_mark']
             df_10_number = df_target[df_target['彩种类型'] == '10_number']
             df_fast_three = df_target[df_target['彩种类型'] == 'fast_three']
             
             all_period_results = {}
             
-            # 分析六合彩
+            # 分析六合彩 - 使用增强阈值
             if len(df_six_mark) > 0:
                 st.info("🔍 正在分析六合彩数据...")
                 grouped_six = df_six_mark.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_six:
                     if len(group) >= 2:
+                        threshold_config = self.get_lottery_thresholds('six_mark', six_mark_params['min_avg_amount'])
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position, 
                             six_mark_params['min_number_count'], 
-                            six_mark_params['min_avg_amount']
+                            threshold_config['min_avg_amount']
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
             
-            # 分析时时彩/PK10/赛车
+            # 分析时时彩/PK10/赛车 - 使用增强阈值
             if len(df_10_number) > 0:
                 st.info("🔍 正在分析时时彩/PK10/赛车数据...")
                 grouped_10 = df_10_number.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_10:
                     if len(group) >= 2:
+                        threshold_config = self.get_lottery_thresholds('10_number', ten_number_params['min_avg_amount'])
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position,
                             ten_number_params['min_number_count'],
-                            ten_number_params['min_avg_amount']
+                            threshold_config['min_avg_amount']
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
             
-            # 分析快三
+            # 分析快三 - 使用增强阈值
             if len(df_fast_three) > 0:
                 st.info("🎲 正在分析快三数据...")
                 grouped_fast_three = df_fast_three.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_fast_three:
                     if len(group) >= 2:
+                        threshold_config = self.get_lottery_thresholds('fast_three', fast_three_params['min_avg_amount'])
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position,
                             fast_three_params['min_number_count'],
-                            fast_three_params['min_avg_amount']
+                            threshold_config['min_avg_amount']
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
@@ -1707,7 +1767,6 @@ class MultiLotteryCoverageAnalyzer:
         status_text = st.empty()
         
         for idx, (group_key, group) in enumerate(grouped):
-            # 实时更新进度
             progress = (idx + 1) / total_groups
             progress_bar.progress(progress)
             
@@ -1716,7 +1775,7 @@ class MultiLotteryCoverageAnalyzer:
             
             if len(group) >= 2:
                 result = self.analyze_period_lottery_position(
-                    group, period, lottery, position, min_number_count, min_avg_amount
+                    group, period, lottery, position, min_number_count, effective_min_avg_amount
                 )
                 if result:
                     all_period_results[(period, lottery, position)] = result
@@ -2055,13 +2114,11 @@ def main():
     six_mark_min_avg_amount = st.sidebar.slider(
         "六合彩-平均金额阈值", 
         min_value=0, 
-        max_value=20, 
-        value=2,
+        max_value=50,  # 调高最大值
+        value=10,      # 修改：从2改为10
         step=1,
-        help="六合彩：只分析平均每号金额大于等于此值的账户"
+        help="六合彩：只分析平均每号金额大于等于10的账户"  # 更新帮助文本
     )
-    
-    st.sidebar.subheader("🏎️ 时时彩/PK10/赛车参数设置")
     
     # 时时彩/PK10/赛车专用阈值设置
     ten_number_min_number_count = st.sidebar.slider(
@@ -2075,13 +2132,11 @@ def main():
     ten_number_min_avg_amount = st.sidebar.slider(
         "赛车类-平均金额阈值", 
         min_value=0, 
-        max_value=10, 
-        value=1,
+        max_value=20,  # 调高最大值
+        value=5,       # 修改：从1改为5
         step=1,
-        help="时时彩/PK10/赛车：只分析平均每号金额大于等于此值的账户"
+        help="时时彩/PK10/赛车：只分析平均每号金额大于等于5的账户"  # 更新帮助文本
     )
-    
-    st.sidebar.subheader("🎲 快三参数设置")
     
     # 快三专用阈值设置
     fast_three_min_number_count = st.sidebar.slider(
@@ -2095,10 +2150,10 @@ def main():
     fast_three_min_avg_amount = st.sidebar.slider(
         "快三-平均金额阈值", 
         min_value=0, 
-        max_value=10, 
-        value=1,
+        max_value=20,  # 调高最大值
+        value=5,       # 修改：从1改为5
         step=1,
-        help="快三和值玩法：只分析平均每号金额大于等于此值的账户"
+        help="快三和值玩法：只分析平均每号金额大于等于5的账户"  # 更新帮助文本
     )
     
     # 调试模式
@@ -2135,18 +2190,24 @@ def main():
             # 根据选择的分析模式显示当前阈值设置
             if analysis_mode == "仅分析六合彩":
                 st.info(f"📊 当前分析模式: {analysis_mode}")
-                st.info(f"🎯 六合彩参数: 号码数量阈值 ≥ {six_mark_min_number_count}, 平均金额阈值 ≥ {six_mark_min_avg_amount}")
+                threshold_config = analyzer.get_lottery_thresholds('six_mark', six_mark_min_avg_amount)
+                st.info(f"🎯 六合彩参数: 号码数量阈值 ≥ {six_mark_min_number_count}, 平均金额阈值 ≥ {threshold_config['min_avg_amount']}")
             elif analysis_mode == "仅分析时时彩/PK10/赛车":
                 st.info(f"📊 当前分析模式: {analysis_mode}")
-                st.info(f"🏎️ 赛车类参数: 号码数量阈值 ≥ {ten_number_min_number_count}, 平均金额阈值 ≥ {ten_number_min_avg_amount}")
+                threshold_config = analyzer.get_lottery_thresholds('10_number', ten_number_min_avg_amount)
+                st.info(f"🏎️ 赛车类参数: 号码数量阈值 ≥ {ten_number_min_number_count}, 平均金额阈值 ≥ {threshold_config['min_avg_amount']}")
             elif analysis_mode == "仅分析快三":
                 st.info(f"📊 当前分析模式: {analysis_mode}")
-                st.info(f"🎲 快三参数: 号码数量阈值 ≥ {fast_three_min_number_count}, 平均金额阈值 ≥ {fast_three_min_avg_amount}")
+                threshold_config = analyzer.get_lottery_thresholds('fast_three', fast_three_min_avg_amount)
+                st.info(f"🎲 快三参数: 号码数量阈值 ≥ {fast_three_min_number_count}, 平均金额阈值 ≥ {threshold_config['min_avg_amount']}")
             else:
                 st.info(f"📊 当前分析模式: {analysis_mode}")
-                st.info(f"🎯 六合彩参数: 号码数量 ≥ {six_mark_min_number_count}, 平均金额 ≥ {six_mark_min_avg_amount}")
-                st.info(f"🏎️ 赛车类参数: 号码数量 ≥ {ten_number_min_number_count}, 平均金额 ≥ {ten_number_min_avg_amount}")
-                st.info(f"🎲 快三参数: 号码数量 ≥ {fast_three_min_number_count}, 平均金额 ≥ {fast_three_min_avg_amount}")
+                six_mark_config = analyzer.get_lottery_thresholds('six_mark', six_mark_min_avg_amount)
+                ten_number_config = analyzer.get_lottery_thresholds('10_number', ten_number_min_avg_amount)
+                fast_three_config = analyzer.get_lottery_thresholds('fast_three', fast_three_min_avg_amount)
+                st.info(f"🎯 六合彩参数: 号码数量 ≥ {six_mark_min_number_count}, 平均金额 ≥ {six_mark_config['min_avg_amount']}")
+                st.info(f"🏎️ 赛车类参数: 号码数量 ≥ {ten_number_min_number_count}, 平均金额 ≥ {ten_number_config['min_avg_amount']}")
+                st.info(f"🎲 快三参数: 号码数量 ≥ {fast_three_min_number_count}, 平均金额 ≥ {fast_three_config['min_avg_amount']}")
             
             # 将列名识别和数据质量检查放入折叠框
             with st.expander("🔧 数据预处理过程", expanded=False):
