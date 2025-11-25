@@ -1678,8 +1678,9 @@ class MultiLotteryCoverageAnalyzer:
         
         return all_results
 
-    def analyze_period_lottery_position(self, group, period, lottery, position, min_number_count, min_avg_amount):
-        """分析特定期数、彩种和位置 - 简化版本（假设数据已经过滤）"""
+    def analyze_period_lottery_position(self, group, period, lottery, position, min_number_count, min_avg_amount,
+                                       detect_2_account=True, detect_3_account=True, detect_4_account=True):
+        """分析特定期数、彩种和位置 - 添加组合筛选参数"""
         min_number_count = int(min_number_count)
         min_avg_amount = float(min_avg_amount)
         
@@ -1748,12 +1749,16 @@ class MultiLotteryCoverageAnalyzer:
         if len(filtered_account_numbers) < 2:
             return None
     
-        all_results = self.find_perfect_combinations(
+        # 使用优化版的组合查找方法
+        all_results = self.optimized_find_combinations(
             filtered_account_numbers, 
             filtered_account_amount_stats, 
             filtered_account_bet_contents,
             effective_min_avg_amount,
-            total_numbers
+            total_numbers,
+            detect_2_account,
+            detect_3_account,
+            detect_4_account
         )
     
         total_combinations = sum(len(results) for results in all_results.values())
@@ -2270,6 +2275,28 @@ def main():
     
     # 侧边栏设置 - 分别设置不同彩种的阈值
     st.sidebar.header("⚙️ 分析参数设置")
+    
+    # === 新增：组合数量筛选功能 ===
+    st.sidebar.subheader("🔢 组合数量设置")
+    
+    # 组合数量选择
+    combination_settings = st.sidebar.multiselect(
+        "检测的组合类型:",
+        options=["2账户组合", "3账户组合", "4账户组合"],
+        default=["2账户组合", "3账户组合", "4账户组合"],  # 默认全选
+        help="选择要检测的账户组合类型"
+    )
+    
+    # 转换为内部使用的标识
+    detect_2_account = "2账户组合" in combination_settings
+    detect_3_account = "3账户组合" in combination_settings  
+    detect_4_account = "4账户组合" in combination_settings
+    
+    # 显示当前选择的组合类型
+    if combination_settings:
+        st.sidebar.info(f"🔍 将检测: {', '.join(combination_settings)}")
+    else:
+        st.sidebar.warning("⚠️ 未选择任何组合类型，将不会检测任何组合")
     
     # 文件上传
     st.sidebar.header("📁 数据上传")
