@@ -387,18 +387,21 @@ class MultiLotteryCoverageAnalyzer:
         }
 
     def filter_number_bets_only(self, df):
-        """过滤只保留涉及具体号码投注的记录"""
+        """过滤只保留涉及具体号码投注的记录 - 修复版本"""
         
-        # 定义非号码投注的关键词
+        # 定义非号码投注的关键词 - 只过滤明确的大小单双等
         non_number_keywords = [
             '大小', '单双', '龙虎', '和值大小', '和值单双', '特单', '特双', '特大', '特小',
             '大', '小', '单', '双', '龙', '虎', '合数单双', '合数大小', '尾数大小',
             '尾数单双', '总和大小', '总和单双'
         ]
         
-        # 定义需要保留的号码投注玩法
+        # 定义需要保留的号码投注玩法 - 扩展正码特相关玩法
         number_play_keywords = [
             '特码', '正码', '平码', '平特', '尾数', '特尾', '全尾',  # 六合彩
+            '正特', '正一特', '正二特', '正三特', '正四特', '正五特', '正六特',  # 新增正码特
+            '正1特', '正2特', '正3特', '正4特', '正5特', '正6特',  # 新增数字格式
+            '正玛特', '正码特',  # 新增变体
             '定位胆', '冠军', '亚军', '季军', '第四名', '第五名', '第六名',  # PK10/赛车
             '第七名', '第八名', '第九名', '第十名', '前一',  # PK10/赛车
             '和值', '点数',  # 快三（具体数字）
@@ -421,6 +424,59 @@ class MultiLotteryCoverageAnalyzer:
         
         # 记录过滤统计
         removed_count = len(df) - len(filtered_df)
+        logger.info(f"📊 过滤非号码投注: 移除 {removed_count} 条记录，保留 {len(filtered_df)} 条记录")
+        
+        return filtered_df
+
+    def filter_records_with_numbers(self, df):
+        """过滤只保留包含有效号码的投注记录"""
+        
+        # 定义各彩种的号码范围
+        lottery_configs = {
+            'six_mark': set(range(1, 50)),
+            '10_number': set(range(1, 11)),
+            'fast_three': set(range(3, 19))
+        }
+        
+        # 识别彩种类型
+        if '彩种类型' not in df.columns:
+            df['彩种类型'] = df['彩种'].apply(self.identify_lottery_category)
+        
+        # 提取号码并过滤
+        valid_records = []
+        
+        for idx, row in df.iterrows():
+            lottery_category = row['彩种类型']
+            
+            if pd.isna(lottery_category):
+                continue
+                
+            # 提取号码
+            numbers = self.cached_extract_numbers(row['内容'], lottery_category)
+            
+            # 检查是否包含有效号码
+            if numbers:
+                valid_records.append(idx)
+        
+        filtered_df = df.loc[valid_records].copy()
+        
+        # 记录过滤统计
+        removed_count = len(df) - len(filtered_df)
+        logger.info(f"📊 过滤无号码投注: 移除 {removed_count} 条记录，保留 {len(filtered_df)} 条记录")
+        
+        # 显示被过滤的记录类型
+        if removed_count > 0:
+            removed_df = df.drop(valid_records)
+            st.info(f"🔍 过滤统计: 移除了 {removed_count} 条无号码投注记录")
+            
+            if not removed_df.empty:
+                with st.expander("查看被过滤的记录样本", expanded=False):
+                    st.write("被过滤的玩法分布:")
+                    play_dist = removed_df['玩法'].value_counts().head(10)
+                    st.dataframe(play_dist.reset_index().rename(columns={'index': '玩法', '玩法': '数量'}))
+                    
+                    st.write("被过滤的记录样本:")
+                    st.dataframe(removed_df[['会员账号', '彩种', '玩法', '内容', '金额']].head(10))
         
         return filtered_df
 
@@ -793,7 +849,7 @@ class MultiLotteryCoverageAnalyzer:
         return play_str
     
     def normalize_play_category(self, play_method, lottery_category='six_mark'):
-        """统一玩法分类 - 增强正码特识别"""
+        """统一玩法分类 - 增强正玛特识别"""
         play_str = str(play_method).strip()
         
         # 规范化特殊字符
@@ -802,6 +858,23 @@ class MultiLotteryCoverageAnalyzer:
         
         # ========== 最高优先级：正玛特独立映射 ==========
         if '正玛特' in play_normalized:
+            if '正一' in play_normalized or '正1' in play_normalized:
+                return '正一特'
+            elif '正二' in play_normalized or '正2' in play_normalized:
+                return '正二特'
+            elif '正三' in play_normalized or '正3' in play_normalized:
+                return '正三特'
+            elif '正四' in play_normalized or '正4' in play_normalized:
+                return '正四特'
+            elif '正五' in play_normalized or '正5' in play_normalized:
+                return '正五特'
+            elif '正六' in play_normalized or '正6' in play_normalized:
+                return '正六特'
+            else:
+                return '正特'
+        
+        # ========== 新增：正码特独立映射 ==========
+        if '正码特' in play_normalized:
             if '正一' in play_normalized or '正1' in play_normalized:
                 return '正一特'
             elif '正二' in play_normalized or '正2' in play_normalized:
@@ -1199,6 +1272,7 @@ class MultiLotteryCoverageAnalyzer:
             return 0.0
             
         except Exception as e:
+            logger.warning(f"金额提取失败: {amount_text}, 错误: {str(e)}")
             return 0.0
     
     def calculate_similarity(self, avgs):
@@ -1330,11 +1404,10 @@ class MultiLotteryCoverageAnalyzer:
         return all_results
 
     def analyze_period_lottery_position(self, group, period, lottery, position, min_number_count, min_avg_amount):
-        """分析特定期数、彩种和位置 - 修复金额累加逻辑"""
+        """分析特定期数、彩种和位置 - 简化版本（假设数据已经过滤）"""
         min_number_count = int(min_number_count)
         min_avg_amount = float(min_avg_amount)
         
-        # 增强：使用统一的阈值管理
         lottery_category = self.identify_lottery_category(lottery)
         if not lottery_category:
             return None
@@ -1343,12 +1416,9 @@ class MultiLotteryCoverageAnalyzer:
         threshold_config = self.get_lottery_thresholds(lottery_category, min_avg_amount)
         effective_min_avg_amount = threshold_config['min_avg_amount']
         
-        has_amount_column = '金额' in group.columns
+        has_amount_column = '投注金额' in group.columns  # 注意：现在使用'投注金额'列
         config = self.get_lottery_config(lottery_category)
         total_numbers = config['total_numbers']
-        
-        # 增强：记录最终使用的位置名称
-        final_position = position
         
         account_numbers = {}
         account_amount_stats = {}
@@ -1359,36 +1429,34 @@ class MultiLotteryCoverageAnalyzer:
             
             all_numbers = set()
             total_amount = 0
-            bet_count = 0
             
             for _, row in account_data.iterrows():
-                # 使用缓存的号码提取，传入彩种类型
-                numbers = self.cached_extract_numbers(row['内容'], lottery_category)
+                # 🆕 简化：直接使用已经提取的号码
+                if '提取号码' in row:
+                    numbers = row['提取号码']
+                else:
+                    # 备用方案：重新提取号码
+                    numbers = self.cached_extract_numbers(row['内容'], lottery_category)
                 
-                # 🆕 修复：只有当提取到有效号码时才累加金额
-                if numbers:  # 只有当有号码时才计入金额
-                    all_numbers.update(numbers)
-                    
-                    if has_amount_column:
-                        # 使用修复的金额提取方法
-                        amount = self.extract_bet_amount(str(row['金额']))
-                        total_amount += amount
-                        bet_count += 1
+                all_numbers.update(numbers)
+                
+                if has_amount_column:
+                    # 🆕 简化：直接使用已经提取的金额
+                    amount = row['投注金额']
+                    total_amount += amount
             
-            # 🆕 修复：只有当有号码时才记录账户信息
-            if all_numbers:
-                account_numbers[account] = sorted(all_numbers)
-                account_bet_contents[account] = ", ".join([f"{num:02d}" for num in sorted(all_numbers)])
-                number_count = len(all_numbers)
-                avg_amount_per_number = total_amount / number_count if number_count > 0 else 0
-                
-                account_amount_stats[account] = {
-                    'number_count': number_count,
-                    'total_amount': total_amount,
-                    'avg_amount_per_number': avg_amount_per_number
-                }
+            # 所有记录都已经包含号码，所以直接记录
+            account_numbers[account] = sorted(all_numbers)
+            account_bet_contents[account] = ", ".join([f"{num:02d}" for num in sorted(all_numbers)])
+            number_count = len(all_numbers)
+            avg_amount_per_number = total_amount / number_count if number_count > 0 else 0
+            
+            account_amount_stats[account] = {
+                'number_count': number_count,
+                'total_amount': total_amount,
+                'avg_amount_per_number': avg_amount_per_number
+            }
     
-        # 其余代码保持不变...
         # 筛选有效账户 - 使用增强的金额阈值
         filtered_account_numbers = {}
         filtered_account_amount_stats = {}
@@ -1409,7 +1477,7 @@ class MultiLotteryCoverageAnalyzer:
             filtered_account_numbers, 
             filtered_account_amount_stats, 
             filtered_account_bet_contents,
-            effective_min_avg_amount,  # 使用增强的阈值
+            effective_min_avg_amount,
             total_numbers
         )
     
@@ -1425,7 +1493,7 @@ class MultiLotteryCoverageAnalyzer:
             return {
                 'period': period,
                 'lottery': lottery,
-                'position': final_position,  # 使用最终位置
+                'position': position,
                 'lottery_category': lottery_category,
                 'total_combinations': total_combinations,
                 'all_combinations': all_combinations,
@@ -2057,12 +2125,28 @@ def main():
                         ), 
                         axis=1
                     )
-
-                # NEW: 添加过滤非号码投注的步骤
-                with st.spinner("正在过滤非号码投注记录..."):
+                
+                # NEW: 第一步过滤 - 只保留包含有效号码的记录
+                with st.spinner("正在过滤无号码投注记录..."):
+                    df_clean = analyzer.filter_records_with_numbers(df_clean)
+                    st.success(f"✅ 号码过滤完成: 保留 {len(df_clean)} 条有效号码投注记录")
+                
+                # NEW: 第二步过滤 - 过滤非号码投注玩法（作为额外保障）
+                with st.spinner("正在过滤非号码投注玩法..."):
                     df_clean = analyzer.filter_number_bets_only(df_clean)
-                    st.success(f"✅ 过滤完成: 保留 {len(df_clean)} 条号码投注记录")
-
+                    st.success(f"✅ 玩法过滤完成: 保留 {len(df_clean)} 条号码投注记录")
+                
+                # NEW: 添加号码提取列，提高后续分析效率
+                with st.spinner("正在提取投注号码..."):
+                    df_clean['提取号码'] = df_clean.apply(
+                        lambda row: analyzer.cached_extract_numbers(
+                            row['内容'], 
+                            row['彩种类型'] if '彩种类型' in df_clean.columns else 'six_mark'
+                        ), 
+                        axis=1
+                    )
+                
+                # 从投注内容中提取具体位置信息
                 with st.spinner("正在从投注内容中提取具体位置信息..."):
                     # 创建临时列来存储从内容中提取的位置
                     df_clean['提取位置'] = df_clean.apply(
@@ -2081,10 +2165,10 @@ def main():
                     # 删除临时列
                     df_clean = df_clean.drop('提取位置', axis=1)
                 
+                # 应用金额提取
                 if has_amount_column:
-                    # 应用金额提取
                     with st.spinner("正在提取金额数据..."):
-                        df_clean['投注金额'] = df_clean['金额'].apply(analyzer.cached_extract_amount)
+                        df_clean['投注金额'] = df_clean['金额'].apply(analyzer.extract_bet_amount)
                     
                     total_bet_amount = df_clean['投注金额'].sum()
                     valid_amount_count = (df_clean['投注金额'] > 0).sum()
