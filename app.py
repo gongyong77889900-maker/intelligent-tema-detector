@@ -386,6 +386,73 @@ class MultiLotteryCoverageAnalyzer:
             '选十': ['选十', '十中十', '10中10', '选10', 'xuan10', 'x10']
         }
 
+    def filter_number_bets_only(self, df):
+        """过滤只保留涉及具体号码投注的记录"""
+        
+        # 定义非号码投注的关键词
+        non_number_keywords = [
+            '大小', '单双', '龙虎', '和值大小', '和值单双', '特单', '特双', '特大', '特小',
+            '大', '小', '单', '双', '龙', '虎', '合数单双', '合数大小', '尾数大小',
+            '尾数单双', '总和大小', '总和单双'
+        ]
+        
+        # 定义需要保留的号码投注玩法
+        number_play_keywords = [
+            '特码', '正码', '平码', '平特', '尾数', '特尾', '全尾',  # 六合彩
+            '定位胆', '冠军', '亚军', '季军', '第四名', '第五名', '第六名',  # PK10/赛车
+            '第七名', '第八名', '第九名', '第十名', '前一',  # PK10/赛车
+            '和值', '点数',  # 快三（具体数字）
+            '百位', '十位', '个位', '百十', '百个', '十个', '百十个'  # 3D系列
+        ]
+        
+        # 过滤条件1：玩法必须包含号码投注关键词
+        play_condition = df['玩法'].str.contains('|'.join(number_play_keywords), na=False)
+        
+        # 过滤条件2：投注内容不能包含非号码关键词
+        content_condition = ~df['内容'].str.contains('|'.join(non_number_keywords), na=False)
+        
+        # 过滤条件3：投注内容必须包含数字
+        number_condition = df['内容'].str.contains(r'\d', na=False)
+        
+        # 综合条件：玩法正确 且 (内容不包含非号码关键词 或 内容包含数字)
+        final_condition = play_condition & (content_condition | number_condition)
+        
+        filtered_df = df[final_condition].copy()
+        
+        # 记录过滤统计
+        removed_count = len(df) - len(filtered_df)
+        logger.info(f"📊 过滤非号码投注: 移除 {removed_count} 条记录，保留 {len(filtered_df)} 条记录")
+        
+        return filtered_df
+
+    def debug_amount_extraction(self, df, target_accounts=None):
+        """调试金额提取过程"""
+        debug_data = []
+        
+        for idx, row in df.iterrows():
+            account = row['会员账号']
+            play = row['玩法']
+            content = row['内容']
+            original_amount = row.get('金额', '')
+            extracted_amount = self.cached_extract_amount(original_amount)
+            
+            # 如果指定了特定账户，只记录这些账户
+            if target_accounts is None or account in target_accounts:
+                debug_data.append({
+                    '账号': account,
+                    '玩法': play,
+                    '投注内容': content,
+                    '原始金额': original_amount,
+                    '提取金额': extracted_amount
+                })
+        
+        debug_df = pd.DataFrame(debug_data)
+        return debug_df
+
+    def fixed_extract_amount(self, amount_str):
+        """修复的金额提取方法"""
+        return self.cached_extract_amount(amount_str)
+
     def get_lottery_thresholds(self, lottery_category, user_min_avg_amount):
         """根据彩种类型获取阈值配置"""
         base_thresholds = {
@@ -1222,7 +1289,7 @@ class MultiLotteryCoverageAnalyzer:
         return self.extract_bet_amount(amount_text)
     
     def extract_bet_amount(self, amount_text):
-        """金额提取函数 - 增强版"""
+        """金额提取函数 - 修复版本：只提取第一个数字"""
         try:
             if pd.isna(amount_text) or amount_text is None:
                 return 0.0
@@ -1263,28 +1330,11 @@ class MultiLotteryCoverageAnalyzer:
                 except:
                     pass
             
-            # 方法4: 使用正则表达式提取各种格式
-            patterns = [
-                r'投注\s*[:：]?\s*([\d,.]+)',
-                r'金额\s*[:：]?\s*([\d,.]+)',
-                r'下注金额\s*([\d,.]+)',
-                r'([\d,.]+)\s*元',
-                r'￥\s*([\d,.]+)',
-                r'¥\s*([\d,.]+)',
-                r'([\d,.]+)\s*RMB',
-                r'([\d,.]+)$'
-            ]
-            
-            for pattern in patterns:
-                match = re.search(pattern, text, re.IGNORECASE)
-                if match:
-                    amount_str = match.group(1).replace(',', '').replace('，', '')
-                    try:
-                        amount = float(amount_str)
-                        if amount >= 0:
-                            return amount
-                    except:
-                        continue
+            # 方法4: 使用正则表达式提取第一个数字
+            numbers = re.findall(r'\d+\.?\d*', text)
+            if numbers:
+                # 只取第一个匹配的数字，避免从其他文本中错误提取多个数字
+                return float(numbers[0])
             
             return 0.0
             
@@ -1421,7 +1471,7 @@ class MultiLotteryCoverageAnalyzer:
         return all_results
 
     def analyze_period_lottery_position(self, group, period, lottery, position, min_number_count, min_avg_amount):
-        """分析特定期数、彩种和位置 - 使用增强阈值管理"""
+        """分析特定期数、彩种和位置 - 修复金额累加逻辑"""
         min_number_count = int(min_number_count)
         min_avg_amount = float(min_avg_amount)
         
@@ -1455,14 +1505,18 @@ class MultiLotteryCoverageAnalyzer:
             for _, row in account_data.iterrows():
                 # 使用缓存的号码提取，传入彩种类型
                 numbers = self.cached_extract_numbers(row['内容'], lottery_category)
-                all_numbers.update(numbers)
                 
-                if has_amount_column:
-                    # 使用缓存的金额提取
-                    amount = self.cached_extract_amount(str(row['金额']))
-                    total_amount += amount
-                    bet_count += 1
+                # 🆕 修复：只有当提取到有效号码时才累加金额
+                if numbers:  # 只有当有号码时才计入金额
+                    all_numbers.update(numbers)
+                    
+                    if has_amount_column:
+                        # 使用修复的金额提取方法
+                        amount = self.extract_bet_amount(str(row['金额']))
+                        total_amount += amount
+                        bet_count += 1
             
+            # 🆕 修复：只有当有号码时才记录账户信息
             if all_numbers:
                 account_numbers[account] = sorted(all_numbers)
                 account_bet_contents[account] = ", ".join([f"{num:02d}" for num in sorted(all_numbers)])
@@ -1475,6 +1529,7 @@ class MultiLotteryCoverageAnalyzer:
                     'avg_amount_per_number': avg_amount_per_number
                 }
     
+        # 其余代码保持不变...
         # 筛选有效账户 - 使用增强的金额阈值
         filtered_account_numbers = {}
         filtered_account_amount_stats = {}
@@ -2194,6 +2249,11 @@ def main():
                         ), 
                         axis=1
                     )
+
+                # NEW: 添加过滤非号码投注的步骤
+                with st.spinner("正在过滤非号码投注记录..."):
+                    df_clean = analyzer.filter_number_bets_only(df_clean)
+                    st.success(f"✅ 过滤完成: 保留 {len(df_clean)} 条号码投注记录")
 
                 with st.spinner("正在从投注内容中提取具体位置信息..."):
                     # 创建临时列来存储从内容中提取的位置
