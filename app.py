@@ -1222,21 +1222,93 @@ class MultiLotteryCoverageAnalyzer:
         return self.extract_bet_amount(amount_text)
     
     def extract_bet_amount(self, amount_text):
-        """金额提取函数 - 增强版"""
+        """金额提取函数 - 专门修复定位胆问题"""
         try:
             if pd.isna(amount_text) or amount_text is None:
                 return 0.0
             
-            # 转换为字符串并清理
             text = str(amount_text).strip()
             
-            # 如果已经是空字符串，返回0
             if text == '':
                 return 0.0
+    
+            # 🆕 新增：专门处理定位胆格式 - 最高优先级
+            # 处理 "25 亚军:03,04,05,06,07" 这种格式
+            if '亚军' in text:
+                # 方法1: 提取数字+空格+亚军的模式
+                ya_jun_pattern1 = re.match(r'^(\d+)\s*亚军\s*[:：]', text)
+                if ya_jun_pattern1:
+                    amount_candidate = ya_jun_pattern1.group(1)
+                    if amount_candidate.isdigit():
+                        amount_val = int(amount_candidate)
+                        if 1 <= amount_val <= 10000:
+                            logger.info(f"🎯 定位胆亚军格式1匹配: '{text}' -> {amount_val}")
+                            return float(amount_val)
+                
+                # 方法2: 提取任何数字在"亚军"前的模式
+                ya_jun_pattern2 = re.search(r'(\d+)\s*亚军', text)
+                if ya_jun_pattern2:
+                    amount_candidate = ya_jun_pattern2.group(1)
+                    if amount_candidate.isdigit():
+                        amount_val = int(amount_candidate)
+                        if 1 <= amount_val <= 10000:
+                            logger.info(f"🎯 定位胆亚军格式2匹配: '{text}' -> {amount_val}")
+                            return float(amount_val)
+                
+                # 方法3: 简单空格分割，取第一个数字
+                parts = text.split()
+                if len(parts) >= 1:
+                    first_part = parts[0].strip()
+                    if first_part.isdigit():
+                        amount_val = int(first_part)
+                        if 1 <= amount_val <= 10000:
+                            logger.info(f"🎯 定位胆亚军格式3匹配: '{text}' -> {amount_val}")
+                            return float(amount_val)
+    
+            # 🆕 新增：通用定位胆处理（处理其他位置如冠军、季军等）
+            if any(pos in text for pos in ['冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名']):
+                # 提取"数字 位置:"的模式
+                position_pattern = re.match(r'^(\d+)\s+([^:：]+)[:：]', text)
+                if position_pattern:
+                    amount_candidate = position_pattern.group(1)
+                    if amount_candidate.isdigit():
+                        amount_val = int(amount_candidate)
+                        if 1 <= amount_val <= 10000:
+                            position_name = position_pattern.group(2).strip()
+                            logger.info(f"🎯 通用定位胆匹配: '{text}' -> {amount_val} (位置: {position_name})")
+                            return float(amount_val)
+                
+                # 备选：简单提取第一个数字
+                first_number_match = re.search(r'^\s*(\d+)', text)
+                if first_number_match:
+                    amount_candidate = first_number_match.group(1)
+                    if amount_candidate.isdigit():
+                        amount_val = int(amount_candidate)
+                        if 1 <= amount_val <= 10000:
+                            logger.info(f"🎯 定位胆备选匹配: '{text}' -> {amount_val}")
+                            return float(amount_val)
+    
+            # 原有的其他格式处理保持不变
+            # 处理混合格式（如"50,3,4,5,6,15,16,17,18"）
+            if re.match(r'^(\d+,\d+.*\d+)$', text) and not re.match(r'^\d+\.\d+$', text):
+                parts = text.split(',')
+                if len(parts) > 1:
+                    first_part = parts[0].strip()
+                    if first_part.isdigit():
+                        amount_candidate = int(first_part)
+                        if 1 <= amount_candidate <= 10000:
+                            later_parts_are_numbers = all(
+                                part.strip().isdigit() and 1 <= int(part.strip()) <= 49 
+                                for part in parts[1:] 
+                                if part.strip().isdigit()
+                            )
+                            if later_parts_are_numbers:
+                                logger.info(f"🎯 混合格式金额: {text} -> {amount_candidate}")
+                                return float(amount_candidate)
             
+            # 原有的其他提取逻辑...
             # 方法1: 直接转换（处理纯数字）
             try:
-                # 移除所有非数字字符（除了点和负号）
                 clean_text = re.sub(r'[^\d.-]', '', text)
                 if clean_text and clean_text != '-' and clean_text != '.':
                     amount = float(clean_text)
@@ -1247,7 +1319,6 @@ class MultiLotteryCoverageAnalyzer:
             
             # 方法2: 处理千位分隔符格式
             try:
-                # 移除逗号和全角逗号，然后转换
                 clean_text = text.replace(',', '').replace('，', '')
                 amount = float(clean_text)
                 if amount >= 0:
@@ -1255,15 +1326,7 @@ class MultiLotteryCoverageAnalyzer:
             except:
                 pass
             
-            # 方法3: 处理"5.000"这种格式
-            if re.match(r'^\d+\.\d{3}$', text):
-                try:
-                    amount = float(text)
-                    return amount
-                except:
-                    pass
-            
-            # 方法4: 使用正则表达式提取各种格式
+            # 方法3: 使用正则表达式提取各种格式
             patterns = [
                 r'投注\s*[:：]?\s*([\d,.]+)',
                 r'金额\s*[:：]?\s*([\d,.]+)',
@@ -1287,7 +1350,7 @@ class MultiLotteryCoverageAnalyzer:
                         continue
             
             return 0.0
-            
+                
         except Exception as e:
             logger.warning(f"金额提取失败: {amount_text}, 错误: {str(e)}")
             return 0.0
