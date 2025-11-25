@@ -482,45 +482,73 @@ class MultiLotteryCoverageAnalyzer:
 
     def fixed_extract_amount(self, amount_str):
         """修复的金额提取方法"""
-        return self.cached_extract_amount(amount_str)
+        return self.cached_extract_amount(str(amount_str))
+
+    def enhanced_data_preprocessing(self, df_clean):
+        """增强数据预处理流程"""
+        # 1. 首先识别彩种类型
+        df_clean['彩种类型'] = df_clean['彩种'].apply(self.identify_lottery_category)
+        
+        # 2. 统一玩法分类
+        df_clean['玩法'] = df_clean.apply(
+            lambda row: self.normalize_play_category(
+                row['玩法'], 
+                row['彩种类型'] if not pd.isna(row['彩种类型']) else 'six_mark'
+            ), 
+            axis=1
+        )
+        
+        # 3. 提取号码
+        df_clean['提取号码'] = df_clean.apply(
+            lambda row: self.cached_extract_numbers(
+                row['内容'], 
+                row['彩种类型'] if not pd.isna(row['彩种类型']) else 'six_mark'
+            ), 
+            axis=1
+        )
+        
+        # 4. 过滤无号码记录
+        initial_count = len(df_clean)
+        df_clean = df_clean[df_clean['提取号码'].apply(lambda x: len(x) > 0)]
+        no_number_count = initial_count - len(df_clean)
+        
+        # 5. 过滤非号码投注玩法
+        df_clean = self.filter_number_bets_only(df_clean)
+        non_number_play_count = initial_count - no_number_count - len(df_clean)
+        
+        return df_clean, no_number_count, non_number_play_count
 
     def get_lottery_thresholds(self, lottery_category, user_min_avg_amount):
-        """根据彩种类型获取阈值配置"""
+        """根据彩种类型获取阈值配置 - 修复版本"""
         base_thresholds = {
             'six_mark': {
-                'min_avg_amount': 10.0,  # 六合彩强制10
+                'min_avg_amount': float(user_min_avg_amount),  # 使用用户设置
                 'description': '六合彩'
             },
             '10_number': {
-                'min_avg_amount': 5.0,   # 时时彩/PK10/赛车强制5
+                'min_avg_amount': float(user_min_avg_amount),  # 使用用户设置
                 'description': '时时彩/PK10/赛车'
             },
             'fast_three': {
-                'min_avg_amount': 5.0,   # 快三强制5
+                'min_avg_amount': float(user_min_avg_amount),  # 使用用户设置
                 'description': '快三'
             },
             '3d_series': {
-                'min_avg_amount': 5.0,   # 3D系列强制5
+                'min_avg_amount': float(user_min_avg_amount),  # 使用用户设置
                 'description': '3D系列'
             },
             'five_star': {
-                'min_avg_amount': 5.0,   # 五星彩强制5
+                'min_avg_amount': float(user_min_avg_amount),  # 使用用户设置
                 'description': '五星彩'
             }
         }
         
         config = base_thresholds.get(lottery_category, {
-            'min_avg_amount': 5.0,  # 其他彩种默认5
+            'min_avg_amount': float(user_min_avg_amount),  # 其他彩种也使用用户设置
             'description': '其他彩种'
         })
         
-        # 使用用户设置和基础阈值中的较大值
-        effective_min_avg_amount = max(float(user_min_avg_amount), config['min_avg_amount'])
-        
-        return {
-            'min_avg_amount': effective_min_avg_amount,
-            'description': config['description']
-        }
+        return config
     
     def identify_lottery_category(self, lottery_name):
         """识别彩种类型 - 增强六合彩识别"""
@@ -1081,10 +1109,11 @@ class MultiLotteryCoverageAnalyzer:
         
         return play_normalized
     
-    @lru_cache(maxsize=1000)
-    def cached_extract_numbers(self, content, lottery_category='six_mark'):
-        """带缓存的号码提取"""
-        return self.enhanced_extract_numbers(content, lottery_category)
+    @lru_cache(maxsize=5000)  # 增加缓存大小以提高性能
+    def cached_extract_numbers(self, content, lottery_category):
+        """带缓存的号码提取 - 修复版本"""
+        content_str = str(content) if content else ""
+        return self.enhanced_extract_numbers(content_str, lottery_category)
     
     def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
         """增强号码提取 - 专门处理定位胆格式"""
@@ -1637,7 +1666,7 @@ class MultiLotteryCoverageAnalyzer:
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position, 
                             six_mark_params['min_number_count'], 
-                            threshold_config['min_avg_amount']
+                            min_avg_amount
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
@@ -1652,7 +1681,7 @@ class MultiLotteryCoverageAnalyzer:
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position,
                             ten_number_params['min_number_count'],
-                            threshold_config['min_avg_amount']
+                            min_avg_amount
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
@@ -1667,7 +1696,7 @@ class MultiLotteryCoverageAnalyzer:
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position,
                             fast_three_params['min_number_count'],
-                            threshold_config['min_avg_amount']
+                            min_avg_amount
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
@@ -2115,36 +2144,12 @@ def main():
                     account_behavior_stats = analyzer.analyze_account_behavior(df_clean)
                     analyzer.display_account_behavior_analysis(account_behavior_stats)
                 
-                # 识别彩种类型并统一玩法分类
-                with st.spinner("正在识别彩种类型和统一玩法分类..."):
-                    df_clean['彩种类型'] = df_clean['彩种'].apply(analyzer.identify_lottery_category)
-                    df_clean['玩法'] = df_clean.apply(
-                        lambda row: analyzer.normalize_play_category(
-                            row['玩法'], 
-                            row['彩种类型'] if not pd.isna(row['彩种类型']) else 'six_mark'
-                        ), 
-                        axis=1
-                    )
-                
-                # NEW: 第一步过滤 - 只保留包含有效号码的记录
-                with st.spinner("正在过滤无号码投注记录..."):
-                    df_clean = analyzer.filter_records_with_numbers(df_clean)
-                    st.success(f"✅ 号码过滤完成: 保留 {len(df_clean)} 条有效号码投注记录")
-                
-                # NEW: 第二步过滤 - 过滤非号码投注玩法（作为额外保障）
-                with st.spinner("正在过滤非号码投注玩法..."):
-                    df_clean = analyzer.filter_number_bets_only(df_clean)
-                    st.success(f"✅ 玩法过滤完成: 保留 {len(df_clean)} 条号码投注记录")
-                
-                # NEW: 添加号码提取列，提高后续分析效率
-                with st.spinner("正在提取投注号码..."):
-                    df_clean['提取号码'] = df_clean.apply(
-                        lambda row: analyzer.cached_extract_numbers(
-                            row['内容'], 
-                            row['彩种类型'] if '彩种类型' in df_clean.columns else 'six_mark'
-                        ), 
-                        axis=1
-                    )
+                # 统一的数据预处理
+                with st.spinner("正在进行数据预处理..."):
+                    df_clean, no_number_count, non_number_play_count = analyzer.enhanced_data_preprocessing(df_clean)
+                    st.success(f"✅ 数据预处理完成: 保留 {len(df_clean)} 条有效记录")
+                    if no_number_count > 0 or non_number_play_count > 0:
+                        st.info(f"📊 过滤统计: 移除了 {no_number_count} 条无号码记录和 {non_number_play_count} 条非号码玩法记录")
                 
                 # 从投注内容中提取具体位置信息
                 with st.spinner("正在从投注内容中提取具体位置信息..."):
@@ -2319,6 +2324,22 @@ def main():
         
         except Exception as e:
             st.error(f"❌ 处理文件时出错: {str(e)}")
+            logger.error(f"文件处理错误: {str(e)}", exc_info=True)
+            
+            # 提供更详细的错误信息
+            with st.expander("🔍 查看详细错误信息", expanded=False):
+                st.code(f"""
+        错误类型: {type(e).__name__}
+        错误信息: {str(e)}
+                
+        可能的原因:
+        1. 文件编码问题 - 尝试将文件另存为UTF-8编码
+        2. 文件格式问题 - 确保文件是有效的CSV或Excel格式
+        3. 内存不足 - 尝试分析较小的数据文件
+        4. 列名不匹配 - 检查文件是否包含必要的列
+                
+        如果问题持续存在，请联系技术支持。
+                """)
     
     else:
         st.info("💡 **彩票完美覆盖分析系统**")
