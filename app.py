@@ -485,7 +485,7 @@ class MultiLotteryCoverageAnalyzer:
         return self.cached_extract_amount(str(amount_str))
 
     def enhanced_data_preprocessing(self, df_clean):
-        """增强数据预处理流程"""
+        """增强数据预处理流程 - 修复尾数处理"""
         # 1. 首先识别彩种类型
         df_clean['彩种类型'] = df_clean['彩种'].apply(self.identify_lottery_category)
         
@@ -498,21 +498,32 @@ class MultiLotteryCoverageAnalyzer:
             axis=1
         )
         
-        # 3. 提取号码
-        df_clean['提取号码'] = df_clean.apply(
-            lambda row: self.cached_extract_numbers(
-                row['内容'], 
-                row['彩种类型'] if not pd.isna(row['彩种类型']) else 'six_mark'
-            ), 
-            axis=1
-        )
+        # 3. 🆕 关键修复：专门处理尾数玩法
+        def extract_numbers_with_tail_support(row):
+            content = row['内容']
+            lottery_category = row['彩种类型'] if not pd.isna(row['彩种类型']) else 'six_mark'
+            play_method = row['玩法']
+            
+            # 如果是尾数相关玩法，使用专门的尾数提取
+            if any(tail_keyword in play_method for tail_keyword in ['尾数', '全尾', '特尾']):
+                config = self.get_lottery_config(lottery_category)
+                number_range = config['number_range']
+                tail_numbers = self.extract_tail_numbers(str(content), number_range)
+                if tail_numbers:
+                    return tail_numbers
+            
+            # 否则使用通用号码提取
+            return self.cached_extract_numbers(content, lottery_category)
         
-        # 4. 过滤无号码记录
+        # 4. 提取号码
+        df_clean['提取号码'] = df_clean.apply(extract_numbers_with_tail_support, axis=1)
+        
+        # 5. 过滤无号码记录
         initial_count = len(df_clean)
         df_clean = df_clean[df_clean['提取号码'].apply(lambda x: len(x) > 0)]
         no_number_count = initial_count - len(df_clean)
         
-        # 5. 过滤非号码投注玩法
+        # 6. 过滤非号码投注玩法
         df_clean = self.filter_number_bets_only(df_clean)
         non_number_play_count = initial_count - no_number_count - len(df_clean)
         
@@ -1116,7 +1127,7 @@ class MultiLotteryCoverageAnalyzer:
         return self.enhanced_extract_numbers(content_str, lottery_category)
     
     def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
-        """增强号码提取 - 专门处理定位胆格式 - 修复版本"""
+        """增强号码提取 - 修复第一个数字丢失问题"""
         content_str = str(content).strip()
         numbers = []
         
@@ -1129,73 +1140,61 @@ class MultiLotteryCoverageAnalyzer:
             number_range = config['number_range']
             
             # 🆕 增强：处理特殊字符和空白
-            content_str = re.sub(r'[\s\u3000]+', ' ', content_str)  # 处理全角空格和空白
+            content_str = re.sub(r'[\s\u3000]+', ' ', content_str)
             
-            # 🆕 增强：处理括号内的内容 - 但不完全移除，因为可能有号码在括号内
-            # 先备份原始内容
-            original_content = content_str
-            # 尝试移除括号内容，但保留可能包含号码的部分
-            content_str = re.sub(r'[\(（][^)\d]+[\)）]', '', content_str)  # 只移除不包含数字的括号内容
+            # 🆕 关键修复：专门处理"特码-01,02,04..."这种格式
+            # 移除常见的前缀，如"特码-", "正码-", "平码-"等
+            prefix_patterns = [
+                r'^(特码|正码|平码|尾数|全尾|特尾)[-:：]\s*',
+                r'^[^,，\d]+\s*[-:：]\s*',
+            ]
             
-            # 🆕 新增：调试信息
-            debug_info = {
-                'original': original_content,
-                'cleaned': content_str,
-                'lottery_category': lottery_category,
-                'number_range': list(number_range)[:10]  # 显示前10个号码范围
-            }
+            for pattern in prefix_patterns:
+                content_str = re.sub(pattern, '', content_str)
             
-            # 🆕 增强：专门处理定位胆格式（位置:号码） - 最高优先级
-            if ':' in content_str or '：' in content_str:
-                # 提取冒号后面的号码部分 - 增强模式
-                colon_patterns = [
-                    r'^[^:：]+[:：]\s*([\d,\s]+)$',  # 亚军:01,02,03
-                    r'^[^:：]+[:：]\s*(\d+(?:\s*,\s*\d+)*)$',  # 亚军:01, 02, 03
-                    r'^[^:：]+[:：]\s*([^:：]*\d[^:：]*)$',  # 更通用的模式，确保包含数字
-                ]
-                
-                for pattern in colon_patterns:
-                    match = re.match(pattern, content_str)
-                    if match:
-                        number_part = match.group(1).strip()
-                        # 🆕 增强：清理号码部分
-                        number_part = re.sub(r'[^\d,]', '', number_part)  # 只保留数字和逗号
-                        if number_part:
-                            # 按逗号分割提取数字
-                            number_strs = number_part.split(',')
-                            for num_str in number_strs:
-                                num_str_clean = num_str.strip()
-                                if num_str_clean.isdigit():
-                                    num = int(num_str_clean)
-                                    if num in number_range:
-                                        numbers.append(num)
-                            if numbers:  # 如果成功提取到号码，直接返回
-                                return list(set(numbers))
+            # 🆕 关键修复：处理"全尾-8尾,9尾"这种格式
+            if '尾' in content_str:
+                # 提取所有数字，然后加上尾数逻辑
+                tail_numbers = re.findall(r'(\d)尾', content_str)
+                for num_str in tail_numbers:
+                    if num_str.isdigit():
+                        num = int(num_str)
+                        if num in number_range:
+                            numbers.append(num)
+                if numbers:
+                    return list(set(numbers))
             
-            # 🆕 增强：处理多种分隔符格式
+            # 🆕 关键修复：增强分隔符处理 - 确保第一个数字不被忽略
             separators = [',', '，', ' ', ';', '；', '、', '/', '\\', '|']
             
-            # 尝试多种分隔符拆分
-            for sep in separators:
-                if sep in content_str:
-                    parts = content_str.split(sep)
-                    for part in parts:
-                        part_clean = part.strip()
-                        # 🆕 增强：提取所有数字，不限于纯数字部分
-                        number_matches = re.findall(r'\d+', part_clean)
-                        for num_str in number_matches:
-                            if num_str.isdigit():
-                                num = int(num_str)
-                                if num in number_range:
-                                    numbers.append(num)
-                    if numbers:  # 如果找到数字就退出
-                        break
+            # 首先尝试直接提取所有数字
+            all_digits = re.findall(r'\d{1,2}', content_str)
+            for digit in all_digits:
+                num = int(digit)
+                if num in number_range:
+                    numbers.append(num)
             
-            # 🆕 增强：处理连续数字格式（如123456）
+            # 如果直接提取失败，再尝试分隔符拆分
             if not numbers:
-                clean_content = re.sub(r'[^\d]', '', content_str)  # 移除所有非数字字符
+                for sep in separators:
+                    if sep in content_str:
+                        parts = content_str.split(sep)
+                        for part in parts:
+                            part_clean = part.strip()
+                            # 提取每个部分中的所有数字
+                            number_matches = re.findall(r'\d+', part_clean)
+                            for num_str in number_matches:
+                                if num_str.isdigit():
+                                    num = int(num_str)
+                                    if num in number_range:
+                                        numbers.append(num)
+                        if numbers:
+                            break
+            
+            # 🆕 关键修复：处理连续数字格式
+            if not numbers:
+                clean_content = re.sub(r'[^\d]', '', content_str)
                 if len(clean_content) >= 2:
-                    # 根据彩种类型决定数字长度
                     if lottery_category == 'six_mark':
                         # 六合彩：2位数字
                         for i in range(0, len(clean_content)-1, 2):
@@ -1204,19 +1203,19 @@ class MultiLotteryCoverageAnalyzer:
                                 num = int(num_str)
                                 if 1 <= num <= 49:
                                     numbers.append(num)
-                    elif lottery_category in ['10_number', '3d_series', 'fast_three']:
-                        # 10个号码彩种和快三：1位数字
+                    else:
+                        # 其他彩种：1位数字
                         for char in clean_content:
                             if char.isdigit():
                                 num = int(char)
                                 if num in number_range:
                                     numbers.append(num)
             
-            # 🆕 增强：处理范围格式（如1-10, 5~15）
+            # 🆕 关键修复：处理范围格式
             range_patterns = [
-                r'(\d+)\s*[-~～]\s*(\d+)',  # 1-10, 5~15
-                r'从\s*(\d+)\s*到\s*(\d+)',  # 从1到10
-                r'(\d+)\s*至\s*(\d+)'        # 1至10
+                r'(\d+)\s*[-~～]\s*(\d+)',
+                r'从\s*(\d+)\s*到\s*(\d+)',
+                r'(\d+)\s*至\s*(\d+)'
             ]
             
             for pattern in range_patterns:
@@ -1230,54 +1229,48 @@ class MultiLotteryCoverageAnalyzer:
                                 if num in number_range:
                                     numbers.append(num)
             
-            # 🆕 增强：处理号码+特殊标记（如01*, 15√, 08★）
-            marked_numbers = re.findall(r'(\d{1,2})[*√★☆♥♦♣♠]', content_str)
-            for num_str in marked_numbers:
-                if num_str.isdigit():
-                    num = int(num_str)
-                    if num in number_range:
-                        numbers.append(num)
-            
-            # 🆕 增强：处理常见格式：3,4,5,6,15,16,17,18
-            if not numbers:
-                # 检查是否主要是逗号分隔的数字
-                comma_pattern = r'^(\d{1,2},)*\d{1,2}$'
-                if re.match(comma_pattern, content_str.replace(' ', '')):
-                    new_numbers = [int(x.strip()) for x in content_str.split(',') if x.strip().isdigit()]
-                    numbers.extend([num for num in new_numbers if num in number_range])
-            
-            # 🆕 增强：提取所有1-2位数字（作为最后的手段）
-            if not numbers:
-                number_matches = re.findall(r'\b\d{1,2}\b', content_str)
-                for match in number_matches:
-                    num = int(match)
-                    if num in number_range:
-                        numbers.append(num)
-            
-            # 🆕 增强：如果还是没有找到，尝试从原始内容中提取
-            if not numbers:
-                number_matches = re.findall(r'\b\d{1,2}\b', original_content)
-                for match in number_matches:
-                    num = int(match)
-                    if num in number_range:
-                        numbers.append(num)
-            
-            # 🆕 增强：去重并排序
+            # 🆕 去重并排序
             numbers = list(set(numbers))
             numbers = [num for num in numbers if num in number_range]
             numbers.sort()
             
-            # 🆕 新增：调试输出（可选）
+            # 🆕 调试信息
             if len(numbers) == 0:
-                logger.debug(f"未提取到号码: {original_content} -> {content_str}")
+                logger.warning(f"⚠️ 未提取到号码: {content_str}")
             else:
-                logger.debug(f"成功提取号码: {original_content} -> {numbers}")
+                logger.info(f"✅ 成功提取 {len(numbers)} 个号码: {numbers}")
                 
             return numbers
                 
         except Exception as e:
-            logger.error(f"号码提取异常: {content}, 错误: {str(e)}")
+            logger.error(f"❌ 号码提取异常: {content}, 错误: {str(e)}")
             return []
+    
+    # 添加专门的尾数处理函数
+    def extract_tail_numbers(self, content_str, number_range):
+        """专门处理尾数格式"""
+        numbers = []
+        
+        # 处理"8尾,9尾"格式
+        tail_matches = re.findall(r'(\d)[尾]', content_str)
+        for tail_num in tail_matches:
+            if tail_num.isdigit():
+                num = int(tail_num)
+                if num in number_range:
+                    numbers.append(num)
+        
+        # 处理"全尾-8尾,9尾"格式
+        if not numbers and '全尾' in content_str:
+            # 提取全尾后面的所有数字
+            all_tail_matches = re.findall(r'全尾[^-]*-?\s*([\d,尾\s]+)', content_str)
+            for match in all_tail_matches:
+                tail_digits = re.findall(r'\d', match)
+                for digit in tail_digits:
+                    num = int(digit)
+                    if num in number_range:
+                        numbers.append(num)
+        
+        return numbers
     
     @lru_cache(maxsize=500)
     def cached_extract_amount(self, amount_text):
@@ -2069,6 +2062,41 @@ class MultiLotteryCoverageAnalyzer:
         
         return pd.DataFrame(export_data)
 
+    def test_number_extraction_fix(self):
+        """测试号码提取修复"""
+        test_cases = [
+            # (内容, 期望提取的号码列表)
+            ("特码-01,02,04,06,10,13,14,16,18,22,25,26,28,30,34,37,38,40,42,46,49", 
+             [1,2,4,6,10,13,14,16,18,22,25,26,28,30,34,37,38,40,42,46,49]),
+            ("特码-03,05,07,08,09,11,12,15,20,23,24,29,31,33,36,39,41,43,44,45,47,17,19,21,27,32,35,48",
+             [3,5,7,8,9,11,12,15,17,19,20,21,23,24,27,29,31,32,33,35,36,39,41,43,44,45,47,48]),
+            ("全尾-8尾,9尾,7尾,6尾,5尾", [5,6,7,8,9]),
+            ("全尾-1尾,2尾,3尾,4尾,0尾", [0,1,2,3,4])
+        ]
+        
+        st.subheader("🧪 号码提取测试")
+        
+        for i, (content, expected) in enumerate(test_cases, 1):
+            actual = self.enhanced_extract_numbers(content, 'six_mark')
+            
+            # 检查是否匹配
+            missing = set(expected) - set(actual)
+            extra = set(actual) - set(expected)
+            
+            status = "✅ 通过" if set(actual) == set(expected) else "❌ 失败"
+            
+            st.write(f"**测试用例 {i}:** {status}")
+            st.write(f"   内容: `{content}`")
+            st.write(f"   期望: {sorted(expected)}")
+            st.write(f"   实际: {sorted(actual)}")
+            
+            if missing:
+                st.write(f"   🔍 缺少号码: {sorted(missing)}")
+            if extra:
+                st.write(f"   🔍 多余号码: {sorted(extra)}")
+            
+            st.write("---")
+
 # ==================== Streamlit界面 ====================
 def main():
     st.title("🎯 彩票完美覆盖分析系统")
@@ -2213,7 +2241,13 @@ def main():
                 # 数据质量验证
                 with st.spinner("正在进行数据质量验证..."):
                     quality_issues = analyzer.validate_data_quality(df)
-            
+                
+                # ==================== 新增的测试按钮 ====================
+                st.markdown("---")
+                st.subheader("🧪 号码提取功能测试")
+                if st.button("运行号码提取测试"):
+                    analyzer.test_number_extraction_fix()
+                
             # 数据清理
             required_columns = ['会员账号', '彩种', '期号', '玩法', '内容']
             available_columns = [col for col in required_columns if col in df.columns]
