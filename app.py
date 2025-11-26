@@ -1116,7 +1116,7 @@ class MultiLotteryCoverageAnalyzer:
         return self.enhanced_extract_numbers(content_str, lottery_category)
     
     def fixed_extract_numbers(self, content, lottery_category='six_mark'):
-        """修复的号码提取方法 - 专门处理六合彩格式"""
+        """简化号码提取方法 - 只提取所有数字"""
         content_str = str(content).strip()
         numbers = []
         
@@ -1127,43 +1127,8 @@ class MultiLotteryCoverageAnalyzer:
             config = self.get_lottery_config(lottery_category)
             number_range = config['number_range']
             
-            # 🆕 预处理内容：移除"特码-"、"全尾-"等前缀
-            content_clean = content_str
-            prefixes = ['特码-', '全尾-', '尾数-', '正码-', '平码-', '特肖-']
-            for prefix in prefixes:
-                if content_clean.startswith(prefix):
-                    content_clean = content_clean.replace(prefix, '')
-                    break
-            
-            # 🆕 专门处理六合彩尾数格式
-            if '尾' in content_clean:
-                # 提取尾数数字，如"8尾" -> 8
-                tail_matches = re.findall(r'(\d)尾', content_clean)
-                for tail_num in tail_matches:
-                    num = int(tail_num)
-                    # 对于尾数，生成该尾数的所有号码（如8尾: 08,18,28,38,48）
-                    for i in range(num, 50, 10):
-                        if i in number_range:
-                            numbers.append(i)
-                if numbers:
-                    return list(set(numbers))
-            
-            # 🆕 处理逗号分隔的号码格式（主要格式）
-            if ',' in content_clean:
-                parts = content_clean.split(',')
-                for part in parts:
-                    part_clean = part.strip()
-                    # 移除可能的非数字字符，但保留数字
-                    part_clean = re.sub(r'[^\d]', '', part_clean)
-                    if part_clean.isdigit():
-                        num = int(part_clean)
-                        if num in number_range:
-                            numbers.append(num)
-                if numbers:
-                    return list(set(numbers))
-            
-            # 🆕 提取所有1-2位数字（最后的手段）
-            number_matches = re.findall(r'\b\d{1,2}\b', content_clean)
+            # 🆕 简化：直接提取所有1-2位数字
+            number_matches = re.findall(r'\b\d{1,2}\b', content_str)
             for match in number_matches:
                 num = int(match)
                 if num in number_range:
@@ -1171,7 +1136,6 @@ class MultiLotteryCoverageAnalyzer:
             
             # 🆕 去重并排序
             numbers = list(set(numbers))
-            numbers = [num for num in numbers if num in number_range]
             numbers.sort()
             
             return numbers
