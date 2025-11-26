@@ -1383,23 +1383,26 @@ class MultiLotteryCoverageAnalyzer:
             return "🔴"
     
     def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers):
-        """寻找完美组合 - 支持任意号码数量的彩种，包括4账户组合"""
-        all_results = {2: [], 3: [], 4: []}  # 添加4账户组合
+        """寻找完美组合 - 严格完美覆盖检测"""
+        all_results = {2: [], 3: [], 4: []}
         all_accounts = list(account_numbers.keys())
         
         account_sets = {account: set(numbers) for account, numbers in account_numbers.items()}
         
-        # 搜索2账户组合
+        # 搜索2账户组合 - 严格完美覆盖
         for i, acc1 in enumerate(all_accounts):
             count1 = len(account_numbers[acc1])
             for j in range(i+1, len(all_accounts)):
                 acc2 = all_accounts[j]
                 count2 = len(account_numbers[acc2])
                 
+                # 检查号码总数是否匹配
                 if count1 + count2 != total_numbers:
                     continue
                 
                 combined_set = account_sets[acc1] | account_sets[acc2]
+                
+                # 🎯 严格完美覆盖检查
                 if len(combined_set) == total_numbers:
                     total_amount = account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount']
                     avg_amounts = [
@@ -1430,7 +1433,11 @@ class MultiLotteryCoverageAnalyzer:
                         'bet_contents': {
                             acc1: account_bet_contents[acc1],
                             acc2: account_bet_contents[acc2]
-                        }
+                        },
+                        'coverage_ratio': 1.0,  # 完美覆盖
+                        'covered_numbers': total_numbers,
+                        'missing_numbers': 0,
+                        'coverage_level': '完美'
                     }
                     all_results[2].append(result_data)
         
@@ -2269,138 +2276,51 @@ def main():
                     if no_number_count > 0 or non_number_play_count > 0:
                         st.info(f"📊 过滤统计: 移除了 {no_number_count} 条无号码记录和 {non_number_play_count} 条非号码玩法记录")
                 
-                # ==================== 🆕 详细调试：完整的数据处理流程 ====================
+                # 统一的数据预处理
+                with st.spinner("正在进行数据预处理..."):
+                    df_clean, no_number_count, non_number_play_count = analyzer.enhanced_data_preprocessing(df_clean)
+                    st.success(f"✅ 数据预处理完成: 保留 {len(df_clean)} 条有效记录")
+                    if no_number_count > 0 or non_number_play_count > 0:
+                        st.info(f"📊 过滤统计: 移除了 {no_number_count} 条无号码记录和 {non_number_play_count} 条非号码玩法记录")
                 
-                # 在数据预处理后添加详细调试
-                with st.expander("🔍 详细调试信息", expanded=True):
-                    st.subheader("1. 数据预处理结果")
+                # ==================== 🆕 详细调试：号码提取验证 ====================
+                with st.expander("🔢 号码提取详细调试", expanded=True):
+                    st.subheader("号码提取过程调试")
                     
-                    # 显示数据基本信息
-                    st.write(f"**数据基本信息:**")
-                    st.write(f"- 总记录数: {len(df_clean):,}")
-                    st.write(f"- 唯一账户数: {df_clean['会员账号'].nunique():,}")
-                    st.write(f"- 唯一期号数: {df_clean['期号'].nunique():,}")
-                    st.write(f"- 唯一彩种数: {df_clean['彩种'].nunique():,}")
+                    # 测试特定账户的号码提取
+                    test_accounts = ['daiyou123456', 'zhong945888']  # 您提供的两个账户
                     
-                    # 显示彩种分布
-                    if '彩种类型' in df_clean.columns:
-                        st.write(f"**彩种类型分布:**")
-                        lottery_type_dist = df_clean['彩种类型'].value_counts()
-                        for lottery_type, count in lottery_type_dist.items():
-                            st.write(f"  - {lottery_type}: {count:,} 条")
-                    
-                    # 显示玩法分布
-                    st.write(f"**玩法分布:**")
-                    play_dist = df_clean['玩法'].value_counts().head(10)
-                    for play, count in play_dist.items():
-                        st.write(f"  - {play}: {count:,} 条")
-                    
-                    # 显示金额统计
-                    if '投注金额' in df_clean.columns:
-                        st.write(f"**金额统计:**")
-                        st.write(f"  - 总投注额: {df_clean['投注金额'].sum():,.2f}")
-                        st.write(f"  - 平均金额: {df_clean['投注金额'].mean():.2f}")
-                        st.write(f"  - 最大金额: {df_clean['投注金额'].max():.2f}")
-                        st.write(f"  - 最小金额: {df_clean['投注金额'].min():.2f}")
-                        st.write(f"  - 金额>0的记录: {(df_clean['投注金额'] > 0).sum():,}")
-                        st.write(f"  - 金额=0的记录: {(df_clean['投注金额'] == 0).sum():,}")
-                    
-                    # 显示号码提取统计
-                    if '提取号码' in df_clean.columns:
-                        st.write(f"**号码提取统计:**")
-                        number_counts = df_clean['提取号码'].apply(len)
-                        st.write(f"  - 平均号码数: {number_counts.mean():.1f}")
-                        st.write(f"  - 最大号码数: {number_counts.max()}")
-                        st.write(f"  - 最小号码数: {number_counts.min()}")
-                        st.write(f"  - 无号码记录: {(number_counts == 0).sum():,}")
-                        
-                        # 显示号码提取样本
-                        st.write(f"**号码提取样本:**")
-                        sample_data = []
-                        for idx, row in df_clean.head(5).iterrows():
-                            sample_data.append({
-                                '账号': row['会员账号'],
-                                '彩种': row['彩种'],
-                                '玩法': row['玩法'],
-                                '内容': row['内容'],
-                                '提取号码': row['提取号码'],
-                                '号码数量': len(row['提取号码'])
-                            })
-                        st.dataframe(pd.DataFrame(sample_data))
-                
-                # ==================== 🆕 新增：金额提取验证调试 ====================
-                if '金额' in df_clean.columns:
-                    # 测试金额提取
-                    st.subheader("💰 金额提取验证")
-                    
-                    # 显示原始金额样本
-                    st.write("**原始金额格式样本:**")
-                    amount_samples = df_clean['金额'].head(10).tolist()
-                    for i, sample in enumerate(amount_samples, 1):
-                        st.write(f"{i}. `{sample}`")
-                    
-                    # 测试金额提取
-                    test_amounts = []
-                    for idx, row in df_clean.head(10).iterrows():
-                        original_amount = str(row['金额'])
-                        extracted_amount = analyzer.extract_bet_amount(original_amount)
-                        test_amounts.append({
-                            '序号': idx + 1,
-                            '原始金额': original_amount,
-                            '提取金额': extracted_amount,
-                            '提取状态': '✅ 成功' if extracted_amount > 0 else '❌ 失败'
-                        })
-                    
-                    # 显示测试结果
-                    st.write("**金额提取测试结果:**")
-                    test_df = pd.DataFrame(test_amounts)
-                    st.dataframe(test_df, use_container_width=True)
-                    
-                    # 应用金额提取到整个数据集
-                    st.info("🔄 正在提取所有记录的金额...")
-                    df_clean['投注金额'] = df_clean['金额'].apply(analyzer.extract_bet_amount)
-                    
-                    # 显示金额统计
-                    total_bet_amount = df_clean['投注金额'].sum()
-                    valid_amount_count = (df_clean['投注金额'] > 0).sum()
-                    zero_amount_count = (df_clean['投注金额'] == 0).sum()
-                    
-                    st.success(f"💰 金额提取完成: 总投注额 {total_bet_amount:,.2f} 元")
-                    
-                    # 金额统计详情
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("总投注额", f"¥{total_bet_amount:,.2f}")
-                    with col2:
-                        st.metric("有效金额记录", f"{valid_amount_count:,}")
-                    with col3:
-                        st.metric("零金额记录", f"{zero_amount_count:,}")
-                    with col4:
-                        st.metric("成功率", f"{(valid_amount_count/len(df_clean)*100):.1f}%")
-                    
-                    # 显示金额分布
-                    with st.expander("📊 金额分布详情", expanded=False):
-                        st.write("**金额分布统计:**")
-                        col1, col2, col3, col4 = st.columns(4)
-                        with col1:
-                            st.metric("平均每注", f"¥{df_clean['投注金额'].mean():.2f}")
-                        with col2:
-                            st.metric("最大单注", f"¥{df_clean['投注金额'].max():.2f}")
-                        with col3:
-                            st.metric("最小单注", f"¥{df_clean['投注金额'].min():.2f}")
-                        with col4:
-                            st.metric("中位数", f"¥{df_clean['投注金额'].median():.2f}")
-                        
-                        # 显示金额分布直方图
-                        if valid_amount_count > 0:
-                            fig, ax = plt.subplots(figsize=(10, 4))
-                            nonzero_amounts = df_clean[df_clean['投注金额'] > 0]['投注金额']
-                            ax.hist(nonzero_amounts, bins=20, alpha=0.7, color='skyblue', edgecolor='black')
-                            ax.set_xlabel('投注金额')
-                            ax.set_ylabel('频次')
-                            ax.set_title('投注金额分布')
-                            ax.grid(True, alpha=0.3)
-                            st.pyplot(fig)
+                    for account in test_accounts:
+                        if account in df_clean['会员账号'].values:
+                            account_data = df_clean[df_clean['会员账号'] == account]
+                            st.write(f"**账户 {account} 的号码提取:**")
+                            
+                            for idx, row in account_data.head(3).iterrows():  # 显示前3条记录
+                                content = row['内容']
+                                extracted_numbers = row['提取号码']
+                                
+                                st.write(f"- **原始内容:** `{content}`")
+                                st.write(f"- **提取号码:** {extracted_numbers}")
+                                st.write(f"- **号码数量:** {len(extracted_numbers)}")
+                                
+                                # 🆕 手动重新提取以验证
+                                manual_extract = analyzer.enhanced_extract_numbers(content, row.get('彩种类型', 'six_mark'))
+                                st.write(f"- **手动提取:** {manual_extract}")
+                                st.write(f"- **手动数量:** {len(manual_extract)}")
+                                
+                                # 检查差异
+                                if set(extracted_numbers) != set(manual_extract):
+                                    st.error(f"❌ 提取不一致！")
+                                    missing = set(manual_extract) - set(extracted_numbers)
+                                    extra = set(extracted_numbers) - set(manual_extract)
+                                    if missing:
+                                        st.write(f"  - 缺少号码: {sorted(missing)}")
+                                    if extra:
+                                        st.write(f"  - 多余号码: {sorted(extra)}")
+                                else:
+                                    st.success("✅ 提取一致")
+                                
+                                st.write("---")
                 
                 # 从投注内容中提取具体位置信息
                 with st.spinner("正在从投注内容中提取具体位置信息..."):
