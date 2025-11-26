@@ -498,7 +498,11 @@ class MultiLotteryCoverageAnalyzer:
             axis=1
         )
         
-        # 3. 提取号码
+        # 3. 🆕 新增：预处理金额列
+        if '金额' in df_clean.columns:
+            df_clean['金额'] = df_clean['金额'].apply(self.preprocess_amount_column)
+        
+        # 4. 提取号码
         df_clean['提取号码'] = df_clean.apply(
             lambda row: self.cached_extract_numbers(
                 row['内容'], 
@@ -507,16 +511,41 @@ class MultiLotteryCoverageAnalyzer:
             axis=1
         )
         
-        # 4. 过滤无号码记录
+        # 5. 过滤无号码记录
         initial_count = len(df_clean)
         df_clean = df_clean[df_clean['提取号码'].apply(lambda x: len(x) > 0)]
         no_number_count = initial_count - len(df_clean)
         
-        # 5. 过滤非号码投注玩法
+        # 6. 过滤非号码投注玩法
         df_clean = self.filter_number_bets_only(df_clean)
         non_number_play_count = initial_count - no_number_count - len(df_clean)
         
         return df_clean, no_number_count, non_number_play_count
+    
+    def preprocess_amount_column(self, amount_text):
+        """预处理金额列格式"""
+        if pd.isna(amount_text):
+            return amount_text
+        
+        text = str(amount_text).strip()
+        
+        # 🆕 标准化金额格式
+        if '投注：' in text and '抵用：' in text:
+            # 提取投注部分，移除其他信息
+            try:
+                bet_part = text.split('投注：')[1].split('抵用：')[0].strip()
+                return f"投注：{bet_part}"
+            except:
+                return text
+        elif '投注:' in text and '抵用:' in text:
+            # 处理英文冒号格式
+            try:
+                bet_part = text.split('投注:')[1].split('抵用:')[0].strip()
+                return f"投注：{bet_part}"
+            except:
+                return text
+        
+        return text
 
     def get_lottery_thresholds(self, lottery_category, user_min_avg_amount):
         """根据彩种类型获取阈值配置 - 修复版本"""
@@ -1245,13 +1274,13 @@ class MultiLotteryCoverageAnalyzer:
         except Exception as e:
             return []
     
-    @lru_cache(maxsize=500)
+    @lru_cache(maxsize=2000)
     def cached_extract_amount(self, amount_text):
         """带缓存的金额提取"""
         return self.extract_bet_amount(amount_text)
     
     def extract_bet_amount(self, amount_text):
-        """金额提取函数 - 修复版本：只提取第一个数字"""
+        """金额提取函数 - 增强版本：专门处理 '投注：3000.000 抵用：0 中奖：0.000' 格式"""
         try:
             if pd.isna(amount_text) or amount_text is None:
                 return 0.0
@@ -1262,6 +1291,57 @@ class MultiLotteryCoverageAnalyzer:
             # 如果已经是空字符串，返回0
             if text == '':
                 return 0.0
+            
+            # 🆕 新增：专门处理 "投注：3000.000 抵用：0 中奖：0.000" 格式
+            if '投注：' in text and '抵用：' in text:
+                try:
+                    # 提取 "投注：" 后面的数字部分
+                    bet_part = text.split('投注：')[1].split('抵用：')[0].strip()
+                    # 清理可能的空格和特殊字符
+                    bet_part_clean = re.sub(r'[^\d.]', '', bet_part)
+                    if bet_part_clean:
+                        amount = float(bet_part_clean)
+                        if amount >= 0:
+                            return amount
+                except Exception as e:
+                    logger.debug(f"特殊格式金额提取失败: {text}, 错误: {e}")
+            
+            # 🆕 新增：处理简化的 "投注：3000.000" 格式
+            if text.startswith('投注：'):
+                try:
+                    bet_part = text.replace('投注：', '').strip()
+                    # 提取第一个数字部分（可能后面有其他文字）
+                    bet_part_clean = re.split(r'[^\d.]', bet_part)[0]
+                    if bet_part_clean:
+                        amount = float(bet_part_clean)
+                        if amount >= 0:
+                            return amount
+                except Exception as e:
+                    logger.debug(f"简化格式金额提取失败: {text}, 错误: {e}")
+            
+            # 🆕 新增：处理包含 "投注:" 的格式（中文冒号）
+            if '投注:' in text:
+                try:
+                    bet_part = text.split('投注:')[1].split()[0].strip()
+                    bet_part_clean = re.sub(r'[^\d.]', '', bet_part)
+                    if bet_part_clean:
+                        amount = float(bet_part_clean)
+                        if amount >= 0:
+                            return amount
+                except Exception as e:
+                    logger.debug(f"中文冒号格式金额提取失败: {text}, 错误: {e}")
+            
+            # 🆕 新增：处理 "下注：" 格式
+            if '下注：' in text:
+                try:
+                    bet_part = text.split('下注：')[1].split()[0].strip()
+                    bet_part_clean = re.sub(r'[^\d.]', '', bet_part)
+                    if bet_part_clean:
+                        amount = float(bet_part_clean)
+                        if amount >= 0:
+                            return amount
+                except Exception as e:
+                    logger.debug(f"下注格式金额提取失败: {text}, 错误: {e}")
             
             # 方法1: 直接转换（处理纯数字）
             try:
@@ -1284,7 +1364,7 @@ class MultiLotteryCoverageAnalyzer:
             except:
                 pass
             
-            # 方法3: 处理"5.000"这种格式
+            # 方法3: 处理"3000.000"这种格式
             if re.match(r'^\d+\.\d{3}$', text):
                 try:
                     amount = float(text)
