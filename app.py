@@ -1137,7 +1137,7 @@ class MultiLotteryCoverageAnalyzer:
         return self.enhanced_extract_numbers(content_str, lottery_category)
     
     def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
-        """简化版号码提取 - 确保不会丢失任何数字"""
+        """修复版号码提取 - 确保不会丢失第一个号码"""
         content_str = str(content).strip()
         
         try:
@@ -1148,7 +1148,7 @@ class MultiLotteryCoverageAnalyzer:
             number_range = config['number_range']
             
             # 🆕 最简单直接的方法：提取所有1-2位数字
-            all_numbers = re.findall(r'\b\d{1,2}\b', content_str)
+            all_numbers = re.findall(r'\d{1,2}', content_str)
             
             # 转换为整数并过滤有效号码
             numbers = []
@@ -1961,6 +1961,93 @@ class MultiLotteryCoverageAnalyzer:
         
         return pd.DataFrame(export_data)
 
+    def test_first_number_missing_bug(self):
+        """专门测试第一个号码丢失的bug"""
+        st.subheader("🐛 第一个号码丢失Bug测试")
+        
+        test_cases = [
+            # (内容, 期望号码)
+            ("特码-16,28", [16, 28]),
+            ("特码-04,16,28,40", [4, 16, 28, 40]),
+            ("特码-03,04,06,06,11,15,16,17,18,23,27,28,29,29", [3, 4, 6, 11, 15, 16, 17, 18, 23, 27, 28, 29]),
+            ("特码-15", [15]),
+            ("特码-07", [7]),
+        ]
+        
+        all_passed = True
+        
+        for i, (content, expected) in enumerate(test_cases, 1):
+            actual = self.enhanced_extract_numbers(content, 'six_mark')
+            
+            # 检查是否匹配
+            missing = set(expected) - set(actual)
+            extra = set(actual) - set(expected)
+            passed = set(actual) == set(expected)
+            
+            status = "✅ 通过" if passed else "❌ 失败"
+            all_passed = all_passed and passed
+            
+            st.write(f"**测试 {i}:** {status}")
+            st.write(f"   内容: `{content}`")
+            st.write(f"   期望: {sorted(expected)}")
+            st.write(f"   实际: {sorted(actual)}")
+            
+            if missing:
+                st.error(f"   🔍 缺少号码: {sorted(missing)}")
+            if extra:
+                st.error(f"   🔍 多余号码: {sorted(extra)}")
+            
+            st.write("---")
+        
+        if all_passed:
+            st.success("🎉 所有测试通过！第一个号码丢失的bug已修复")
+        else:
+            st.error("❌ 仍有测试失败，需要进一步调试")
+
+    def deep_debug_extraction(self, content, lottery_category='six_mark'):
+        """深度调试号码提取过程"""
+        st.write("### 🔍 深度调试号码提取")
+        content_str = str(content)
+        
+        st.write(f"**原始内容:** `{repr(content_str)}`")
+        st.write(f"**内容长度:** {len(content_str)}")
+        st.write(f"**彩种类型:** {lottery_category}")
+        
+        # 检查每个字符的编码
+        st.write("**字符分析:**")
+        for i, char in enumerate(content_str):
+            st.write(f"  位置 {i}: '{char}' (ASCII: {ord(char)})")
+        
+        # 多种提取方法对比
+        st.write("**不同提取方法对比:**")
+        
+        # 方法1: 直接正则提取
+        direct_numbers = re.findall(r'\d{1,2}', content_str)
+        st.write(f"1. 直接正则提取: {direct_numbers}")
+        
+        # 方法2: 按逗号分割后提取
+        if ',' in content_str:
+            parts = content_str.split(',')
+            st.write(f"2. 按逗号分割: {parts}")
+            numbers_from_parts = []
+            for part in parts:
+                part_numbers = re.findall(r'\d{1,2}', part.strip())
+                numbers_from_parts.extend(part_numbers)
+            st.write(f"   从各部分提取: {numbers_from_parts}")
+        
+        # 方法3: 移除前缀后提取
+        clean_content = re.sub(r'^(特码|正码|平码)[-:：]\s*', '', content_str)
+        if clean_content != content_str:
+            st.write(f"3. 移除前缀后: `{repr(clean_content)}`")
+            clean_numbers = re.findall(r'\d{1,2}', clean_content)
+            st.write(f"   清理后提取: {clean_numbers}")
+        
+        # 方法4: 使用当前的方法
+        current_result = self.enhanced_extract_numbers(content, lottery_category)
+        st.write(f"4. 当前方法结果: {current_result}")
+        
+        return current_result
+
 # ==================== Streamlit界面 ====================
 def main():
     st.title("🎯 彩票完美覆盖分析系统")
@@ -2105,6 +2192,19 @@ def main():
                 # 数据质量验证
                 with st.spinner("正在进行数据质量验证..."):
                     quality_issues = analyzer.validate_data_quality(df)
+
+                # 第一个号码丢失Bug测试
+                st.markdown("---")
+                st.subheader("🐛 第一个号码丢失Bug测试")
+                if st.button("运行第一个号码丢失测试"):
+                    analyzer.test_first_number_missing_bug()
+                
+                # 深度调试单个记录
+                st.markdown("---")
+                st.subheader("🔍 深度调试工具")
+                debug_content = st.text_input("输入要深度调试的内容:", "特码-16,28")
+                if st.button("深度调试此内容"):
+                    analyzer.deep_debug_extraction(debug_content, 'six_mark')
             
             # 数据清理
             required_columns = ['会员账号', '彩种', '期号', '玩法', '内容']
