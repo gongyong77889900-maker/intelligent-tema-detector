@@ -2289,6 +2289,65 @@ def main():
                     if no_number_count > 0 or non_number_play_count > 0:
                         st.info(f"📊 过滤统计: 移除了 {no_number_count} 条无号码记录和 {non_number_play_count} 条非号码玩法记录")
                 
+                # ==================== 🆕 详细调试：完整的数据处理流程 ====================
+                
+                # 在数据预处理后添加详细调试
+                with st.expander("🔍 详细调试信息", expanded=True):
+                    st.subheader("1. 数据预处理结果")
+                    
+                    # 显示数据基本信息
+                    st.write(f"**数据基本信息:**")
+                    st.write(f"- 总记录数: {len(df_clean):,}")
+                    st.write(f"- 唯一账户数: {df_clean['会员账号'].nunique():,}")
+                    st.write(f"- 唯一期号数: {df_clean['期号'].nunique():,}")
+                    st.write(f"- 唯一彩种数: {df_clean['彩种'].nunique():,}")
+                    
+                    # 显示彩种分布
+                    if '彩种类型' in df_clean.columns:
+                        st.write(f"**彩种类型分布:**")
+                        lottery_type_dist = df_clean['彩种类型'].value_counts()
+                        for lottery_type, count in lottery_type_dist.items():
+                            st.write(f"  - {lottery_type}: {count:,} 条")
+                    
+                    # 显示玩法分布
+                    st.write(f"**玩法分布:**")
+                    play_dist = df_clean['玩法'].value_counts().head(10)
+                    for play, count in play_dist.items():
+                        st.write(f"  - {play}: {count:,} 条")
+                    
+                    # 显示金额统计
+                    if '投注金额' in df_clean.columns:
+                        st.write(f"**金额统计:**")
+                        st.write(f"  - 总投注额: {df_clean['投注金额'].sum():,.2f}")
+                        st.write(f"  - 平均金额: {df_clean['投注金额'].mean():.2f}")
+                        st.write(f"  - 最大金额: {df_clean['投注金额'].max():.2f}")
+                        st.write(f"  - 最小金额: {df_clean['投注金额'].min():.2f}")
+                        st.write(f"  - 金额>0的记录: {(df_clean['投注金额'] > 0).sum():,}")
+                        st.write(f"  - 金额=0的记录: {(df_clean['投注金额'] == 0).sum():,}")
+                    
+                    # 显示号码提取统计
+                    if '提取号码' in df_clean.columns:
+                        st.write(f"**号码提取统计:**")
+                        number_counts = df_clean['提取号码'].apply(len)
+                        st.write(f"  - 平均号码数: {number_counts.mean():.1f}")
+                        st.write(f"  - 最大号码数: {number_counts.max()}")
+                        st.write(f"  - 最小号码数: {number_counts.min()}")
+                        st.write(f"  - 无号码记录: {(number_counts == 0).sum():,}")
+                        
+                        # 显示号码提取样本
+                        st.write(f"**号码提取样本:**")
+                        sample_data = []
+                        for idx, row in df_clean.head(5).iterrows():
+                            sample_data.append({
+                                '账号': row['会员账号'],
+                                '彩种': row['彩种'],
+                                '玩法': row['玩法'],
+                                '内容': row['内容'],
+                                '提取号码': row['提取号码'],
+                                '号码数量': len(row['提取号码'])
+                            })
+                        st.dataframe(pd.DataFrame(sample_data))
+                
                 # ==================== 🆕 新增：金额提取验证调试 ====================
                 if '金额' in df_clean.columns:
                     # 测试金额提取
@@ -2458,6 +2517,64 @@ def main():
                 
                 st.write(f"✅ 有效玩法数据行数: {len(df_target):,}")
 
+                # ==================== 🆕 详细调试：筛选后数据调试 ====================
+                with st.expander("🔍 筛选后数据调试", expanded=True):
+                    st.subheader("2. 筛选后数据分析")
+                    
+                    st.write(f"**筛选条件:**")
+                    st.write(f"- 分析模式: {analysis_mode}")
+                    st.write(f"- 有效玩法: {valid_plays}")
+                    
+                    st.write(f"**筛选结果:**")
+                    st.write(f"- 筛选前记录数: {len(df_clean):,}")
+                    st.write(f"- 筛选后记录数: {len(df_target):,}")
+                    st.write(f"- 筛选比例: {len(df_target)/len(df_clean)*100:.1f}%")
+                    
+                    if len(df_target) == 0:
+                        st.error("❌ 筛选后无数据，可能原因:")
+                        
+                        # 检查彩种类型匹配
+                        if '彩种类型' in df_clean.columns:
+                            st.write(f"**彩种类型分布:**")
+                            lottery_type_dist = df_clean['彩种类型'].value_counts()
+                            for lottery_type, count in lottery_type_dist.items():
+                                st.write(f"  - {lottery_type}: {count:,} 条")
+                        
+                        # 检查玩法匹配
+                        st.write(f"**所有玩法分布:**")
+                        all_plays = df_clean['玩法'].value_counts().head(20)
+                        for play, count in all_plays.items():
+                            st.write(f"  - {play}: {count:,} 条")
+                        
+                        # 检查具体不匹配的原因
+                        if analysis_mode == "仅分析六合彩":
+                            six_mark_plays = df_clean[df_clean['彩种类型'] == 'six_mark']['玩法'].unique()
+                            st.write(f"**六合彩中出现的玩法:** {list(six_mark_plays)}")
+                        elif analysis_mode == "仅分析时时彩/PK10/赛车":
+                            ten_number_plays = df_clean[df_clean['彩种类型'] == '10_number']['玩法'].unique()
+                            st.write(f"**时时彩/PK10/赛车中出现的玩法:** {list(ten_number_plays)}")
+                        elif analysis_mode == "仅分析快三":
+                            fast_three_plays = df_clean[df_clean['彩种类型'] == 'fast_three']['玩法'].unique()
+                            st.write(f"**快三中出现的玩法:** {list(fast_three_plays)}")
+                    
+                    else:
+                        st.success(f"✅ 筛选后数据有效")
+                        
+                        # 显示筛选后数据分布
+                        st.write(f"**筛选后彩种分布:**")
+                        target_lottery_dist = df_target['彩种'].value_counts().head(10)
+                        for lottery, count in target_lottery_dist.items():
+                            st.write(f"  - {lottery}: {count:,} 条")
+                        
+                        st.write(f"**筛选后玩法分布:**")
+                        target_play_dist = df_target['玩法'].value_counts().head(10)
+                        for play, count in target_play_dist.items():
+                            st.write(f"  - {play}: {count:,} 条")
+                        
+                        # 显示筛选后数据样本
+                        st.write(f"**筛选后数据样本:**")
+                        st.dataframe(df_target[['会员账号', '彩种', '期号', '玩法', '内容', '投注金额']].head(10))
+
                 if len(df_target) == 0:
                     st.error("❌ 未找到符合条件的有效玩法数据")
                     st.info("""
@@ -2475,6 +2592,54 @@ def main():
                     3. 数据格式问题
                     """)
                     return
+
+                # ==================== 🆕 详细调试：分析过程调试 ====================
+                with st.expander("🔍 分析过程调试", expanded=True):
+                    st.subheader("3. 分析过程详细调试")
+                    
+                    # 检查分组情况
+                    st.write(f"**数据分组情况:**")
+                    
+                    # 按期号、彩种、玩法分组
+                    grouped = df_target.groupby(['期号', '彩种', '玩法'])
+                    group_count = len(grouped)
+                    st.write(f"- 总分组数: {group_count}")
+                    
+                    # 统计每个分组的账户数
+                    account_counts = []
+                    for (period, lottery, play), group in grouped:
+                        account_count = group['会员账号'].nunique()
+                        account_counts.append(account_count)
+                    
+                    if account_counts:
+                        st.write(f"- 平均每组账户数: {np.mean(account_counts):.1f}")
+                        st.write(f"- 最大每组账户数: {max(account_counts)}")
+                        st.write(f"- 最小每组账户数: {min(account_counts)}")
+                        st.write(f"- 账户数>=2的分组数: {sum(1 for x in account_counts if x >= 2)}")
+                        st.write(f"- 账户数>=3的分组数: {sum(1 for x in account_counts if x >= 3)}")
+                        st.write(f"- 账户数>=4的分组数: {sum(1 for x in account_counts if x >= 4)}")
+                        
+                        # 显示账户数较多的分组
+                        large_groups = []
+                        for (period, lottery, play), group in grouped:
+                            account_count = group['会员账号'].nunique()
+                            if account_count >= 2:
+                                large_groups.append({
+                                    '期号': period,
+                                    '彩种': lottery,
+                                    '玩法': play,
+                                    '账户数': account_count,
+                                    '记录数': len(group)
+                                })
+                        
+                        if large_groups:
+                            st.write(f"**账户数>=2的分组样本:**")
+                            large_groups_df = pd.DataFrame(large_groups).sort_values('账户数', ascending=False).head(10)
+                            st.dataframe(large_groups_df)
+                        else:
+                            st.warning("⚠️ 没有找到账户数>=2的分组")
+                    else:
+                        st.error("❌ 无法计算分组统计")
 
                 # 分析数据 - 使用增强版分析
                 with st.spinner("正在进行完美覆盖分析..."):
@@ -2494,6 +2659,68 @@ def main():
                     all_period_results = analyzer.analyze_with_progress(
                         df_target, six_mark_params, ten_number_params, fast_three_params, analysis_mode
                     )
+
+                # ==================== 🆕 详细调试：分析结果调试 ====================
+                with st.expander("🔍 分析结果调试", expanded=True):
+                    st.subheader("4. 分析结果调试")
+                    
+                    if all_period_results:
+                        st.success(f"✅ 分析完成，找到 {len(all_period_results)} 个期号的完美组合")
+                        
+                        # 显示结果统计
+                        total_combinations = sum(result['total_combinations'] for result in all_period_results.values())
+                        st.write(f"- 总完美组合数: {total_combinations}")
+                        
+                        # 显示每个期号的结果
+                        for group_key, result in list(all_period_results.items())[:5]:  # 只显示前5个
+                            period, lottery, position = group_key
+                            st.write(f"**期号 {period} - {lottery} - {position}:**")
+                            st.write(f"  - 组合数: {result['total_combinations']}")
+                            st.write(f"  - 过滤后账户数: {result['filtered_accounts']}")
+                            st.write(f"  - 总号码数: {result['total_numbers']}")
+                            
+                            # 显示具体组合
+                            for i, combo in enumerate(result['all_combinations'][:3]):  # 只显示前3个组合
+                                st.write(f"    组合 {i+1}: {combo['accounts']} (相似度: {combo['similarity']:.1f}%)")
+                    else:
+                        st.error("❌ 分析完成，但未找到任何完美组合")
+                        
+                        # 分析可能的原因
+                        st.write("**可能的原因分析:**")
+                        
+                        # 1. 检查阈值设置
+                        st.write("1. **阈值设置问题:**")
+                        if analysis_mode == "仅分析六合彩":
+                            st.write(f"   - 号码数量阈值: {six_mark_min_number_count}")
+                            st.write(f"   - 平均金额阈值: {six_mark_min_avg_amount}")
+                        elif analysis_mode == "仅分析时时彩/PK10/赛车":
+                            st.write(f"   - 号码数量阈值: {ten_number_min_number_count}")
+                            st.write(f"   - 平均金额阈值: {ten_number_min_avg_amount}")
+                        elif analysis_mode == "仅分析快三":
+                            st.write(f"   - 号码数量阈值: {fast_three_min_number_count}")
+                            st.write(f"   - 平均金额阈值: {fast_three_min_avg_amount}")
+                        
+                        # 2. 检查数据覆盖情况
+                        st.write("2. **数据覆盖问题:**")
+                        if len(df_target) > 0:
+                            # 检查号码覆盖
+                            sample_periods = df_target['期号'].unique()[:3]
+                            for period in sample_periods:
+                                period_data = df_target[df_target['期号'] == period]
+                                st.write(f"   - 期号 {period}: {period_data['会员账号'].nunique()} 个账户")
+                                
+                                # 检查号码总数
+                                all_numbers = set()
+                                for numbers in period_data['提取号码']:
+                                    all_numbers.update(numbers)
+                                st.write(f"     号码覆盖: {len(all_numbers)} 个不同号码")
+                        
+                        # 3. 建议调整
+                        st.write("3. **建议调整:**")
+                        st.write("   - 降低号码数量阈值")
+                        st.write("   - 降低平均金额阈值") 
+                        st.write("   - 检查数据预处理是否正确")
+                        st.write("   - 确认彩种类型识别是否正确")
 
                 # 显示结果 - 使用增强版展示
                 st.header("📊 完美覆盖组合检测结果")
