@@ -1137,7 +1137,7 @@ class MultiLotteryCoverageAnalyzer:
         return self.enhanced_extract_numbers(content_str, lottery_category)
     
     def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
-        """彻底修复的号码提取 - 确保不会丢失任何号码"""
+        """终极解决方案 - 最保守的号码提取"""
         content_str = str(content).strip()
         
         try:
@@ -1147,47 +1147,36 @@ class MultiLotteryCoverageAnalyzer:
             config = self.get_lottery_config(lottery_category)
             number_range = config['number_range']
             
-            # 🆕 关键修复：使用最直接的方法提取所有数字
+            # 🆕 最保守的方法：移除所有非数字字符（除了逗号），然后按逗号分割
+            # 1. 移除所有非数字和非逗号字符
+            cleaned = re.sub(r'[^\d,]', '', content_str)
+            
+            # 2. 按逗号分割
+            parts = cleaned.split(',')
+            
+            # 3. 提取数字
             numbers = []
+            for part in parts:
+                if part.strip():  # 确保不是空字符串
+                    try:
+                        num = int(part.strip())
+                        if num in number_range and num not in numbers:
+                            numbers.append(num)
+                    except ValueError:
+                        continue  # 如果转换失败，跳过
             
-            # 方法1: 使用正则表达式提取所有1-2位数字
-            # 使用更简单的模式，确保不会错过任何数字
-            all_numbers = re.findall(r'\d{1,2}', content_str)
-            
-            for num_str in all_numbers:
-                num = int(num_str)
-                if num in number_range and num not in numbers:
-                    numbers.append(num)
-            
-            # 🆕 关键修复：如果提取的号码数量与逗号数量不匹配，尝试备用方法
-            comma_count = content_str.count(',')
-            expected_min_numbers = comma_count + 1  # 逗号数+1 = 最小期望号码数
-            
-            if len(numbers) < expected_min_numbers:
-                # 备用方法：按逗号分割后单独提取
-                parts = content_str.split(',')
-                backup_numbers = []
-                
-                for part in parts:
-                    # 从每个部分提取数字
-                    part_numbers = re.findall(r'\d{1,2}', part)
-                    for num_str in part_numbers:
-                        num = int(num_str)
-                        if num in number_range and num not in backup_numbers:
-                            backup_numbers.append(num)
-                
-                # 如果备用方法找到更多号码，使用备用方法的结果
-                if len(backup_numbers) > len(numbers):
-                    numbers = backup_numbers
-            
-            # 🆕 关键修复：最终验证和去重
-            numbers = list(set(numbers))
-            numbers = [num for num in numbers if num in number_range]
             numbers.sort()
             
-            # 🆕 调试日志
-            logger.info(f"从 '{content_str}' 中提取到号码: {numbers}")
+            # 🆕 强制检查：如果结果为空，回退到简单正则
+            if not numbers:
+                fallback = re.findall(r'\d{1,2}', content_str)
+                for num_str in fallback:
+                    num = int(num_str)
+                    if num in number_range and num not in numbers:
+                        numbers.append(num)
+                numbers.sort()
             
+            logger.info(f"从 '{content_str}' 中提取到号码: {numbers}")
             return numbers
                 
         except Exception as e:
