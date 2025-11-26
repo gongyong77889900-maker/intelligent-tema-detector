@@ -481,54 +481,11 @@ class MultiLotteryCoverageAnalyzer:
         return filtered_df
 
     def fixed_extract_amount(self, amount_str):
-        """修复的金额提取方法 - 专门处理'投注：X.XXX 抵用：X 中奖：X.XXX'格式"""
-        try:
-            if pd.isna(amount_str) or amount_str is None:
-                return 0.0
-            
-            text = str(amount_str).strip()
-            
-            # 🆕 专门处理 "投注：3000.000 抵用：0 中奖：0.000" 格式
-            if '投注：' in text:
-                try:
-                    # 提取 "投注：" 后面的数字部分
-                    if '抵用：' in text:
-                        # 格式：投注：3000.000 抵用：0 中奖：0.000
-                        bet_part = text.split('投注：')[1].split('抵用：')[0].strip()
-                    elif '中奖：' in text:
-                        # 格式：投注：3000.000 中奖：0.000
-                        bet_part = text.split('投注：')[1].split('中奖：')[0].strip()
-                    else:
-                        # 格式：投注：3000.000
-                        bet_part = text.split('投注：')[1].strip()
-                    
-                    # 直接转换为浮点数
-                    amount = float(bet_part)
-                    if amount >= 0:
-                        return amount
-                except (ValueError, IndexError) as e:
-                    logger.debug(f"特殊格式金额提取失败: {text}, 错误: {e}")
-            
-            # 🆕 处理其他可能的金额格式
-            # 直接转换数字
-            try:
-                # 尝试提取所有数字和小数点
-                numbers = re.findall(r'\d+\.?\d*', text)
-                if numbers:
-                    amount = float(numbers[0])
-                    if amount >= 0:
-                        return amount
-            except:
-                pass
-            
-            return 0.0
-            
-        except Exception as e:
-            logger.warning(f"金额提取失败: {amount_str}, 错误: {str(e)}")
-            return 0.0
+        """修复的金额提取方法"""
+        return self.cached_extract_amount(str(amount_str))
 
-    def fixed_data_preprocessing(self, df_clean):
-        """修复的数据预处理流程"""
+    def enhanced_data_preprocessing(self, df_clean):
+        """增强数据预处理流程"""
         # 1. 首先识别彩种类型
         df_clean['彩种类型'] = df_clean['彩种'].apply(self.identify_lottery_category)
         
@@ -541,15 +498,7 @@ class MultiLotteryCoverageAnalyzer:
             axis=1
         )
         
-        # 🆕 3. 使用修复的金额提取方法
-        if '金额' in df_clean.columns:
-            df_clean['投注金额'] = df_clean['金额'].apply(self.fixed_extract_amount)
-            total_bet_amount = df_clean['投注金额'].sum()
-            valid_amount_count = (df_clean['投注金额'] > 0).sum()
-            st.success(f"💰 金额提取完成: 总投注额 {total_bet_amount:,.2f} 元")
-            st.info(f"📊 有效金额记录: {valid_amount_count:,} / {len(df_clean):,}")
-        
-        # 🆕 4. 使用修复的号码提取方法
+        # 3. 提取号码
         df_clean['提取号码'] = df_clean.apply(
             lambda row: self.fixed_extract_numbers(
                 row['内容'], 
@@ -558,19 +507,14 @@ class MultiLotteryCoverageAnalyzer:
             axis=1
         )
         
-        # 5. 过滤无号码记录
+        # 4. 过滤无号码记录
         initial_count = len(df_clean)
         df_clean = df_clean[df_clean['提取号码'].apply(lambda x: len(x) > 0)]
         no_number_count = initial_count - len(df_clean)
         
-        # 6. 过滤非号码投注玩法
+        # 5. 过滤非号码投注玩法
         df_clean = self.filter_number_bets_only(df_clean)
         non_number_play_count = initial_count - no_number_count - len(df_clean)
-        
-        # 🆕 显示处理统计
-        st.info(f"📊 数据预处理完成: 保留 {len(df_clean)} 条有效记录")
-        if no_number_count > 0 or non_number_play_count > 0:
-            st.info(f"🔍 过滤统计: 移除了 {no_number_count} 条无号码记录和 {non_number_play_count} 条非号码玩法记录")
         
         return df_clean, no_number_count, non_number_play_count
 
@@ -2195,7 +2139,8 @@ def main():
                 
                 # 统一的数据预处理
                 with st.spinner("正在进行数据预处理..."):
-                    df_clean, no_number_count, non_number_play_count = analyzer.fixed_data_preprocessing(df_clean)
+                    df_clean, no_number_count, non_number_play_count = analyzer.enhanced_data_preprocessing(df_clean)
+                    st.success(f"✅ 数据预处理完成: 保留 {len(df_clean)} 条有效记录")
                     if no_number_count > 0 or non_number_play_count > 0:
                         st.info(f"📊 过滤统计: 移除了 {no_number_count} 条无号码记录和 {non_number_play_count} 条非号码玩法记录")
                 
