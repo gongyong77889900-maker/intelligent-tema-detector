@@ -386,76 +386,6 @@ class MultiLotteryCoverageAnalyzer:
             '选十': ['选十', '十中十', '10中10', '选10', 'xuan10', 'x10']
         }
 
-    def fix_data_issues(self, df):
-        """修复数据中的格式问题 - 专门针对前导零丢失"""
-        df_fixed = df.copy()
-        
-        # 🆕 修复特码内容中的前导零丢失
-        def fix_special_code_content(content):
-            if pd.isna(content):
-                return content
-            
-            content_str = str(content)
-            
-            # 修复"特码:0,02,04..." -> "特码:01,02,04..."
-            if '特码:' in content_str and ',0,' not in content_str:
-                # 处理开头的0
-                if re.match(r'特码:\s*0\s*,', content_str):
-                    content_str = re.sub(r'特码:\s*0\s*,', '特码:01,', content_str)
-                elif re.match(r'特码:\s*0\s*$', content_str):
-                    content_str = content_str.replace('特码:0', '特码:01')
-            
-            # 修复"特而:0,02,04..." -> "特而:01,02,04..."  
-            if '特而:' in content_str:
-                if re.match(r'特而:\s*0\s*,', content_str):
-                    content_str = re.sub(r'特而:\s*0\s*,', '特而:01,', content_str)
-            
-            return content_str
-        
-        # 应用修复
-        if '内容' in df_fixed.columns:
-            df_fixed['内容'] = df_fixed['内容'].apply(fix_special_code_content)
-        
-        return df_fixed
-
-    def _infer_missing_numbers(self, content, lottery_category):
-        """智能推断丢失的号码 - 专门处理前导零丢失问题"""
-        numbers = []
-        
-        if lottery_category != 'six_mark':
-            return numbers
-        
-        # 🆕 智能推断逻辑
-        content_lower = content.lower()
-        
-        # 情况1：特码玩法中单独的"0"
-        if '特码' in content_lower:
-            # 查找"特码:0,"或"特码:0 "等模式
-            zero_patterns = [
-                r'特码[:：]\s*0\s*[,，\s]',
-                r'特码[:：]\s*0$',
-                r'特而[:：]\s*0\s*[,，\s]',  # 处理"特而"变体
-            ]
-            
-            for pattern in zero_patterns:
-                if re.search(pattern, content_lower):
-                    # 根据上下文推断这个0应该是什么
-                    # 通常第一个0是01，第二个0是03等
-                    numbers.append(1)  # 默认推断为01
-                    break
-        
-        # 情况2：处理其他可能的数字推断
-        # 提取所有可见的数字
-        visible_numbers = re.findall(r'\d+', content)
-        visible_numbers = [int(num) for num in visible_numbers if int(num) in range(1, 50)]
-        
-        # 如果可见数字很多但缺少小数字，推断可能丢失的小数字
-        if visible_numbers and min(visible_numbers) > 1:
-            missing_small = [num for num in range(1, min(visible_numbers)) if num not in visible_numbers]
-            numbers.extend(missing_small)
-        
-        return numbers
-
     def filter_number_bets_only(self, df):
         """过滤只保留涉及具体号码投注的记录 - 修复版本"""
         
@@ -555,11 +485,8 @@ class MultiLotteryCoverageAnalyzer:
         return self.cached_extract_amount(str(amount_str))
 
     def enhanced_data_preprocessing(self, df_clean):
-        """增强数据预处理流程 - 添加数据修复"""
-        # 0. 🆕 首先修复数据格式问题
-        df_clean = self.fix_data_issues(df_clean)
-        
-        # 1. 识别彩种类型
+        """增强数据预处理流程"""
+        # 1. 首先识别彩种类型
         df_clean['彩种类型'] = df_clean['彩种'].apply(self.identify_lottery_category)
         
         # 2. 统一玩法分类
@@ -571,18 +498,14 @@ class MultiLotteryCoverageAnalyzer:
             axis=1
         )
         
-        # 3. 提取号码 - 使用修复后的函数
+        # 3. 提取号码
         df_clean['提取号码'] = df_clean.apply(
-            lambda row: self.enhanced_extract_numbers(
+            lambda row: self.cached_extract_numbers(
                 row['内容'], 
                 row['彩种类型'] if not pd.isna(row['彩种类型']) else 'six_mark'
             ), 
             axis=1
         )
-        
-        # 🆕 显示修复后的数据预览
-        st.write("🔧 数据修复后预览:")
-        st.dataframe(df_clean[['会员账号', '内容', '提取号码']].head(10))
         
         # 4. 过滤无号码记录
         initial_count = len(df_clean)
@@ -1193,57 +1116,126 @@ class MultiLotteryCoverageAnalyzer:
         return self.enhanced_extract_numbers(content_str, lottery_category)
     
     def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
-        """增强号码提取 - 修复前导零丢失问题"""
+        """增强号码提取 - 专门处理定位胆格式"""
         content_str = str(content).strip()
         numbers = []
         
         try:
+            # 🆕 新增：处理空内容
             if not content_str or content_str.lower() in ['', 'null', 'none', 'nan']:
                 return []
             
             config = self.get_lottery_config(lottery_category)
             number_range = config['number_range']
             
-            # 🆕 关键修复：处理前导零丢失的情况（如"0"应该是"01"）
-            # 检查内容是否包含"特码"且第一个数字是单独的"0"
-            if '特码' in content_str and lottery_category == 'six_mark':
-                # 查找类似"特码:0,02,04"这样的模式
-                pattern = r'特码[:：]\s*0\s*[,，]'
-                if re.search(pattern, content_str):
-                    # 如果发现单独的0在特码后面，很可能是01
-                    numbers.append(1)
+            # 🆕 新增：处理特殊字符和空白
+            content_str = re.sub(r'[\s\u3000]+', ' ', content_str)  # 处理全角空格和空白
             
-            # 🆕 修复：处理逗号分隔但前导零丢失的情况
-            if ',' in content_str:
-                parts = content_str.split(',')
-                for i, part in enumerate(parts):
-                    part_clean = part.strip()
-                    
-                    # 🆕 关键修复：处理单独的"0"
-                    if part_clean == '0':
-                        # 如果是第一个数字且是特码玩法，很可能是01
-                        if i == 0 and '特码' in content_str and lottery_category == 'six_mark':
-                            numbers.append(1)
-                        # 其他情况，根据上下文推断
-                        elif lottery_category == 'six_mark':
-                            # 在六合彩中，0可能是10、20、30、40等
-                            # 这里我们根据常见模式推断
-                            numbers.append(10)  # 默认推断为10，但需要更智能的方法
-                        continue
-                    
-                    # 提取数字
-                    num_matches = re.findall(r'\d+', part_clean)
-                    for num_str in num_matches:
-                        num = int(num_str)
-                        if num in number_range:
-                            numbers.append(num)
+            # 🆕 新增：处理括号内的内容
+            content_str = re.sub(r'[\(（].*?[\)）]', '', content_str)
             
-            # 🆕 修复：智能推断丢失的前导零
+            # 🆕 新增：专门处理定位胆格式（位置:号码） - 最高优先级
+            if ':' in content_str or '：' in content_str:
+                # 提取冒号后面的号码部分
+                colon_patterns = [
+                    r'^[^:：]+[:：]\s*([\d,\s]+)$',  # 亚军:01,02,03
+                    r'^[^:：]+[:：]\s*(\d+(?:\s*,\s*\d+)*)$',  # 亚军:01, 02, 03
+                    r'^([^:：]+)[:：].*$'  # 通用模式，提取冒号前的内容作为备选
+                ]
+                
+                for pattern in colon_patterns:
+                    match = re.match(pattern, content_str)
+                    if match:
+                        number_part = match.group(1).strip()
+                        # 清理号码部分
+                        number_part = re.sub(r'\s+', '', number_part)  # 移除所有空格
+                        if number_part:
+                            # 按逗号分割提取数字
+                            number_strs = number_part.split(',')
+                            for num_str in number_strs:
+                                if num_str.isdigit():
+                                    num = int(num_str)
+                                    if num in number_range:
+                                        numbers.append(num)
+                            if numbers:  # 如果成功提取到号码，直接返回
+                                return list(set(numbers))
+            
+            # 🆕 新增：处理多种分隔符格式
+            separators = [',', '，', ' ', ';', '；', '、', '/', '\\', '|']
+            
+            # 尝试多种分隔符拆分
+            for sep in separators:
+                if sep in content_str:
+                    parts = content_str.split(sep)
+                    for part in parts:
+                        part_clean = part.strip()
+                        if part_clean.isdigit():
+                            num = int(part_clean)
+                            if num in number_range:
+                                numbers.append(num)
+                    if numbers:  # 如果找到数字就退出
+                        break
+            
+            # 🆕 新增：处理连续数字格式（如123456）
+            if not numbers and re.match(r'^\d{2,}$', content_str.replace(' ', '')):
+                clean_content = content_str.replace(' ', '')
+                # 根据彩种类型决定数字长度
+                if lottery_category == 'six_mark':
+                    # 六合彩：2位数字
+                    for i in range(0, len(clean_content)-1, 2):
+                        num_str = clean_content[i:i+2]
+                        if num_str.isdigit():
+                            num = int(num_str)
+                            if 1 <= num <= 49:
+                                numbers.append(num)
+                elif lottery_category in ['10_number', '3d_series', 'fast_three']:
+                    # 10个号码彩种和快三：1位数字
+                    for char in clean_content:
+                        if char.isdigit():
+                            num = int(char)
+                            if num in number_range:
+                                numbers.append(num)
+            
+            # 🆕 新增：处理范围格式（如1-10, 5~15）
+            range_patterns = [
+                r'(\d+)\s*[-~～]\s*(\d+)',  # 1-10, 5~15
+                r'从\s*(\d+)\s*到\s*(\d+)',  # 从1到10
+                r'(\d+)\s*至\s*(\d+)'        # 1至10
+            ]
+            
+            for pattern in range_patterns:
+                matches = re.findall(pattern, content_str)
+                for start_str, end_str in matches:
+                    if start_str.isdigit() and end_str.isdigit():
+                        start = int(start_str)
+                        end = int(end_str)
+                        if start <= end:
+                            for num in range(start, end + 1):
+                                if num in number_range:
+                                    numbers.append(num)
+            
+            # 🆕 新增：处理号码+特殊标记（如01*, 15√, 08★）
+            marked_numbers = re.findall(r'(\d{1,2})[*√★☆♥♦♣♠]', content_str)
+            for num_str in marked_numbers:
+                if num_str.isdigit():
+                    num = int(num_str)
+                    if num in number_range:
+                        numbers.append(num)
+            
+            # 🆕 新增：处理常见格式：3,4,5,6,15,16,17,18
+            if not numbers and re.match(r'^(\d{1,2},)*\d{1,2}$', content_str):
+                new_numbers = [int(x.strip()) for x in content_str.split(',') if x.strip().isdigit()]
+                numbers.extend(new_numbers)
+            
+            # 🆕 新增：提取所有1-2位数字（作为最后的手段）
             if not numbers:
-                # 使用更智能的方法推断可能的号码
-                numbers = self._infer_missing_numbers(content_str, lottery_category)
+                number_matches = re.findall(r'\b\d{1,2}\b', content_str)
+                for match in number_matches:
+                    num = int(match)
+                    if num in number_range:
+                        numbers.append(num)
             
-            # 最终清理和验证
+            # 🆕 新增：去重并排序
             numbers = list(set(numbers))
             numbers = [num for num in numbers if num in number_range]
             numbers.sort()
@@ -1251,46 +1243,7 @@ class MultiLotteryCoverageAnalyzer:
             return numbers
                 
         except Exception as e:
-            logger.warning(f"号码提取失败: {content_str}, 错误: {str(e)}")
             return []
-    
-    def _infer_missing_numbers(self, content, lottery_category):
-        """智能推断丢失的号码 - 专门处理前导零丢失问题"""
-        numbers = []
-        
-        if lottery_category != 'six_mark':
-            return numbers
-        
-        # 🆕 智能推断逻辑
-        content_lower = content.lower()
-        
-        # 情况1：特码玩法中单独的"0"
-        if '特码' in content_lower:
-            # 查找"特码:0,"或"特码:0 "等模式
-            zero_patterns = [
-                r'特码[:：]\s*0\s*[,，\s]',
-                r'特码[:：]\s*0$',
-                r'特而[:：]\s*0\s*[,，\s]',  # 处理"特而"变体
-            ]
-            
-            for pattern in zero_patterns:
-                if re.search(pattern, content_lower):
-                    # 根据上下文推断这个0应该是什么
-                    # 通常第一个0是01，第二个0是03等
-                    numbers.append(1)  # 默认推断为01
-                    break
-        
-        # 情况2：处理其他可能的数字推断
-        # 提取所有可见的数字
-        visible_numbers = re.findall(r'\d+', content)
-        visible_numbers = [int(num) for num in visible_numbers if int(num) in range(1, 50)]
-        
-        # 如果可见数字很多但缺少小数字，推断可能丢失的小数字
-        if visible_numbers and min(visible_numbers) > 1:
-            missing_small = [num for num in range(1, min(visible_numbers)) if num not in visible_numbers]
-            numbers.extend(missing_small)
-        
-        return numbers
     
     @lru_cache(maxsize=500)
     def cached_extract_amount(self, amount_text):
@@ -1298,46 +1251,51 @@ class MultiLotteryCoverageAnalyzer:
         return self.extract_bet_amount(amount_text)
     
     def extract_bet_amount(self, amount_text):
-        """金额提取函数 - 专门修复投注金额提取"""
+        """金额提取函数 - 修复版本：只提取第一个数字"""
         try:
             if pd.isna(amount_text) or amount_text is None:
                 return 0.0
             
+            # 转换为字符串并清理
             text = str(amount_text).strip()
             
+            # 如果已经是空字符串，返回0
             if text == '':
                 return 0.0
             
-            # 🆕 修复：专门处理"投注：3000.000 抵用：0 中奖：0.000"格式
-            if '投注' in text:
-                # 提取投注后面的金额
-                bet_patterns = [
-                    r'投注[:：]\s*(\d+\.?\d*)',
-                    r'投注\s*(\d+\.?\d*)',
-                    r'投注[:：]\s*(\d+\.\d{3})'  # 处理3000.000格式
-                ]
-                
-                for pattern in bet_patterns:
-                    match = re.search(pattern, text)
-                    if match:
-                        amount_str = match.group(1)
-                        try:
-                            amount = float(amount_str)
-                            if amount >= 0:
-                                return amount
-                        except:
-                            continue
+            # 方法1: 直接转换（处理纯数字）
+            try:
+                # 移除所有非数字字符（除了点和负号）
+                clean_text = re.sub(r'[^\d.-]', '', text)
+                if clean_text and clean_text != '-' and clean_text != '.':
+                    amount = float(clean_text)
+                    if amount >= 0:
+                        return amount
+            except:
+                pass
             
-            # 🆕 修复：处理简单数字格式
-            if re.match(r'^\d+\.?\d*$', text):
+            # 方法2: 处理千位分隔符格式
+            try:
+                # 移除逗号和全角逗号，然后转换
+                clean_text = text.replace(',', '').replace('，', '')
+                amount = float(clean_text)
+                if amount >= 0:
+                    return amount
+            except:
+                pass
+            
+            # 方法3: 处理"5.000"这种格式
+            if re.match(r'^\d+\.\d{3}$', text):
                 try:
-                    return float(text)
+                    amount = float(text)
+                    return amount
                 except:
                     pass
             
-            # 🆕 修复：提取第一个数字（备用方案）
+            # 方法4: 使用正则表达式提取第一个数字
             numbers = re.findall(r'\d+\.?\d*', text)
             if numbers:
+                # 只取第一个匹配的数字，避免从其他文本中错误提取多个数字
                 return float(numbers[0])
             
             return 0.0
