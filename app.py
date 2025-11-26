@@ -1137,7 +1137,7 @@ class MultiLotteryCoverageAnalyzer:
         return self.enhanced_extract_numbers(content_str, lottery_category)
     
     def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
-        """修复版号码提取 - 确保不会丢失第一个号码"""
+        """彻底重写的号码提取 - 专门解决第一个号码丢失问题"""
         content_str = str(content).strip()
         
         try:
@@ -1147,28 +1147,48 @@ class MultiLotteryCoverageAnalyzer:
             config = self.get_lottery_config(lottery_category)
             number_range = config['number_range']
             
-            # 🆕 最简单直接的方法：提取所有1-2位数字
-            all_numbers = re.findall(r'\d{1,2}', content_str)
-            
-            # 转换为整数并过滤有效号码
+            # 🆕 完全重写：不使用任何复杂逻辑，直接暴力提取所有数字
             numbers = []
-            for num_str in all_numbers:
-                num = int(num_str)
-                if num in number_range and num not in numbers:
+            
+            # 方法1: 逐字符扫描，构建数字
+            current_number = ""
+            for char in content_str:
+                if char.isdigit():
+                    current_number += char
+                else:
+                    if current_number:
+                        num = int(current_number)
+                        if 1 <= num <= 49 and num not in numbers:  # 六合彩范围
+                            numbers.append(num)
+                        current_number = ""
+            
+            # 处理最后一个数字
+            if current_number:
+                num = int(current_number)
+                if 1 <= num <= 49 and num not in numbers:
                     numbers.append(num)
             
+            # 方法2: 如果方法1失败，使用正则作为备用
+            if not numbers:
+                all_digits = re.findall(r'\d+', content_str)
+                for digit in all_digits:
+                    num = int(digit)
+                    if 1 <= num <= 49 and num not in numbers:
+                        numbers.append(num)
+            
+            # 排序并返回
             numbers.sort()
             
-            # 🆕 调试输出
-            if numbers:
-                logger.info(f"✅ 从 '{content_str}' 中提取到号码: {numbers}")
-            else:
-                logger.warning(f"⚠️ 从 '{content_str}' 中未提取到号码")
+            # 🆕 强制验证：如果内容包含逗号但提取的号码数量不对，发出警告
+            if ',' in content_str:
+                expected_min = content_str.count(',') + 1
+                if len(numbers) < expected_min:
+                    logger.warning(f"⚠️ 可能丢失号码: '{content_str}' -> {numbers} (期望至少{expected_min}个)")
             
             return numbers
-                
+            
         except Exception as e:
-            logger.error(f"❌ 号码提取异常: {content}, 错误: {str(e)}")
+            logger.error(f"号码提取异常: {content}, 错误: {str(e)}")
             return []
     
     @lru_cache(maxsize=500)
