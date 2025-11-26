@@ -485,7 +485,7 @@ class MultiLotteryCoverageAnalyzer:
         return self.cached_extract_amount(str(amount_str))
 
     def enhanced_data_preprocessing(self, df_clean):
-        """增强数据预处理流程"""
+        """增强数据预处理流程 - 添加号码提取调试"""
         # 1. 首先识别彩种类型
         df_clean['彩种类型'] = df_clean['彩种'].apply(self.identify_lottery_category)
         
@@ -498,14 +498,21 @@ class MultiLotteryCoverageAnalyzer:
             axis=1
         )
         
-        # 3. 提取号码
-        df_clean['提取号码'] = df_clean.apply(
-            lambda row: self.cached_extract_numbers(
-                row['内容'], 
-                row['彩种类型'] if not pd.isna(row['彩种类型']) else 'six_mark'
-            ), 
-            axis=1
-        )
+        # 3. 提取号码 - 添加详细调试
+        st.info("🔍 正在提取号码，请查看详细调试信息...")
+        
+        extracted_numbers = []
+        for idx, row in df_clean.iterrows():
+            content = row['内容']
+            lottery_category = row['彩种类型'] if not pd.isna(row['彩种类型']) else 'six_mark'
+            numbers = self.enhanced_extract_numbers(content, lottery_category)
+            extracted_numbers.append(numbers)
+            
+            # 显示有问题的提取
+            if content and ',' in content and len(numbers) <= 1:
+                st.warning(f"⚠️ 可能的问题提取: '{content}' -> {numbers}")
+        
+        df_clean['提取号码'] = extracted_numbers
         
         # 4. 过滤无号码记录
         initial_count = len(df_clean)
@@ -516,7 +523,66 @@ class MultiLotteryCoverageAnalyzer:
         df_clean = self.filter_number_bets_only(df_clean)
         non_number_play_count = initial_count - no_number_count - len(df_clean)
         
+        # 🆕 显示号码提取统计
+        st.subheader("📊 号码提取统计")
+        total_records = len(extracted_numbers)
+        successful_extractions = len([x for x in extracted_numbers if len(x) > 0])
+        multiple_numbers = len([x for x in extracted_numbers if len(x) > 1])
+        single_numbers = len([x for x in extracted_numbers if len(x) == 1])
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("成功提取", f"{successful_extractions}/{total_records}")
+        with col2:
+            st.metric("多个号码", multiple_numbers)
+        with col3:
+            st.metric("单个号码", single_numbers)
+        
         return df_clean, no_number_count, non_number_play_count
+
+    def diagnose_number_extraction(self, df_sample):
+        """专门诊断号码提取问题"""
+        st.subheader("🩺 号码提取问题诊断")
+        
+        diagnosis_results = []
+        
+        for idx, row in df_sample.iterrows():
+            content = row['内容']
+            lottery_category = row['彩种类型'] if '彩种类型' in row and not pd.isna(row['彩种类型']) else 'six_mark'
+            extracted = self.enhanced_extract_numbers(content, lottery_category)
+            
+            # 分析问题
+            comma_count = content.count(',')
+            expected_min_numbers = comma_count + 1 if comma_count > 0 else 1
+            problem = ""
+            
+            if comma_count > 0 and len(extracted) < expected_min_numbers:
+                problem = f"⚠️ 丢失 {expected_min_numbers - len(extracted)} 个号码"
+            elif len(extracted) == 0:
+                problem = "❌ 未提取到任何号码"
+            else:
+                problem = "✅ 正常"
+            
+            diagnosis_results.append({
+                '内容': content,
+                '逗号数量': comma_count,
+                '期望最少号码': expected_min_numbers,
+                '实际提取': extracted,
+                '提取数量': len(extracted),
+                '问题诊断': problem
+            })
+        
+        df_diagnosis = pd.DataFrame(diagnosis_results)
+        st.dataframe(df_diagnosis, use_container_width=True)
+        
+        # 显示问题统计
+        problem_cases = [r for r in diagnosis_results if '⚠️' in r['问题诊断'] or '❌' in r['问题诊断']]
+        if problem_cases:
+            st.error(f"发现 {len(problem_cases)} 个有问题的号码提取")
+            for case in problem_cases[:5]:  # 只显示前5个问题案例
+                st.write(f"- '{case['内容']}' -> {case['实际提取']} ({case['问题诊断']})")
+        
+        return df_diagnosis
 
     def get_lottery_thresholds(self, lottery_category, user_min_avg_amount):
         """根据彩种类型获取阈值配置 - 修复版本"""
@@ -1116,9 +1182,8 @@ class MultiLotteryCoverageAnalyzer:
         return self.enhanced_extract_numbers(content_str, lottery_category)
     
     def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
-        """完全重写的号码提取 - 解决所有格式的号码提取问题"""
+        """彻底重写的号码提取函数 - 解决第一个号码丢失问题"""
         content_str = str(content).strip() if content else ""
-        numbers = []
         
         try:
             # 处理空内容
@@ -1128,84 +1193,54 @@ class MultiLotteryCoverageAnalyzer:
             config = self.get_lottery_config(lottery_category)
             number_range = config['number_range']
             
-            # 🆕 关键修复：保存原始内容用于调试
-            original_content = content_str
+            # 🆕 关键修复：直接提取所有数字，不进行复杂的预处理
+            numbers = []
             
-            # 🆕 关键修复：预处理 - 移除所有非数字字符（除了逗号和横杠）
-            # 但保留数字和分隔符
-            content_str = re.sub(r'[^\d,\-\s]', ' ', content_str)
-            content_str = re.sub(r'\s+', ' ', content_str).strip()
+            # 🆕 方法1：直接提取所有1-2位数字（最简单直接的方法）
+            # 使用更简单的正则表达式，避免复杂的逻辑
+            all_numbers = re.findall(r'\d{1,2}', content_str)
             
-            logger.debug(f"预处理后: '{original_content}' -> '{content_str}'")
+            for num_str in all_numbers:
+                num = int(num_str)
+                if num in number_range and num not in numbers:
+                    numbers.append(num)
             
-            # 🆕 关键修复：直接处理逗号分隔的数字（最高优先级）
-            if ',' in content_str:
-                parts = content_str.split(',')
-                temp_numbers = []
-                for part in parts:
-                    part_clean = part.strip()
-                    # 🆕 修复：从每个部分提取数字，而不是要求整个部分是数字
-                    # 使用正则提取数字，而不是简单的isdigit()
-                    number_matches = re.findall(r'-?\d+', part_clean)
-                    for num_str in number_matches:
-                        # 移除可能的横杠
-                        clean_num_str = num_str.replace('-', '')
-                        if clean_num_str.isdigit():
-                            num = int(clean_num_str)
-                            if num in number_range:
-                                temp_numbers.append(num)
-                
-                if temp_numbers:
-                    numbers.extend(temp_numbers)
-                    logger.debug(f"逗号分隔提取: '{content_str}' -> {temp_numbers}")
-            
-            # 🆕 修复：如果逗号分隔没有提取到数字，尝试其他方法
+            # 🆕 方法2：如果方法1没有提取到数字，尝试处理特殊格式
             if not numbers:
-                # 尝试直接提取所有数字
-                all_numbers = re.findall(r'-?\b\d{1,2}\b', content_str)
-                for num_str in all_numbers:
-                    clean_num_str = num_str.replace('-', '')
-                    if clean_num_str.isdigit():
-                        num = int(clean_num_str)
-                        if num in number_range:
-                            numbers.append(num)
-                
-                if numbers:
-                    logger.debug(f"直接提取: '{content_str}' -> {numbers}")
+                # 处理"特码-16,28"这种格式
+                if '特码-' in content_str and ',' in content_str:
+                    # 提取特码后面的部分
+                    parts = content_str.split('特码-')
+                    if len(parts) > 1:
+                        number_part = parts[1].strip()
+                        # 直接按逗号分割
+                        number_strs = number_part.split(',')
+                        for num_str in number_strs:
+                            num_str_clean = re.sub(r'[^\d]', '', num_str)
+                            if num_str_clean.isdigit():
+                                num = int(num_str_clean)
+                                if num in number_range and num not in numbers:
+                                    numbers.append(num)
             
-            # 🆕 修复：处理连续数字格式
+            # 🆕 方法3：处理其他可能的格式
             if not numbers:
-                clean_content = re.sub(r'[^\d]', '', content_str)
-                if clean_content and len(clean_content) >= 2:
-                    if lottery_category == 'six_mark':
-                        # 六合彩：2位数字
-                        for i in range(0, len(clean_content)-1, 2):
-                            num_str = clean_content[i:i+2]
-                            if num_str.isdigit():
-                                num = int(num_str)
-                                if 1 <= num <= 49:
-                                    numbers.append(num)
-                    else:
-                        # 其他彩种：1位数字
-                        for char in clean_content:
-                            if char.isdigit():
-                                num = int(char)
-                                if num in number_range:
-                                    numbers.append(num)
-                
-                if numbers:
-                    logger.debug(f"连续数字提取: '{content_str}' -> {numbers}")
+                # 尝试提取所有被逗号、空格、横杠分隔的数字
+                potential_numbers = re.split(r'[,\-\s]+', content_str)
+                for potential in potential_numbers:
+                    # 提取数字部分
+                    num_match = re.search(r'\d+', potential)
+                    if num_match:
+                        num_str = num_match.group()
+                        if num_str.isdigit():
+                            num = int(num_str)
+                            if num in number_range and num not in numbers:
+                                numbers.append(num)
             
-            # 最终清理和验证
-            numbers = list(set(numbers))
-            numbers = [num for num in numbers if num in number_range]
+            # 最终排序
             numbers.sort()
             
-            # 🆕 调试信息
-            if numbers:
-                logger.info(f"号码提取成功: '{original_content}' -> {numbers}")
-            else:
-                logger.warning(f"号码提取失败: '{original_content}'")
+            # 🆕 调试输出
+            logger.info(f"号码提取: '{content_str}' -> {numbers}")
             
             return numbers
                 
@@ -2265,15 +2300,17 @@ def main():
                     st.info(f"📊 有效金额记录: {valid_amount_count:,} / {len(df_clean):,}")
 
                 # 显示数据预览
-                with st.expander("📊 数据预览", expanded=False):
-                    st.dataframe(df_clean.head(10))
+                with st.expander("📊 数据预览", expanded=True):  # 改为默认展开
+                    st.dataframe(df_clean.head(20))  # 显示更多行
                     st.write(f"数据形状: {df_clean.shape}")
                     
-                    # 🆕 添加号码提取测试功能
+                    # 🆕 添加号码提取诊断
                     st.markdown("---")
-                    st.subheader("🧪 号码提取问题诊断")
-                    if st.button("运行号码提取测试"):
-                        analyzer.test_dash_number_extraction()
+                    st.subheader("🩺 号码提取诊断")
+                    if st.button("运行号码提取诊断"):
+                        # 取前20条记录进行诊断
+                        sample_df = df_clean.head(20).copy()
+                        analyzer.diagnose_number_extraction(sample_df)
                     
                     # 显示彩种类型分布
                     if '彩种类型' in df_clean.columns:
