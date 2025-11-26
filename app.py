@@ -1137,83 +1137,34 @@ class MultiLotteryCoverageAnalyzer:
         return self.enhanced_extract_numbers(content_str, lottery_category)
     
     def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
-        """增强号码提取 - 修复第一个号码丢失问题"""
+        """简化版号码提取 - 确保不会丢失任何数字"""
         content_str = str(content).strip()
-        numbers = []
         
         try:
-            if not content_str or content_str.lower() in ['', 'null', 'none', 'nan']:
+            if not content_str:
                 return []
             
             config = self.get_lottery_config(lottery_category)
             number_range = config['number_range']
             
-            # 🆕 关键修复：调试信息
-            logger.info(f"🔍 开始提取号码: {content_str}")
+            # 🆕 最简单直接的方法：提取所有1-2位数字
+            all_numbers = re.findall(r'\b\d{1,2}\b', content_str)
             
-            # 🆕 关键修复：首先直接提取所有数字，不进行任何预处理
-            # 这样确保不会丢失任何数字
-            all_digits = re.findall(r'\d{1,2}', content_str)
-            logger.info(f"🔍 直接提取所有数字: {all_digits}")
-            
-            for digit in all_digits:
-                num = int(digit)
+            # 转换为整数并过滤有效号码
+            numbers = []
+            for num_str in all_numbers:
+                num = int(num_str)
                 if num in number_range and num not in numbers:
                     numbers.append(num)
             
-            # 🆕 关键修复：如果直接提取失败，再尝试其他方法
-            if not numbers:
-                # 移除前缀，但要确保不会影响数字提取
-                clean_content = content_str
-                prefix_patterns = [
-                    r'^(特码|正码|平码|尾数|全尾|特尾)[-:：]\s*',
-                ]
-                
-                for pattern in prefix_patterns:
-                    original_length = len(clean_content)
-                    clean_content = re.sub(pattern, '', clean_content)
-                    if len(clean_content) < original_length:
-                        logger.info(f"🔍 移除前缀后: {clean_content}")
-                        break
-                
-                # 按逗号分割处理
-                if ',' in clean_content:
-                    parts = clean_content.split(',')
-                    logger.info(f"🔍 按逗号分割: {parts}")
-                    
-                    for part in parts:
-                        part_clean = part.strip()
-                        # 提取每个部分的数字
-                        part_digits = re.findall(r'\d{1,2}', part_clean)
-                        logger.info(f"🔍 部分 '{part_clean}' 中的数字: {part_digits}")
-                        
-                        for digit in part_digits:
-                            num = int(digit)
-                            if num in number_range and num not in numbers:
-                                numbers.append(num)
-                
-                # 如果还没有数字，尝试其他分隔符
-                if not numbers:
-                    separators = ['，', ' ', ';', '；', '、', '/', '\\', '|']
-                    for sep in separators:
-                        if sep in clean_content:
-                            parts = clean_content.split(sep)
-                            for part in parts:
-                                part_clean = part.strip()
-                                part_digits = re.findall(r'\d{1,2}', part_clean)
-                                for digit in part_digits:
-                                    num = int(digit)
-                                    if num in number_range and num not in numbers:
-                                        numbers.append(num)
-                            if numbers:
-                                break
-            
-            # 🆕 关键修复：最终验证
-            numbers = list(set(numbers))
-            numbers = [num for num in numbers if num in number_range]
             numbers.sort()
             
-            logger.info(f"✅ 最终提取结果: {numbers}")
+            # 🆕 调试输出
+            if numbers:
+                logger.info(f"✅ 从 '{content_str}' 中提取到号码: {numbers}")
+            else:
+                logger.warning(f"⚠️ 从 '{content_str}' 中未提取到号码")
+            
             return numbers
                 
         except Exception as e:
