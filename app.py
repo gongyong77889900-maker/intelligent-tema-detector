@@ -1137,7 +1137,7 @@ class MultiLotteryCoverageAnalyzer:
         return self.enhanced_extract_numbers(content_str, lottery_category)
     
     def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
-        """彻底重写的号码提取 - 专门解决第一个号码丢失问题"""
+        """彻底修复的号码提取 - 确保不会丢失任何号码"""
         content_str = str(content).strip()
         
         try:
@@ -1147,46 +1147,49 @@ class MultiLotteryCoverageAnalyzer:
             config = self.get_lottery_config(lottery_category)
             number_range = config['number_range']
             
-            # 🆕 完全重写：不使用任何复杂逻辑，直接暴力提取所有数字
+            # 🆕 关键修复：使用最直接的方法提取所有数字
             numbers = []
             
-            # 方法1: 逐字符扫描，构建数字
-            current_number = ""
-            for char in content_str:
-                if char.isdigit():
-                    current_number += char
-                else:
-                    if current_number:
-                        num = int(current_number)
-                        if 1 <= num <= 49 and num not in numbers:  # 六合彩范围
-                            numbers.append(num)
-                        current_number = ""
+            # 方法1: 使用正则表达式提取所有1-2位数字
+            # 使用更简单的模式，确保不会错过任何数字
+            all_numbers = re.findall(r'\d{1,2}', content_str)
             
-            # 处理最后一个数字
-            if current_number:
-                num = int(current_number)
-                if 1 <= num <= 49 and num not in numbers:
+            for num_str in all_numbers:
+                num = int(num_str)
+                if num in number_range and num not in numbers:
                     numbers.append(num)
             
-            # 方法2: 如果方法1失败，使用正则作为备用
-            if not numbers:
-                all_digits = re.findall(r'\d+', content_str)
-                for digit in all_digits:
-                    num = int(digit)
-                    if 1 <= num <= 49 and num not in numbers:
-                        numbers.append(num)
+            # 🆕 关键修复：如果提取的号码数量与逗号数量不匹配，尝试备用方法
+            comma_count = content_str.count(',')
+            expected_min_numbers = comma_count + 1  # 逗号数+1 = 最小期望号码数
             
-            # 排序并返回
+            if len(numbers) < expected_min_numbers:
+                # 备用方法：按逗号分割后单独提取
+                parts = content_str.split(',')
+                backup_numbers = []
+                
+                for part in parts:
+                    # 从每个部分提取数字
+                    part_numbers = re.findall(r'\d{1,2}', part)
+                    for num_str in part_numbers:
+                        num = int(num_str)
+                        if num in number_range and num not in backup_numbers:
+                            backup_numbers.append(num)
+                
+                # 如果备用方法找到更多号码，使用备用方法的结果
+                if len(backup_numbers) > len(numbers):
+                    numbers = backup_numbers
+            
+            # 🆕 关键修复：最终验证和去重
+            numbers = list(set(numbers))
+            numbers = [num for num in numbers if num in number_range]
             numbers.sort()
             
-            # 🆕 强制验证：如果内容包含逗号但提取的号码数量不对，发出警告
-            if ',' in content_str:
-                expected_min = content_str.count(',') + 1
-                if len(numbers) < expected_min:
-                    logger.warning(f"⚠️ 可能丢失号码: '{content_str}' -> {numbers} (期望至少{expected_min}个)")
+            # 🆕 调试日志
+            logger.info(f"从 '{content_str}' 中提取到号码: {numbers}")
             
             return numbers
-            
+                
         except Exception as e:
             logger.error(f"号码提取异常: {content}, 错误: {str(e)}")
             return []
@@ -2212,6 +2215,21 @@ def main():
                 # 数据质量验证
                 with st.spinner("正在进行数据质量验证..."):
                     quality_issues = analyzer.validate_data_quality(df)
+
+                st.markdown("---")
+                st.subheader("简单号码提取测试")
+                
+                if st.button("测试号码提取"):
+                    test_cases = [
+                        "特码-16,28",
+                        "特码-04,16,28,40",
+                        "特码-15",
+                        "特码-03,04,06,06,11,15,16,17,18,23,27,28,29,29"
+                    ]
+                    
+                    for content in test_cases:
+                        result = analyzer.enhanced_extract_numbers(content, 'six_mark')
+                        st.write(f"`{content}` → {result}")
 
                 # 第一个号码丢失Bug测试
                 st.markdown("---")
