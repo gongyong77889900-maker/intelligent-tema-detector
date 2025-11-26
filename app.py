@@ -1116,7 +1116,7 @@ class MultiLotteryCoverageAnalyzer:
         return self.enhanced_extract_numbers(content_str, lottery_category)
     
     def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
-        """修复版号码提取 - 专门解决横杠导致第一个号码被过滤的问题"""
+        """完全重写的号码提取 - 解决所有格式的号码提取问题"""
         content_str = str(content).strip() if content else ""
         numbers = []
         
@@ -1128,82 +1128,55 @@ class MultiLotteryCoverageAnalyzer:
             config = self.get_lottery_config(lottery_category)
             number_range = config['number_range']
             
-            # 🆕 关键修复：预处理横杠问题
-            # 如果内容以横杠开头，移除开头的横杠
+            # 🆕 关键修复：保存原始内容用于调试
             original_content = content_str
-            if content_str.startswith('-'):
-                content_str = content_str[1:].strip()
-                logger.debug(f"移除开头横杠: '{original_content}' -> '{content_str}'")
             
-            # 🆕 修复：处理中间有横杠但横杠不是范围符号的情况
-            # 例如："-01,02,03" 或 "01,-02,03"
-            content_str = re.sub(r'(?<!\d)-', '', content_str)  # 移除不在数字后的横杠
+            # 🆕 关键修复：预处理 - 移除所有非数字字符（除了逗号和横杠）
+            # 但保留数字和分隔符
+            content_str = re.sub(r'[^\d,\-\s]', ' ', content_str)
+            content_str = re.sub(r'\s+', ' ', content_str).strip()
             
-            # 只处理连续空白
-            content_str = re.sub(r'\s+', ' ', content_str)
+            logger.debug(f"预处理后: '{original_content}' -> '{content_str}'")
             
-            # 🆕 修复：最高优先级 - 处理逗号分隔的明确号码格式
-            clean_content = content_str.replace(' ', '')
-            if re.match(r'^(\d{1,2},)*\d{1,2}$', clean_content):
-                number_strs = clean_content.split(',')
-                for num_str in number_strs:
-                    if num_str and num_str.isdigit():
-                        num = int(num_str)
-                        if num in number_range:
-                            numbers.append(num)
-                if numbers:
-                    return list(set(numbers))
-            
-            # 🆕 修复：处理冒号格式
-            if ':' in content_str or '：' in content_str:
-                # 提取冒号后面的所有内容
-                colon_pattern = r'[:：]\s*([^:：]+)$'
-                match = re.search(colon_pattern, content_str)
-                if match:
-                    number_part = match.group(1).strip()
-                    # 清理并提取号码
-                    number_part_clean = re.sub(r'\s+', '', number_part)
-                    if number_part_clean:
-                        # 尝试多种分隔符
-                        for sep in [',', '，', ';', '；']:
-                            if sep in number_part_clean:
-                                number_strs = number_part_clean.split(sep)
-                                for num_str in number_strs:
-                                    # 🆕 修复：移除可能的横杠
-                                    num_str_clean = num_str.replace('-', '').strip()
-                                    if num_str_clean and num_str_clean.isdigit():
-                                        num = int(num_str_clean)
-                                        if num in number_range:
-                                            numbers.append(num)
-                                if numbers:
-                                    return list(set(numbers))
-            
-            # 🆕 修复：增强的分隔符处理
-            separators = [',', '，', ' ', ';', '；', '、', '/']
-            
-            found_numbers = False
-            for sep in separators:
-                if sep in content_str:
-                    parts = content_str.split(sep)
-                    temp_numbers = []
-                    for part in parts:
-                        part_clean = part.strip()
-                        # 🆕 关键修复：移除横杠后再检查数字
-                        part_clean = part_clean.replace('-', '').strip()
-                        if part_clean and part_clean.isdigit():
-                            num = int(part_clean)
+            # 🆕 关键修复：直接处理逗号分隔的数字（最高优先级）
+            if ',' in content_str:
+                parts = content_str.split(',')
+                temp_numbers = []
+                for part in parts:
+                    part_clean = part.strip()
+                    # 🆕 修复：从每个部分提取数字，而不是要求整个部分是数字
+                    # 使用正则提取数字，而不是简单的isdigit()
+                    number_matches = re.findall(r'-?\d+', part_clean)
+                    for num_str in number_matches:
+                        # 移除可能的横杠
+                        clean_num_str = num_str.replace('-', '')
+                        if clean_num_str.isdigit():
+                            num = int(clean_num_str)
                             if num in number_range:
                                 temp_numbers.append(num)
-                    # 只有当找到有效数字时才使用这个分隔符的结果
-                    if temp_numbers:
-                        numbers.extend(temp_numbers)
-                        found_numbers = True
-                        break  # 使用第一个有效的分隔符结果
+                
+                if temp_numbers:
+                    numbers.extend(temp_numbers)
+                    logger.debug(f"逗号分隔提取: '{content_str}' -> {temp_numbers}")
+            
+            # 🆕 修复：如果逗号分隔没有提取到数字，尝试其他方法
+            if not numbers:
+                # 尝试直接提取所有数字
+                all_numbers = re.findall(r'-?\b\d{1,2}\b', content_str)
+                for num_str in all_numbers:
+                    clean_num_str = num_str.replace('-', '')
+                    if clean_num_str.isdigit():
+                        num = int(clean_num_str)
+                        if num in number_range:
+                            numbers.append(num)
+                
+                if numbers:
+                    logger.debug(f"直接提取: '{content_str}' -> {numbers}")
             
             # 🆕 修复：处理连续数字格式
-            if not numbers and re.match(r'^[\d-]+$', content_str.replace(' ', '')):
-                clean_content = content_str.replace(' ', '').replace('-', '')
-                if clean_content and clean_content.isdigit():
+            if not numbers:
+                clean_content = re.sub(r'[^\d]', '', content_str)
+                if clean_content and len(clean_content) >= 2:
                     if lottery_category == 'six_mark':
                         # 六合彩：2位数字
                         for i in range(0, len(clean_content)-1, 2):
@@ -1219,18 +1192,9 @@ class MultiLotteryCoverageAnalyzer:
                                 num = int(char)
                                 if num in number_range:
                                     numbers.append(num)
-            
-            # 🆕 修复：最终手段 - 提取所有独立数字（带横杠处理）
-            if not numbers:
-                # 使用更精确的正则表达式，同时处理可能的横杠
-                number_matches = re.findall(r'-?\b\d{1,2}\b', content_str)
-                for match in number_matches:
-                    # 移除横杠
-                    num_str = match.replace('-', '')
-                    if num_str.isdigit():
-                        num = int(num_str)
-                        if num in number_range:
-                            numbers.append(num)
+                
+                if numbers:
+                    logger.debug(f"连续数字提取: '{content_str}' -> {numbers}")
             
             # 最终清理和验证
             numbers = list(set(numbers))
@@ -1238,52 +1202,66 @@ class MultiLotteryCoverageAnalyzer:
             numbers.sort()
             
             # 🆕 调试信息
-            if original_content != content_str or numbers:
-                logger.debug(f"号码提取: '{original_content}' -> '{content_str}' -> {numbers}")
+            if numbers:
+                logger.info(f"号码提取成功: '{original_content}' -> {numbers}")
+            else:
+                logger.warning(f"号码提取失败: '{original_content}'")
             
             return numbers
                 
         except Exception as e:
-            logger.warning(f"号码提取失败: {content}, 错误: {str(e)}")
+            logger.error(f"号码提取异常: {content}, 错误: {str(e)}")
             return []
 
     def test_dash_number_extraction(self):
-        """专门测试横杠号码提取"""
-        st.subheader("🧪 横杠号码提取测试")
+        """专门测试号码提取问题"""
+        st.subheader("🧪 号码提取问题测试")
         
+        # 基于您截图中的实际数据
         test_cases = [
             # (输入内容, 期望输出, 描述)
-            ("-01,02,03,04,05", [1,2,3,4,5], "开头横杠多个号码"),
-            ("01,02,03,04,05", [1,2,3,4,5], "正常多个号码"),
-            ("-01", [1], "开头横杠单个号码"),
-            ("01", [1], "正常单个号码"),
-            ("-01,-02,-03", [1,2,3], "每个号码前都有横杠"),
-            ("01,-02,03", [1,2,3], "中间号码有横杠"),
-            ("冠军:-01,02,03", [1,2,3], "定位胆格式带横杠"),
-            ("-01, -02, -03", [1,2,3], "带空格的横杠号码"),
+            ("特码-16,28", [16,28], "特码多个号码带横杠"),
+            ("特码-04,16,28,40", [4,16,28,40], "特码四个号码带横杠"),
+            ("特码-07", [7], "特码单个号码"),
+            ("特码-37,47", [37,47], "特码两个号码"),
+            ("特码-30,38", [30,38], "特码两个号码"),
+            ("特码-03,04,05,06,11,15,16,17,18,23,27,28,29,33", 
+             [3,4,5,6,11,15,16,17,18,23,27,28,29,33], "特码多个号码"),
+            ("特码-03,15", [3,15], "特码两个号码"),
+            ("特码-03", [3], "特码单个号码"),
+            ("特码-04,05,20,23,25,31,32,35,39,44,48", 
+             [4,5,20,23,25,31,32,35,39,44,48], "特码多个号码"),
         ]
         
         results = []
         for content, expected, description in test_cases:
-            for category in ['six_mark', '10_number', 'fast_three']:
-                actual = self.enhanced_extract_numbers(content, category)
-                status = "✅" if actual == expected else "❌"
-                results.append({
-                    '测试用例': description,
-                    '输入内容': content,
-                    '期望输出': expected,
-                    '实际输出': actual,
-                    '状态': status,
-                    '彩种类型': category
-                })
+            actual = self.enhanced_extract_numbers(content, 'six_mark')
+            status = "✅" if actual == expected else "❌"
+            results.append({
+                '测试用例': description,
+                '输入内容': content,
+                '期望输出': expected,
+                '实际输出': actual,
+                '状态': status,
+                '匹配': "是" if actual == expected else "否"
+            })
         
         df_results = pd.DataFrame(results)
         st.dataframe(df_results, use_container_width=True)
         
-        # 显示统计
+        # 显示统计和详细分析
         total_tests = len(results)
         passed_tests = len([r for r in results if r['状态'] == '✅'])
-        st.write(f"测试结果: {passed_tests}/{total_tests} 通过")
+        
+        st.write(f"**测试结果: {passed_tests}/{total_tests} 通过**")
+        
+        # 显示失败案例的详细分析
+        failed_cases = [r for r in results if r['状态'] == '❌']
+        if failed_cases:
+            st.error("**失败案例分析:**")
+            for case in failed_cases:
+                st.write(f"- **{case['测试用例']}**: '{case['输入内容']}'")
+                st.write(f"  期望: {case['期望输出']}, 实际: {case['实际输出']}")
         
         return df_results
     
@@ -2290,6 +2268,12 @@ def main():
                 with st.expander("📊 数据预览", expanded=False):
                     st.dataframe(df_clean.head(10))
                     st.write(f"数据形状: {df_clean.shape}")
+                    
+                    # 🆕 添加号码提取测试功能
+                    st.markdown("---")
+                    st.subheader("🧪 号码提取问题诊断")
+                    if st.button("运行号码提取测试"):
+                        analyzer.test_dash_number_extraction()
                     
                     # 显示彩种类型分布
                     if '彩种类型' in df_clean.columns:
