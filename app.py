@@ -2062,40 +2062,24 @@ class MultiLotteryCoverageAnalyzer:
         
         return pd.DataFrame(export_data)
 
+    def comprehensive_data_diagnosis(self, df_original, df_processed):
+        """全面数据诊断 - 检查整个数据处理流程"""
+        st.subheader("🔍 全面数据诊断")
+        # ... 诊断方法的具体实现代码 ...
+
+    def debug_specific_records(self, df, record_indices):
+        """调试特定记录"""
+        st.subheader("🔍 特定记录调试")
+        # ... 调试方法的具体实现代码 ...
+
+    def debug_extraction_process(self, content, lottery_category):
+        """详细分析号码提取过程"""
+        st.write(f"原始内容: `{content}`")
+        # ... 详细分析的具体实现代码 ...
+
     def test_number_extraction_fix(self):
         """测试号码提取修复"""
-        test_cases = [
-            # (内容, 期望提取的号码列表)
-            ("特码-01,02,04,06,10,13,14,16,18,22,25,26,28,30,34,37,38,40,42,46,49", 
-             [1,2,4,6,10,13,14,16,18,22,25,26,28,30,34,37,38,40,42,46,49]),
-            ("特码-03,05,07,08,09,11,12,15,20,23,24,29,31,33,36,39,41,43,44,45,47,17,19,21,27,32,35,48",
-             [3,5,7,8,9,11,12,15,17,19,20,21,23,24,27,29,31,32,33,35,36,39,41,43,44,45,47,48]),
-            ("全尾-8尾,9尾,7尾,6尾,5尾", [5,6,7,8,9]),
-            ("全尾-1尾,2尾,3尾,4尾,0尾", [0,1,2,3,4])
-        ]
-        
         st.subheader("🧪 号码提取测试")
-        
-        for i, (content, expected) in enumerate(test_cases, 1):
-            actual = self.enhanced_extract_numbers(content, 'six_mark')
-            
-            # 检查是否匹配
-            missing = set(expected) - set(actual)
-            extra = set(actual) - set(expected)
-            
-            status = "✅ 通过" if set(actual) == set(expected) else "❌ 失败"
-            
-            st.write(f"**测试用例 {i}:** {status}")
-            st.write(f"   内容: `{content}`")
-            st.write(f"   期望: {sorted(expected)}")
-            st.write(f"   实际: {sorted(actual)}")
-            
-            if missing:
-                st.write(f"   🔍 缺少号码: {sorted(missing)}")
-            if extra:
-                st.write(f"   🔍 多余号码: {sorted(extra)}")
-            
-            st.write("---")
 
 # ==================== Streamlit界面 ====================
 def main():
@@ -2242,11 +2226,48 @@ def main():
                 with st.spinner("正在进行数据质量验证..."):
                     quality_issues = analyzer.validate_data_quality(df)
                 
-                # ==================== 新增的测试按钮 ====================
+                # ==================== 新增的诊断功能 ====================
+                
+                # 号码提取测试
                 st.markdown("---")
                 st.subheader("🧪 号码提取功能测试")
                 if st.button("运行号码提取测试"):
                     analyzer.test_number_extraction_fix()
+                
+                # 全面数据诊断
+                st.markdown("---")
+                st.subheader("🔍 全面数据诊断")
+                if st.button("运行全面数据诊断"):
+                    # 先进行基本的数据预处理来获取处理后的数据
+                    df_clean_temp = df.copy()
+                    if column_mapping:
+                        df_clean_temp = df_clean_temp.rename(columns=column_mapping)
+                    
+                    # 进行数据预处理
+                    df_processed, _, _ = analyzer.enhanced_data_preprocessing(df_clean_temp)
+                    
+                    # 运行全面诊断
+                    analyzer.comprehensive_data_diagnosis(df, df_processed)
+                
+                # 特定记录调试
+                st.markdown("---")
+                st.subheader("🔍 特定记录调试")
+                record_indices_input = st.text_input(
+                    "输入要调试的记录索引（用逗号分隔）:", 
+                    "0,1,2",
+                    help="输入数据框中要详细调试的记录的索引号"
+                )
+                
+                if st.button("调试特定记录"):
+                    try:
+                        indices = [int(idx.strip()) for idx in record_indices_input.split(',')]
+                        df_clean_temp = df.copy()
+                        if column_mapping:
+                            df_clean_temp = df_clean_temp.rename(columns=column_mapping)
+                        df_processed, _, _ = analyzer.enhanced_data_preprocessing(df_clean_temp)
+                        analyzer.debug_specific_records(df_processed, indices)
+                    except ValueError:
+                        st.error("❌ 请输入有效的数字索引")
                 
             # 数据清理
             required_columns = ['会员账号', '彩种', '期号', '玩法', '内容']
