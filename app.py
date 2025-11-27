@@ -508,6 +508,11 @@ class MultiLotteryCoverageAnalyzer:
             axis=1
         )
         
+        # 🆕 调试：显示前几行的提取结果
+        st.write("🔍 调试信息 - 号码提取结果:")
+        debug_df = df_clean[['内容', '提取号码']].head(10).copy()
+        st.dataframe(debug_df)
+        
         # 步骤4: 独立进行金额提取
         if '金额' in df_clean.columns:
             df_clean['投注金额'] = df_clean['金额'].apply(self.fixed_extract_amount)
@@ -1114,15 +1119,14 @@ class MultiLotteryCoverageAnalyzer:
         
         return play_normalized
     
-    @lru_cache(maxsize=5000)  # 增加缓存大小以提高性能
+    # @lru_cache(maxsize=5000)  # 暂时注释掉这一行
     def cached_extract_numbers(self, content, lottery_category):
-        """临时禁用缓存，直接调用修复版本"""
+        """直接调用修复版本"""
         return self.fixed_extract_numbers(content, lottery_category)
     
     def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
-        """完全重写的号码提取函数 - 确保正确处理带前缀的号码"""
+        """彻底修复的号码提取 - 专门处理各种格式"""
         content_str = str(content).strip()
-        numbers = []
         
         try:
             if not content_str or content_str.lower() in ['', 'null', 'none', 'nan']:
@@ -1131,65 +1135,44 @@ class MultiLotteryCoverageAnalyzer:
             config = self.get_lottery_config(lottery_category)
             number_range = config['number_range']
             
-            # 清理内容
-            content_str = re.sub(r'[\s\u3000]+', ' ', content_str)
-            content_str = re.sub(r'[\(（].*?[\)）]', '', content_str)
+            # 方法1: 先尝试提取逗号分隔的所有数字
+            numbers = []
             
-            # 🆕 关键修复：专门处理"玩法-号码"格式
-            # 处理"特码-01,02,03"、"正码一-05,06,07"等格式
-            if '-' in content_str or '—' in content_str or '~' in content_str:
-                # 分割前缀和号码部分
-                separator_pattern = r'[-—~]'
-                parts = re.split(separator_pattern, content_str, 1)  # 只分割一次
+            # 处理"特码-01,02,03"这种格式
+            if '-' in content_str:
+                parts = content_str.split('-', 1)
                 if len(parts) == 2:
-                    prefix, number_part = parts
-                    # 清理号码部分
-                    number_part = number_part.strip()
-                    number_part = re.sub(r'\s+', '', number_part)
-                    
-                    # 按逗号分割提取数字
-                    number_strs = number_part.split(',')
-                    for num_str in number_strs:
-                        if num_str and num_str.isdigit():
-                            num = int(num_str)
-                            if num in number_range:
-                                numbers.append(num)
+                    number_part = parts[1].strip()
+                    # 提取所有数字
+                    number_matches = re.findall(r'\d+', number_part)
+                    for match in number_matches:
+                        num = int(match)
+                        if num in number_range:
+                            numbers.append(num)
                     if numbers:
                         return sorted(list(set(numbers)))
             
-            # 🆕 处理冒号格式
-            if ':' in content_str or '：' in content_str:
-                colon_separator = ':' if ':' in content_str else '：'
-                parts = content_str.split(colon_separator, 1)
-                if len(parts) == 2:
-                    prefix, number_part = parts
-                    number_part = number_part.strip()
-                    number_part = re.sub(r'\s+', '', number_part)
-                    
-                    number_strs = number_part.split(',')
-                    for num_str in number_strs:
-                        if num_str and num_str.isdigit():
-                            num = int(num_str)
-                            if num in number_range:
-                                numbers.append(num)
-                    if numbers:
-                        return sorted(list(set(numbers)))
-            
-            # 🆕 最后的手段：直接提取所有1-2位数字
+            # 方法2: 直接在整个内容中查找所有1-2位数字
+            all_numbers = []
             number_matches = re.findall(r'\b\d{1,2}\b', content_str)
+            
             for match in number_matches:
                 num = int(match)
                 if num in number_range:
-                    numbers.append(num)
+                    all_numbers.append(num)
             
-            return sorted(list(set(numbers)))
+            # 去重并排序
+            all_numbers = list(set(all_numbers))
+            all_numbers.sort()
+            
+            return all_numbers
                 
         except Exception as e:
             logger.warning(f"号码提取失败: {content_str}, 错误: {str(e)}")
             return []
 
     def fixed_extract_numbers(self, content, lottery_category):
-        """修复的号码提取 - 不使用缓存，完全独立"""
+        """修复的号码提取 - 直接调用简单版本"""
         content_str = str(content) if content else ""
         return self.enhanced_extract_numbers(content_str, lottery_category)
 
