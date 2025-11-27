@@ -1892,7 +1892,7 @@ class MultiLotteryCoverageAnalyzer:
         with col3:
             st.metric("平均期数", f"{df_stats['投注期数'].mean():.1f}")
 
-    def analyze_with_progress(self, df_target, six_mark_params, ten_number_params, fast_three_params, analysis_mode):
+    def analyze_with_progress(self, df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode):
         """带进度显示的分析 - 使用增强阈值管理"""
         
         # 根据分析模式决定分组方式
@@ -1912,8 +1912,8 @@ class MultiLotteryCoverageAnalyzer:
             
         elif analysis_mode == "仅分析快三":
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
-            user_min_number_count = fast_three_params['min_number_count']
-            user_min_avg_amount = fast_three_params['min_avg_amount']
+            user_min_number_count = fast_three_params['sum_min_number_count']  # 默认使用和值阈值
+            user_min_avg_amount = fast_three_params['sum_min_avg_amount']
             
             print(f"🔍 快三分析模式 - 号码阈值: {user_min_number_count}, 金额阈值: {user_min_avg_amount}")
             
@@ -1922,6 +1922,7 @@ class MultiLotteryCoverageAnalyzer:
             df_six_mark = df_target[df_target['彩种类型'] == 'six_mark']
             df_10_number = df_target[df_target['彩种类型'] == '10_number']
             df_fast_three = df_target[df_target['彩种类型'] == 'fast_three']
+            df_ssc_3d = df_target[df_target['彩种类型'] == '3d_series']  # 🆕 新增3D系列
             
             all_period_results = {}
             
@@ -1957,10 +1958,22 @@ class MultiLotteryCoverageAnalyzer:
                 grouped_10 = df_10_number.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_10:
                     if len(group) >= 2:
+                        # 🆕 根据玩法类型使用不同的阈值
+                        play_str = str(position).strip().lower()
+                        if any(keyword in play_str for keyword in ['冠亚和', '冠亚和值']):
+                            # 使用冠亚和专用阈值
+                            user_min_number_count = ten_number_params.get('sum_min_number_count', 5)
+                            user_min_avg_amount = ten_number_params.get('sum_min_avg_amount', 5)
+                            print(f"🔍 冠亚和玩法使用专用阈值: 号码={user_min_number_count}, 金额={user_min_avg_amount}")
+                        else:
+                            # 使用普通时时彩阈值
+                            user_min_number_count = ten_number_params['min_number_count']
+                            user_min_avg_amount = ten_number_params['min_avg_amount']
+                        
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position,
-                            ten_number_params['min_number_count'],
-                            ten_number_params['min_avg_amount']
+                            user_min_number_count,
+                            user_min_avg_amount
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
@@ -1971,10 +1984,45 @@ class MultiLotteryCoverageAnalyzer:
                 grouped_fast_three = df_fast_three.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_fast_three:
                     if len(group) >= 2:
+                        # 🆕 根据玩法类型使用不同的阈值
+                        play_str = str(position).strip().lower()
+                        if any(keyword in play_str for keyword in ['和值', '点数']):
+                            # 使用快三和值专用阈值
+                            user_min_number_count = fast_three_params.get('sum_min_number_count', 4)
+                            user_min_avg_amount = fast_three_params.get('sum_min_avg_amount', 5)
+                            print(f"🔍 快三和值使用专用阈值: 号码={user_min_number_count}, 金额={user_min_avg_amount}")
+                        elif any(keyword in play_str for keyword in ['三军', '独胆', '单码', '二不同号', '三不同号']):
+                            # 使用快三基础专用阈值
+                            user_min_number_count = fast_three_params.get('base_min_number_count', 2)
+                            user_min_avg_amount = fast_three_params.get('base_min_avg_amount', 5)
+                            print(f"🔍 快三基础玩法使用专用阈值: 号码={user_min_number_count}, 金额={user_min_avg_amount}")
+                        else:
+                            # 使用默认快三阈值（和值）
+                            user_min_number_count = fast_three_params.get('sum_min_number_count', 4)
+                            user_min_avg_amount = fast_three_params.get('sum_min_avg_amount', 5)
+                        
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position,
-                            fast_three_params['min_number_count'],
-                            fast_three_params['min_avg_amount']
+                            user_min_number_count,
+                            user_min_avg_amount
+                        )
+                        if result:
+                            all_period_results[(period, lottery, position)] = result
+            
+            # 🆕 新增：分析3D系列
+            if len(df_ssc_3d) > 0:
+                st.info("🎰 正在分析3D系列数据...")
+                grouped_ssc_3d = df_ssc_3d.groupby(['期号', '彩种', '玩法'])
+                for (period, lottery, position), group in grouped_ssc_3d:
+                    if len(group) >= 2:
+                        # 使用时时彩/3D专用阈值
+                        user_min_number_count = ssc_3d_params.get('min_number_count', 3)
+                        user_min_avg_amount = ssc_3d_params.get('min_avg_amount', 5)
+                        
+                        result = self.analyze_period_lottery_position(
+                            group, period, lottery, position,
+                            user_min_number_count,
+                            user_min_avg_amount
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
@@ -2001,22 +2049,48 @@ class MultiLotteryCoverageAnalyzer:
             if len(group) >= 2:
                 # 🆕 在非自动模式下也要根据玩法类型选择阈值
                 play_str = str(position).strip().lower()
-                if any(keyword in play_str for keyword in ['尾数', '全尾', '特尾']):
-                    # 使用尾数专用阈值
-                    tail_min_number_count = six_mark_params.get('tail_min_number_count', 3)
-                    tail_min_avg_amount = six_mark_params.get('tail_min_avg_amount', 5)
-                    print(f"🔍 尾数玩法使用专用阈值: 号码={tail_min_number_count}, 金额={tail_min_avg_amount}")
-                    result = self.analyze_period_lottery_position(
-                        group, period, lottery, position, 
-                        tail_min_number_count, 
-                        tail_min_avg_amount
-                    )
-                else:
-                    result = self.analyze_period_lottery_position(
-                        group, period, lottery, position, 
-                        user_min_number_count, 
-                        user_min_avg_amount
-                    )
+                
+                if analysis_mode == "仅分析六合彩":
+                    if any(keyword in play_str for keyword in ['尾数', '全尾', '特尾']):
+                        # 使用尾数专用阈值
+                        user_min_number_count = six_mark_params.get('tail_min_number_count', 3)
+                        user_min_avg_amount = six_mark_params.get('tail_min_avg_amount', 5)
+                    else:
+                        # 使用普通六合彩阈值
+                        user_min_number_count = six_mark_params['min_number_count']
+                        user_min_avg_amount = six_mark_params['min_avg_amount']
+                
+                elif analysis_mode == "仅分析时时彩/PK10/赛车":
+                    if any(keyword in play_str for keyword in ['冠亚和', '冠亚和值']):
+                        # 使用冠亚和专用阈值
+                        user_min_number_count = ten_number_params.get('sum_min_number_count', 5)
+                        user_min_avg_amount = ten_number_params.get('sum_min_avg_amount', 5)
+                    else:
+                        # 使用普通时时彩阈值
+                        user_min_number_count = ten_number_params['min_number_count']
+                        user_min_avg_amount = ten_number_params['min_avg_amount']
+                
+                elif analysis_mode == "仅分析快三":
+                    if any(keyword in play_str for keyword in ['和值', '点数']):
+                        # 使用快三和值专用阈值
+                        user_min_number_count = fast_three_params.get('sum_min_number_count', 4)
+                        user_min_avg_amount = fast_three_params.get('sum_min_avg_amount', 5)
+                    elif any(keyword in play_str for keyword in ['三军', '独胆', '单码', '二不同号', '三不同号']):
+                        # 使用快三基础专用阈值
+                        user_min_number_count = fast_three_params.get('base_min_number_count', 2)
+                        user_min_avg_amount = fast_three_params.get('base_min_avg_amount', 5)
+                    else:
+                        # 使用默认快三阈值（和值）
+                        user_min_number_count = fast_three_params.get('sum_min_number_count', 4)
+                        user_min_avg_amount = fast_three_params.get('sum_min_avg_amount', 5)
+                
+                print(f"🔍 玩法 {position} 使用阈值: 号码={user_min_number_count}, 金额={user_min_avg_amount}")
+                
+                result = self.analyze_period_lottery_position(
+                    group, period, lottery, position, 
+                    user_min_number_count, 
+                    user_min_avg_amount
+                )
                 
                 if result:
                     all_period_results[(period, lottery, position)] = result
@@ -2317,27 +2391,28 @@ def main():
         help="选择要分析的彩种类型"
     )
     
+    # ========== 六合彩参数设置 ==========
     st.sidebar.subheader("🎯 六合彩参数设置")
     
-    # 六合彩专用阈值设置
+    # 六合彩特码、正码等基础玩法
     six_mark_min_number_count = st.sidebar.slider(
-        "六合彩-号码数量阈值", 
+        "六合彩基础-号码数量阈值", 
         min_value=1, 
         max_value=30, 
         value=11,
-        help="六合彩：只分析投注号码数量大于等于此值的账户"
+        help="六合彩特码、正码等：只分析投注号码数量大于等于此值的账户"
     )
     
     six_mark_min_avg_amount = st.sidebar.slider(
-        "六合彩-平均金额阈值", 
+        "六合彩基础-平均金额阈值", 
         min_value=0, 
         max_value=50,
         value=10,
         step=1,
-        help="六合彩：只分析平均每号金额大于等于此值的账户"
+        help="六合彩特码、正码等：只分析平均每号金额大于等于此值的账户"
     )
     
-    # 🆕 新增：六合彩尾数专用阈值设置
+    # 六合彩尾数专用阈值设置
     st.sidebar.subheader("🔢 六合彩尾数参数设置")
     
     six_mark_tail_min_number_count = st.sidebar.slider(
@@ -2357,44 +2432,106 @@ def main():
         help="六合彩尾数：只分析平均每号金额大于等于此值的账户"
     )
     
-    # 时时彩/PK10/赛车专用阈值设置
+    # ========== 时时彩/PK10/赛车参数设置 ==========
     st.sidebar.subheader("🏎️ 时时彩/PK10/赛车参数设置")
     
+    # 时时彩基础玩法（定位胆、名次等）
     ten_number_min_number_count = st.sidebar.slider(
-        "赛车类-号码数量阈值", 
+        "赛车类基础-号码数量阈值", 
         min_value=1, 
         max_value=10, 
         value=3,
-        help="时时彩/PK10/赛车：只分析投注号码数量大于等于此值的账户"
+        help="时时彩/PK10/赛车基础玩法：只分析投注号码数量大于等于此值的账户"
     )
     
     ten_number_min_avg_amount = st.sidebar.slider(
-        "赛车类-平均金额阈值", 
+        "赛车类基础-平均金额阈值", 
         min_value=0, 
         max_value=20,
         value=5,
         step=1,
-        help="时时彩/PK10/赛车：只分析平均每号金额大于等于此值的账户"
+        help="时时彩/PK10/赛车基础玩法：只分析平均每号金额大于等于此值的账户"
     )
     
-    # 快三专用阈值设置
+    # 🆕 新增：冠亚和专用阈值设置
+    st.sidebar.subheader("🥇 冠亚和参数设置")
+    
+    ten_number_sum_min_number_count = st.sidebar.slider(
+        "冠亚和-号码数量阈值", 
+        min_value=1, 
+        max_value=17, 
+        value=5,
+        help="冠亚和玩法：只分析投注号码数量大于等于此值的账户"
+    )
+    
+    ten_number_sum_min_avg_amount = st.sidebar.slider(
+        "冠亚和-平均金额阈值", 
+        min_value=0, 
+        max_value=20,
+        value=5,
+        step=1,
+        help="冠亚和玩法：只分析平均每号金额大于等于此值的账户"
+    )
+    
+    # ========== 快三参数设置 ==========
     st.sidebar.subheader("🎲 快三参数设置")
     
-    fast_three_min_number_count = st.sidebar.slider(
-        "快三-号码数量阈值", 
+    # 快三和值玩法
+    fast_three_sum_min_number_count = st.sidebar.slider(
+        "快三和值-号码数量阈值", 
         min_value=1, 
         max_value=16, 
         value=4,
         help="快三和值玩法：只分析投注号码数量大于等于此值的账户"
     )
     
-    fast_three_min_avg_amount = st.sidebar.slider(
-        "快三-平均金额阈值", 
+    fast_three_sum_min_avg_amount = st.sidebar.slider(
+        "快三和值-平均金额阈值", 
         min_value=0, 
         max_value=20,
         value=5,
         step=1,
         help="快三和值玩法：只分析平均每号金额大于等于此值的账户"
+    )
+    
+    # 🆕 新增：快三基础玩法专用阈值设置
+    st.sidebar.subheader("🎯 快三基础玩法参数设置")
+    
+    fast_three_base_min_number_count = st.sidebar.slider(
+        "快三基础-号码数量阈值", 
+        min_value=1, 
+        max_value=6, 
+        value=2,
+        help="快三基础玩法（三军、独胆等）：只分析投注号码数量大于等于此值的账户"
+    )
+    
+    fast_three_base_min_avg_amount = st.sidebar.slider(
+        "快三基础-平均金额阈值", 
+        min_value=0, 
+        max_value=20,
+        value=5,
+        step=1,
+        help="快三基础玩法（三军、独胆等）：只分析平均每号金额大于等于此值的账户"
+    )
+    
+    # ========== 时时彩/3D参数设置 ==========
+    st.sidebar.subheader("🎰 时时彩/3D参数设置")
+    
+    ssc_3d_min_number_count = st.sidebar.slider(
+        "时时彩/3D-号码数量阈值", 
+        min_value=1, 
+        max_value=10, 
+        value=3,
+        help="时时彩/3D系列：只分析投注号码数量大于等于此值的账户"
+    )
+    
+    ssc_3d_min_avg_amount = st.sidebar.slider(
+        "时时彩/3D-平均金额阈值", 
+        min_value=0, 
+        max_value=20,
+        value=5,
+        step=1,
+        help="时时彩/3D系列：只分析平均每号金额大于等于此值的账户"
     )
     
     # 🆕 新增：测试按钮
@@ -2615,20 +2752,28 @@ def main():
                     six_mark_params = {
                         'min_number_count': six_mark_min_number_count,
                         'min_avg_amount': six_mark_min_avg_amount,
-                        'tail_min_number_count': six_mark_tail_min_number_count,  # 🆕 新增尾数阈值
-                        'tail_min_avg_amount': six_mark_tail_min_avg_amount       # 🆕 新增尾数阈值
+                        'tail_min_number_count': six_mark_tail_min_number_count,
+                        'tail_min_avg_amount': six_mark_tail_min_avg_amount
                     }
                     ten_number_params = {
                         'min_number_count': ten_number_min_number_count,
-                        'min_avg_amount': ten_number_min_avg_amount
+                        'min_avg_amount': ten_number_min_avg_amount,
+                        'sum_min_number_count': ten_number_sum_min_number_count,  # 🆕 新增冠亚和阈值
+                        'sum_min_avg_amount': ten_number_sum_min_avg_amount       # 🆕 新增冠亚和阈值
                     }
                     fast_three_params = {
-                        'min_number_count': fast_three_min_number_count,
-                        'min_avg_amount': fast_three_min_avg_amount
+                        'sum_min_number_count': fast_three_sum_min_number_count,  # 🆕 新增快三和值阈值
+                        'sum_min_avg_amount': fast_three_sum_min_avg_amount,      # 🆕 新增快三和值阈值
+                        'base_min_number_count': fast_three_base_min_number_count, # 🆕 新增快三基础阈值
+                        'base_min_avg_amount': fast_three_base_min_avg_amount      # 🆕 新增快三基础阈值
+                    }
+                    ssc_3d_params = {
+                        'min_number_count': ssc_3d_min_number_count,              # 🆕 新增时时彩/3D阈值
+                        'min_avg_amount': ssc_3d_min_avg_amount                   # 🆕 新增时时彩/3D阈值
                     }
                     
                     all_period_results = analyzer.analyze_with_progress(
-                        df_target, six_mark_params, ten_number_params, fast_three_params, analysis_mode
+                        df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode
                     )
 
                 # 显示结果 - 使用增强版展示
