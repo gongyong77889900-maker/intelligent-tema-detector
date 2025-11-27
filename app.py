@@ -1392,91 +1392,91 @@ class MultiLotteryCoverageAnalyzer:
         else: 
             return "🔴"
     
-                def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers):
-                    """寻找完美组合 - 彻底重写版本"""
-                    
-                    all_results = {2: [], 3: [], 4: []}
-                    all_accounts = list(account_numbers.keys())
-                    
-                    if len(all_accounts) < 2:
-                        return all_results
-                    
-                    account_sets = {account: set(numbers) for account, numbers in account_numbers.items()}
-                    
-                    # 🆕 详细调试信息
-                    debug_info = []
-                    is_tail_play = (total_numbers == 10)
-                    
+    def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers):
+        """寻找完美组合 - 彻底重写版本"""
+        
+        all_results = {2: [], 3: [], 4: []}
+        all_accounts = list(account_numbers.keys())
+        
+        if len(all_accounts) < 2:
+            return all_results
+        
+        account_sets = {account: set(numbers) for account, numbers in account_numbers.items()}
+        
+        # 🆕 详细调试信息
+        debug_info = []
+        is_tail_play = (total_numbers == 10)
+        
+        if is_tail_play:
+            debug_info.append(f"🔍 尾数组合搜索: 需要{total_numbers}个号码, {len(all_accounts)}个账户")
+            for account in all_accounts:
+                debug_info.append(f"📊 {account}: {sorted(account_numbers[account])} (平均¥{account_amount_stats[account]['avg_amount_per_number']:.2f})")
+        
+        # 搜索2账户组合
+        found_2_account = False
+        for i, acc1 in enumerate(all_accounts):
+            for j in range(i+1, len(all_accounts)):
+                acc2 = all_accounts[j]
+                
+                combined_set = account_sets[acc1] | account_sets[acc2]
+                
+                if len(combined_set) != total_numbers:
                     if is_tail_play:
-                        debug_info.append(f"🔍 尾数组合搜索: 需要{total_numbers}个号码, {len(all_accounts)}个账户")
-                        for account in all_accounts:
-                            debug_info.append(f"📊 {account}: {sorted(account_numbers[account])} (平均¥{account_amount_stats[account]['avg_amount_per_number']:.2f})")
-                    
-                    # 搜索2账户组合
-                    found_2_account = False
-                    for i, acc1 in enumerate(all_accounts):
-                        for j in range(i+1, len(all_accounts)):
-                            acc2 = all_accounts[j]
-                            
-                            combined_set = account_sets[acc1] | account_sets[acc2]
-                            
-                            if len(combined_set) != total_numbers:
-                                if is_tail_play:
-                                    debug_info.append(f"❌ {acc1}+{acc2}: 并集{len(combined_set)}个≠{total_numbers}")
-                                continue
-                            
-                            avg_amounts = [
-                                account_amount_stats[acc1]['avg_amount_per_number'],
-                                account_amount_stats[acc2]['avg_amount_per_number']
-                            ]
-                            
-                            if min(avg_amounts) < float(min_avg_amount):
-                                if is_tail_play:
-                                    debug_info.append(f"❌ {acc1}+{acc2}: 最小金额{min(avg_amounts):.2f}<{min_avg_amount}")
-                                continue
-                            
-                            # 🎯 找到完美组合
-                            total_amount = account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount']
-                            similarity = self.calculate_similarity(avg_amounts)
-                            
-                            result_data = {
-                                'accounts': [acc1, acc2],
-                                'account_count': 2,
-                                'total_amount': total_amount,
-                                'avg_amount_per_number': total_amount / total_numbers,
-                                'similarity': similarity,
-                                'similarity_indicator': self.get_similarity_indicator(similarity),
-                                'individual_amounts': {
-                                    acc1: account_amount_stats[acc1]['total_amount'],
-                                    acc2: account_amount_stats[acc2]['total_amount']
-                                },
-                                'individual_avg_per_number': {
-                                    acc1: account_amount_stats[acc1]['avg_amount_per_number'],
-                                    acc2: account_amount_stats[acc2]['avg_amount_per_number']
-                                },
-                                'bet_contents': {
-                                    acc1: account_bet_contents[acc1],
-                                    acc2: account_bet_contents[acc2]
-                                }
-                            }
-                            all_results[2].append(result_data)
-                            found_2_account = True
-                            
-                            if is_tail_play:
-                                debug_info.append(f"🎯 找到2账户组合: {acc1}+{acc2}")
-                    
-                    # 🆕 输出调试信息
-                    if is_tail_play and debug_info:
-                        st.subheader("🔍 尾数组合搜索调试")
-                        for info in debug_info:
-                            st.write(info)
-                        
-                        if found_2_account:
-                            st.success(f"✅ 找到 {len(all_results[2])} 个2账户尾数组合")
-                        else:
-                            st.error("❌ 未找到任何2账户尾数组合")
-                    
-                    return all_results
+                        debug_info.append(f"❌ {acc1}+{acc2}: 并集{len(combined_set)}个≠{total_numbers}")
+                    continue
+                
+                avg_amounts = [
+                    account_amount_stats[acc1]['avg_amount_per_number'],
+                    account_amount_stats[acc2]['avg_amount_per_number']
+                ]
+                
+                if min(avg_amounts) < float(min_avg_amount):
+                    if is_tail_play:
+                        debug_info.append(f"❌ {acc1}+{acc2}: 最小金额{min(avg_amounts):.2f}<{min_avg_amount}")
+                    continue
+                
+                # 🎯 找到完美组合
+                total_amount = account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount']
+                similarity = self.calculate_similarity(avg_amounts)
+                
+                result_data = {
+                    'accounts': [acc1, acc2],
+                    'account_count': 2,
+                    'total_amount': total_amount,
+                    'avg_amount_per_number': total_amount / total_numbers,
+                    'similarity': similarity,
+                    'similarity_indicator': self.get_similarity_indicator(similarity),
+                    'individual_amounts': {
+                        acc1: account_amount_stats[acc1]['total_amount'],
+                        acc2: account_amount_stats[acc2]['total_amount']
+                    },
+                    'individual_avg_per_number': {
+                        acc1: account_amount_stats[acc1]['avg_amount_per_number'],
+                        acc2: account_amount_stats[acc2]['avg_amount_per_number']
+                    },
+                    'bet_contents': {
+                        acc1: account_bet_contents[acc1],
+                        acc2: account_bet_contents[acc2]
+                    }
+                }
+                all_results[2].append(result_data)
+                found_2_account = True
+                
+                if is_tail_play:
+                    debug_info.append(f"🎯 找到2账户组合: {acc1}+{acc2}")
+        
+        # 🆕 输出调试信息
+        if is_tail_play and debug_info:
+            st.subheader("🔍 尾数组合搜索调试")
+            for info in debug_info:
+                st.write(info)
+            
+            if found_2_account:
+                st.success(f"✅ 找到 {len(all_results[2])} 个2账户尾数组合")
+            else:
+                st.error("❌ 未找到任何2账户尾数组合")
+        
+        return all_results
 
     def analyze_period_lottery_position(self, group, period, lottery, position, user_min_number_count, user_min_avg_amount):
         """分析特定期数、彩种和位置 - 使用动态阈值"""
