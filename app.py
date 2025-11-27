@@ -105,17 +105,41 @@ class MultiLotteryCoverageAnalyzer:
                 'type_name': '六合彩',
                 'play_keywords': ['特码', '特玛', '特马', '特碼', '正码', '正特', '正肖', '平码', '平特']
             },
+            'six_mark_tail': {  # 🆕 新增：六合彩尾数玩法
+                'number_range': set(range(0, 10)),  # 尾数0-9
+                'total_numbers': 10,
+                'type_name': '六合彩尾数',
+                'play_keywords': ['尾数', '特尾', '全尾']
+            },
             '10_number': {
                 'number_range': set(range(1, 11)),
                 'total_numbers': 10,
                 'type_name': '10个号码彩种',
                 'play_keywords': ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎', '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '第一名', '第二名', '第三名', '前一']
             },
-            'fast_three': {
+            '10_number_sum': {  # 🆕 新增：冠亚和玩法
+                'number_range': set(range(3, 20)),  # 冠亚和3-19
+                'total_numbers': 17,
+                'type_name': '冠亚和',
+                'play_keywords': ['冠亚和', '冠亚和值']
+            },
+            'fast_three_base': {  # 🆕 新增：快三基础玩法
+                'number_range': set(range(1, 7)),  # 基础号码1-6
+                'total_numbers': 6,
+                'type_name': '快三基础',
+                'play_keywords': ['三军', '独胆', '单码', '二不同号', '三不同号']
+            },
+            'fast_three_sum': {  # 🆕 新增：快三和值玩法
                 'number_range': set(range(3, 19)),  # 和值范围3-18
                 'total_numbers': 16,
                 'type_name': '快三和值',
-                'play_keywords': ['和值']
+                'play_keywords': ['和值', '点数']
+            },
+            'ssc_3d': {  # 🆕 新增：时时彩和3D系列
+                'number_range': set(range(0, 10)),  # 号码0-9
+                'total_numbers': 10,
+                'type_name': '时时彩/3D',
+                'play_keywords': ['定位胆', '第1球', '第2球', '第3球', '第4球', '第5球', '万位', '千位', '百位', '十位', '个位']
             }
         }
         
@@ -302,6 +326,47 @@ class MultiLotteryCoverageAnalyzer:
             '总和': '总和',
             '斗牛': '斗牛'
         }
+
+        # 扩展玩法映射
+        self.play_mapping.update({
+            # 🆕 新增：快三基础玩法
+            '三军': '三军',
+            '三軍': '三军',
+            '独胆': '三军', 
+            '单码': '三军',
+            '二不同号': '二不同号',
+            '二不同': '二不同号',
+            '二不同號': '二不同号',
+            '三不同号': '三不同号',
+            '三不同': '三不同号',
+            '三不同號': '三不同号',
+            
+            # 🆕 新增：冠亚和玩法
+            '冠亚和': '冠亚和',
+            '冠亚和值': '冠亚和',
+            '冠亞和': '冠亚和',
+            '冠亞和值': '冠亚和',
+            
+            # 🆕 扩展：六合彩尾数玩法
+            '尾数_头尾数': '尾数_头尾数',
+            '头尾数': '尾数_头尾数',
+            '特尾': '特尾',
+            '全尾': '全尾',
+            
+            # 🆕 扩展：时时彩球位玩法
+            '第1球': '第1球',
+            '第2球': '第2球', 
+            '第3球': '第3球',
+            '第4球': '第4球',
+            '第5球': '第5球',
+            '1-5球': '1-5球',
+            
+            # 🆕 扩展：3D系列玩法
+            '百十': '百十',
+            '百个': '百个',
+            '十个': '十个',
+            '百十个': '百十个'
+        })
         
         self.position_mapping = {
             # ========== 六合彩位置 ==========
@@ -385,6 +450,35 @@ class MultiLotteryCoverageAnalyzer:
             '选九': ['选九', '九中九', '9中9', '选9', 'xuan9', 'x9'],
             '选十': ['选十', '十中十', '10中10', '选10', 'xuan10', 'x10']
         }
+
+        # 扩展位置映射
+        self.position_mapping.update({
+            # 🆕 新增：快三基础玩法位置
+            '三军': ['三军', '三軍', '独胆', '单码', 'sj', 'sanjun'],
+            '二不同号': ['二不同号', '二不同', '二不同號', 'ebth', 'erbutonghao'],
+            '三不同号': ['三不同号', '三不同', '三不同號', 'sbth', 'sanbutonghao'],
+            
+            # 🆕 新增：冠亚和位置
+            '冠亚和': ['冠亚和', '冠亚和值', '冠亞和', '冠亞和值', 'gyh', 'guanyabe'],
+            
+            # 🆕 扩展：六合彩尾数位置
+            '尾数_头尾数': ['尾数_头尾数', '头尾数', '头尾', '尾数头尾', 'tws', 'touweishu'],
+            '特尾': ['特尾', '特尾数', '特码尾数', 'tw', 'tewei'],
+            '全尾': ['全尾', '全尾数', '全部尾数', 'qw', 'quanwei'],
+            
+            # 🆕 扩展：时时彩球位
+            '第1球': ['第1球', '第一球', '万位', '第一位', '定位_万位', '万位定位', 'd1q', 'di1qiu'],
+            '第2球': ['第2球', '第二球', '千位', '第二位', '定位_千位', '千位定位', 'd2q', 'di2qiu'],
+            '第3球': ['第3球', '第三球', '百位', '第三位', '定位_百位', '百位定位', 'd3q', 'di3qiu'],
+            '第4球': ['第4球', '第四球', '十位', '第四位', '定位_十位', '十位定位', 'd4q', 'di4qiu'],
+            '第5球': ['第5球', '第五球', '个位', '第五位', '定位_个位', '个位定位', 'd5q', 'di5qiu'],
+            
+            # 🆕 扩展：3D系列位置
+            '百十': ['百十', '百十位', '百十定位', 'bs', 'baishi'],
+            '百个': ['百个', '百个位', '百个定位', 'bg', 'baige'],
+            '十个': ['十个', '十个位', '十个定位', 'sg', 'shige'],
+            '百十个': ['百十个', '百十个位', '百十个定位', 'bsg', 'baishige']
+        })
 
     def filter_number_bets_only(self, df):
         """过滤只保留涉及具体号码投注的记录 - 修复版本"""
@@ -605,6 +699,33 @@ class MultiLotteryCoverageAnalyzer:
     
     def get_lottery_config(self, lottery_category):
         """获取彩种配置"""
+        return self.lottery_configs.get(lottery_category, self.lottery_configs['six_mark'])
+
+    def get_play_specific_config(self, lottery_category, play_method):
+        """根据玩法和彩种类型获取具体的配置"""
+        play_str = str(play_method).strip().lower() if play_method else ""
+        
+        # 🆕 六合彩尾数玩法
+        if lottery_category == 'six_mark' and any(keyword in play_str for keyword in ['尾数', '特尾', '全尾']):
+            return self.lottery_configs['six_mark_tail']
+        
+        # 🆕 快三基础玩法
+        elif lottery_category == 'fast_three' and any(keyword in play_str for keyword in ['三军', '独胆', '单码', '二不同号', '三不同号']):
+            return self.lottery_configs['fast_three_base']
+        
+        # 🆕 快三和值玩法
+        elif lottery_category == 'fast_three' and any(keyword in play_str for keyword in ['和值', '点数']):
+            return self.lottery_configs['fast_three_sum']
+        
+        # 🆕 冠亚和玩法
+        elif lottery_category == '10_number' and any(keyword in play_str for keyword in ['冠亚和', '冠亚和值']):
+            return self.lottery_configs['10_number_sum']
+        
+        # 🆕 时时彩和3D系列
+        elif lottery_category in ['10_number', '3d_series'] and any(keyword in play_str for keyword in ['第1球', '第2球', '第3球', '第4球', '第5球', '万位', '千位', '百位', '十位', '个位']):
+            return self.lottery_configs['ssc_3d']
+        
+        # 默认配置
         return self.lottery_configs.get(lottery_category, self.lottery_configs['six_mark'])
     
     def enhanced_column_mapping(self, df):
@@ -1115,17 +1236,17 @@ class MultiLotteryCoverageAnalyzer:
         content_str = str(content) if content else ""
         return self.enhanced_extract_numbers(content_str, lottery_category)
     
-    def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
-        """增强号码提取 - 专门处理定位胆格式"""
+    def enhanced_extract_numbers(self, content, lottery_category='six_mark', play_method=None):
+        """增强号码提取 - 根据玩法和彩种类型使用正确的号码范围"""
         content_str = str(content).strip()
         numbers = []
         
         try:
-            # 🆕 新增：处理空内容
             if not content_str or content_str.lower() in ['', 'null', 'none', 'nan']:
                 return []
             
-            config = self.get_lottery_config(lottery_category)
+            # 🆕 修正：根据玩法确定具体的配置
+            config = self.get_play_specific_config(lottery_category, play_method)
             number_range = config['number_range']
             
             # 🆕 新增：处理特殊字符和空白
@@ -1503,13 +1624,17 @@ class MultiLotteryCoverageAnalyzer:
         return all_results
 
     def analyze_period_lottery_position(self, group, period, lottery, position, min_number_count, min_avg_amount):
-        """分析特定期数、彩种和位置 - 简化版本（假设数据已经过滤）"""
+        """分析特定期数、彩种和位置 - 使用正确的号码范围"""
         min_number_count = int(min_number_count)
         min_avg_amount = float(min_avg_amount)
         
         lottery_category = self.identify_lottery_category(lottery)
         if not lottery_category:
             return None
+        
+        # 🆕 修正：根据玩法获取正确的配置
+        config = self.get_play_specific_config(lottery_category, position)
+        total_numbers = config['total_numbers']
         
         # 获取有效的金额阈值
         threshold_config = self.get_lottery_thresholds(lottery_category, min_avg_amount)
