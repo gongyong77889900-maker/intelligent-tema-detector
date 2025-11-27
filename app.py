@@ -1488,8 +1488,8 @@ class MultiLotteryCoverageAnalyzer:
         
         return all_results
 
-    def analyze_period_lottery_position(self, group, period, lottery, position, user_min_number_count, user_min_avg_amount):
-        """分析特定期数、彩种和位置 - 使用动态阈值 - 修复尾数识别问题"""
+    def analyze_period_lottery_position(self, group, period, lottery, position, params_dict, lottery_category_hint=None):
+        """分析特定期数、彩种和位置 - 使用参数字典"""
         
         lottery_category = self.identify_lottery_category(lottery)
         if not lottery_category:
@@ -1501,7 +1501,7 @@ class MultiLotteryCoverageAnalyzer:
         
         if debug_mode:
             print(f"🔍 开始分析2025329期尾数: {lottery} {position}")
-            print(f"🔧 用户阈值: 号码≥{user_min_number_count}, 金额≥{user_min_avg_amount}")
+            print(f"🔧 参数字典: {params_dict}")
         
         # 🆕 修正：根据玩法和彩种类型获取具体的配置
         config = self.get_play_specific_config(lottery_category, position)
@@ -1511,13 +1511,15 @@ class MultiLotteryCoverageAnalyzer:
             print(f"🔧 配置信息: 总号码数={total_numbers}, 号码范围={config['number_range']}")
             print(f"🔧 玩法类型: {config['type_name']}")
         
-        # 🆕 使用动态阈值 - 修复阈值选择逻辑
-        default_min_number_count = config.get('default_min_number_count', 3)
-        default_min_avg_amount = config.get('default_min_avg_amount', 5)
-        
-        # 如果用户提供了阈值，则使用用户的，否则使用默认值
-        min_number_count = int(user_min_number_count) if user_min_number_count is not None else default_min_number_count
-        min_avg_amount = float(user_min_avg_amount) if user_min_avg_amount is not None else default_min_avg_amount
+        # 🆕 修复：从参数字典中获取正确的阈值
+        if is_tail_play:
+            # 尾数玩法使用尾数专用阈值
+            min_number_count = params_dict.get('tail_min_number_count', params_dict.get('min_number_count', 3))
+            min_avg_amount = params_dict.get('tail_min_avg_amount', params_dict.get('min_avg_amount', 5))
+        else:
+            # 普通玩法使用基础阈值
+            min_number_count = params_dict.get('min_number_count', 3)
+            min_avg_amount = params_dict.get('min_avg_amount', 5)
         
         if debug_mode:
             print(f"🔧 最终阈值: 号码≥{min_number_count}, 金额≥{min_avg_amount}")
@@ -1589,7 +1591,7 @@ class MultiLotteryCoverageAnalyzer:
             filtered_account_numbers, 
             filtered_account_amount_stats, 
             filtered_account_bet_contents,
-            min_avg_amount,  # 这里传递的是阈值，不是配置
+            min_avg_amount,  # 这里传递的是数值，不是字典
             total_numbers
         )
         
@@ -1722,18 +1724,15 @@ class MultiLotteryCoverageAnalyzer:
         # 根据分析模式决定参数
         if analysis_mode == "仅分析六合彩":
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
-            user_min_number_count = six_mark_params['min_number_count']
-            user_min_avg_amount = six_mark_params['min_avg_amount']
+            user_params = six_mark_params  # 使用六合彩参数字典
             
         elif analysis_mode == "仅分析时时彩/PK10/赛车":
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
-            user_min_number_count = ten_number_params['min_number_count']
-            user_min_avg_amount = ten_number_params['min_avg_amount']
+            user_params = ten_number_params  # 使用时时彩参数字典
             
         elif analysis_mode == "仅分析快三":
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
-            user_min_number_count = fast_three_params['min_number_count']
-            user_min_avg_amount = fast_three_params['min_avg_amount']
+            user_params = fast_three_params  # 使用快三参数字典
             
         else:  # 自动识别所有彩种
             # 分别处理不同彩种
@@ -1749,11 +1748,10 @@ class MultiLotteryCoverageAnalyzer:
                 grouped_six = df_six_mark.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_six:
                     if len(group) >= 2:
-                        # 🆕 修复：传递完整的六合彩参数字典，而不是单个阈值
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position, 
-                            six_mark_params,  # 传递整个参数字典
-                            'six_mark'  # 明确指定彩种类型
+                            six_mark_params,  # 传递参数字典
+                            'six_mark'  # 彩种类型提示
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
@@ -1766,8 +1764,8 @@ class MultiLotteryCoverageAnalyzer:
                     if len(group) >= 2:
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position,
-                            ten_number_params['min_number_count'],
-                            ten_number_params['min_avg_amount']
+                            ten_number_params,  # 传递参数字典
+                            '10_number'  # 彩种类型提示
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
@@ -1780,8 +1778,8 @@ class MultiLotteryCoverageAnalyzer:
                     if len(group) >= 2:
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position,
-                            fast_three_params['min_number_count'],
-                            fast_three_params['min_avg_amount']
+                            fast_three_params,  # 传递参数字典
+                            'fast_three'  # 彩种类型提示
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
@@ -1808,8 +1806,8 @@ class MultiLotteryCoverageAnalyzer:
             if len(group) >= 2:
                 result = self.analyze_period_lottery_position(
                     group, period, lottery, position, 
-                    user_min_number_count, 
-                    user_min_avg_amount
+                    user_params,  # 使用对应的参数字典
+                    analysis_mode.replace("仅分析", "").split("/")[0].lower()  # 从模式中提取彩种类型
                 )
                 if result:
                     all_period_results[(period, lottery, position)] = result
@@ -2381,7 +2379,7 @@ def main():
 
                 # 分析数据 - 使用增强版分析
                 with st.spinner("正在进行完美覆盖分析..."):
-                    # 参数设置
+                    # 参数设置 - 确保所有参数字典都有正确的键
                     six_mark_params = {
                         'min_number_count': six_mark_min_number_count,
                         'min_avg_amount': six_mark_min_avg_amount,
@@ -2395,6 +2393,8 @@ def main():
                         'sum_min_avg_amount': ten_number_sum_min_avg_amount
                     }
                     fast_three_params = {
+                        'min_number_count': fast_three_min_number_count,  # 添加基础阈值
+                        'min_avg_amount': fast_three_min_avg_amount,      # 添加基础阈值
                         'sum_min_number_count': fast_three_sum_min_number_count,
                         'sum_min_avg_amount': fast_three_sum_min_avg_amount,
                         'base_min_number_count': fast_three_base_min_number_count,
@@ -2411,17 +2411,17 @@ def main():
                     
                     with col1:
                         st.write("**六合彩参数:**")
-                        st.write(f"- 基础号码阈值: ≥{six_mark_min_number_count}")
-                        st.write(f"- 基础金额阈值: ≥{six_mark_min_avg_amount}")
-                        st.write(f"- 尾数号码阈值: ≥{six_mark_tail_min_number_count}")
-                        st.write(f"- 尾数金额阈值: ≥{six_mark_tail_min_avg_amount}")
+                        st.write(f"- 基础号码阈值: ≥{six_mark_params['min_number_count']}")
+                        st.write(f"- 基础金额阈值: ≥{six_mark_params['min_avg_amount']}")
+                        st.write(f"- 尾数号码阈值: ≥{six_mark_params['tail_min_number_count']}")
+                        st.write(f"- 尾数金额阈值: ≥{six_mark_params['tail_min_avg_amount']}")
                     
                     with col2:
                         st.write("**其他彩种参数:**")
-                        st.write(f"- 时时彩号码阈值: ≥{ten_number_min_number_count}")
-                        st.write(f"- 时时彩金额阈值: ≥{ten_number_min_avg_amount}")
-                        st.write(f"- 冠亚和号码阈值: ≥{ten_number_sum_min_number_count}")
-                        st.write(f"- 冠亚和金额阈值: ≥{ten_number_sum_min_avg_amount}")
+                        st.write(f"- 时时彩号码阈值: ≥{ten_number_params['min_number_count']}")
+                        st.write(f"- 时时彩金额阈值: ≥{ten_number_params['min_avg_amount']}")
+                        st.write(f"- 冠亚和号码阈值: ≥{ten_number_params['sum_min_number_count']}")
+                        st.write(f"- 冠亚和金额阈值: ≥{ten_number_params['sum_min_avg_amount']}")
                     
                     # 调用分析方法 - 确保参数数量匹配
                     all_period_results = analyzer.analyze_with_progress(
