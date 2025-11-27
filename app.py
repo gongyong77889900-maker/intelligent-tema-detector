@@ -1003,20 +1003,27 @@ class MultiLotteryCoverageAnalyzer:
         return play_str
     
     def normalize_play_category(self, play_method, lottery_category='six_mark'):
-        """统一玩法分类 - 修复版本"""
+        """统一玩法分类 - 修复尾数识别"""
         if pd.isna(play_method) or play_method is None:
             return '未知玩法'
             
         play_str = str(play_method).strip()
         
-        # 处理空字符串
-        if not play_str:
-            return '未知玩法'
-        
         # 规范化特殊字符
         import re
         play_normalized = re.sub(r'\s+', ' ', play_str)
-        play_normalized = play_normalized.strip()
+        
+        # 🆕 最高优先级：尾数玩法识别
+        play_lower = play_normalized.lower()
+        
+        # 尾数玩法识别 - 放在最高优先级
+        if any(word in play_lower for word in ['尾数', '全尾', '特尾', '尾数_头尾数']):
+            if '全尾' in play_lower:
+                return '全尾'
+            elif '特尾' in play_lower:
+                return '特尾'
+            else:
+                return '尾数'
         
         # 1. 直接映射（完全匹配）- 最高优先级
         if play_normalized in self.play_mapping:
@@ -2247,7 +2254,8 @@ def main():
                 # 筛选有效玩法数据
                 if analysis_mode == "仅分析六合彩":
                     valid_plays = ['特码', '正码一', '正码二', '正码三', '正码四', '正码五', '正码六', 
-                                 '正一特', '正二特', '正三特', '正四特', '正五特', '正六特', '平码', '平特']
+                                 '正一特', '正二特', '正三特', '正四特', '正五特', '正六特', '平码', '平特',
+                                 '尾数', '全尾', '特尾']  # 🆕 确保包含尾数相关玩法
                 elif analysis_mode == "仅分析时时彩/PK10/赛车":
                     valid_plays = ['冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆', '前一']
                 elif analysis_mode == "仅分析快三":
