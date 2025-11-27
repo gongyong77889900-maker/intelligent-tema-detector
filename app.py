@@ -1110,10 +1110,19 @@ class MultiLotteryCoverageAnalyzer:
         return play_normalized
     
     @lru_cache(maxsize=5000)  # 增加缓存大小以提高性能
+    @lru_cache(maxsize=5000)
     def cached_extract_numbers(self, content, lottery_category):
         """带缓存的号码提取 - 修复版本"""
         content_str = str(content) if content else ""
-        return self.enhanced_extract_numbers(content_str, lottery_category)
+        result = self.enhanced_extract_numbers(content_str, lottery_category)
+        
+        # 🆕 调试信息：记录提取结果
+        if content_str and not result:
+            logger.debug(f"⚠️ 未提取到号码: '{content_str}'")
+        elif content_str and len(result) == 1 and ',' in content_str:
+            logger.debug(f"⚠️ 可能丢失号码: '{content_str}' -> {result}")
+        
+        return result
     
     def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
         """增强号码提取 - 修复版本：确保第一个号码不被过滤"""
