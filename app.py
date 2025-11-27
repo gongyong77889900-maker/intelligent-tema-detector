@@ -2048,7 +2048,7 @@ class MultiLotteryCoverageAnalyzer:
         total_combinations = sum(result['total_combinations'] for result in all_period_results.values())
         total_filtered_accounts = sum(result['filtered_accounts'] for result in all_period_results.values())
         total_periods = len(set(result['period'] for result in all_period_results.values()))
-        total_lotteries = len(set(result['lottery'] for result in all_period_results.values())
+        total_lotteries = len(set(result['lottery'] for result in all_period_results.values()))
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
