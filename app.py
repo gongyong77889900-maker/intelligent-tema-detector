@@ -1427,7 +1427,7 @@ class MultiLotteryCoverageAnalyzer:
             logger.warning(f"号码提取失败: {content_str}, 错误: {str(e)}")
             return []
     
-    @lru_cache(maxsize=500)
+    @lru_cache(maxsize=5000)
     def cached_extract_amount(self, amount_text):
         """带缓存的金额提取"""
         return self.extract_bet_amount(amount_text)
@@ -1685,24 +1685,21 @@ class MultiLotteryCoverageAnalyzer:
         
         lottery_category = self.identify_lottery_category(lottery)
         if not lottery_category:
+            print(f"❌ 无法识别彩种类型: {lottery}")
             return None
         
         # 🆕 修正：根据玩法获取正确的配置
         config = self.get_play_specific_config(lottery_category, position)
         total_numbers = config['total_numbers']
         
-        # 获取有效的金额阈值
-        threshold_config = self.get_lottery_thresholds(lottery_category, min_avg_amount)
-        effective_min_avg_amount = threshold_config['min_avg_amount']
+        print(f"🔍 开始分析: {period} {lottery} {position}")
+        print(f"🔍 配置: 号码范围={config['number_range']}, 总号码数={total_numbers}")
         
-        has_amount_column = '投注金额' in group.columns  # 注意：现在使用'投注金额'列
-        config = self.get_lottery_config(lottery_category)
-        total_numbers = config['total_numbers']
-        
+        has_amount_column = '投注金额' in group.columns
         account_numbers = {}
         account_amount_stats = {}
         account_bet_contents = {}
-    
+        
         for account in group['会员账号'].unique():
             account_data = group[group['会员账号'] == account]
             
@@ -1710,21 +1707,21 @@ class MultiLotteryCoverageAnalyzer:
             total_amount = 0
             
             for _, row in account_data.iterrows():
-                # 🆕 简化：直接使用已经提取的号码
+                # 🆕 调试：显示原始内容和提取的号码
+                print(f"🔍 处理账户 {account}: 内容='{row['内容']}'")
+                
                 if '提取号码' in row:
                     numbers = row['提取号码']
                 else:
-                    # 备用方案：重新提取号码
-                    numbers = self.cached_extract_numbers(row['内容'], lottery_category)
+                    numbers = self.cached_extract_numbers(row['内容'], lottery_category, position)
                 
+                print(f"✅ 提取号码: {numbers}")
                 all_numbers.update(numbers)
                 
                 if has_amount_column:
-                    # 🆕 简化：直接使用已经提取的金额
                     amount = row['投注金额']
                     total_amount += amount
             
-            # 所有记录都已经包含号码，所以直接记录
             account_numbers[account] = sorted(all_numbers)
             account_bet_contents[account] = ", ".join([f"{num:02d}" for num in sorted(all_numbers)])
             number_count = len(all_numbers)
@@ -1735,33 +1732,40 @@ class MultiLotteryCoverageAnalyzer:
                 'total_amount': total_amount,
                 'avg_amount_per_number': avg_amount_per_number
             }
-    
-        # 筛选有效账户 - 使用增强的金额阈值
+            
+            print(f"📊 账户统计: {account} -> 号码数={number_count}, 总金额={total_amount}, 平均={avg_amount_per_number}")
+        
+        # 筛选有效账户
         filtered_account_numbers = {}
         filtered_account_amount_stats = {}
         filtered_account_bet_contents = {}
-    
+        
         for account, numbers in account_numbers.items():
             stats = account_amount_stats[account]
-            # 使用有效的金额阈值
-            if len(numbers) >= min_number_count and stats['avg_amount_per_number'] >= effective_min_avg_amount:
+            if len(numbers) >= min_number_count and stats['avg_amount_per_number'] >= min_avg_amount:
                 filtered_account_numbers[account] = numbers
                 filtered_account_amount_stats[account] = account_amount_stats[account]
                 filtered_account_bet_contents[account] = account_bet_contents[account]
-    
+                print(f"✅ 有效账户: {account} 号码数={len(numbers)} 平均金额={stats['avg_amount_per_number']}")
+            else:
+                print(f"❌ 无效账户: {account} 号码数={len(numbers)} 平均金额={stats['avg_amount_per_number']}")
+        
         if len(filtered_account_numbers) < 2:
+            print(f"❌ 有效账户不足: {len(filtered_account_numbers)} < 2")
             return None
-    
+        
+        print(f"✅ 开始寻找完美组合，总号码数={total_numbers}")
         all_results = self.find_perfect_combinations(
             filtered_account_numbers, 
             filtered_account_amount_stats, 
             filtered_account_bet_contents,
-            effective_min_avg_amount,
+            min_avg_amount,
             total_numbers
         )
-    
+        
         total_combinations = sum(len(results) for results in all_results.values())
-    
+        print(f"🎯 找到组合: 2账户={len(all_results[2])}, 3账户={len(all_results[3])}, 4账户={len(all_results[4])}")
+        
         if total_combinations > 0:
             all_combinations = []
             for results in all_results.values():
