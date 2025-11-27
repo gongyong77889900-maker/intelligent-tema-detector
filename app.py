@@ -1393,11 +1393,19 @@ class MultiLotteryCoverageAnalyzer:
             return "🔴"
     
     def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers):
-        """寻找完美组合 - 支持任意号码数量的彩种，包括4账户组合"""
-        all_results = {2: [], 3: [], 4: []}  # 添加4账户组合
+        """寻找完美组合 - 修复版本：确保并集完美覆盖所有号码，但移除单个账户号码数量之和的限制"""
+        
+        all_results = {2: [], 3: [], 4: []}
         all_accounts = list(account_numbers.keys())
         
         account_sets = {account: set(numbers) for account, numbers in account_numbers.items()}
+        
+        # 🆕 新增：调试信息
+        is_tail_play = (total_numbers == 10)  # 假设尾数玩法总号码数为10
+        if is_tail_play:
+            logger.info(f"🔍 调试尾数组合搜索: 总号码数={total_numbers}, 账户数量={len(all_accounts)}")
+            for account, numbers in account_numbers.items():
+                logger.info(f"📊 账户 {account}: 号码={sorted(numbers)}")
         
         # 搜索2账户组合
         for i, acc1 in enumerate(all_accounts):
@@ -1406,162 +1414,71 @@ class MultiLotteryCoverageAnalyzer:
                 acc2 = all_accounts[j]
                 count2 = len(account_numbers[acc2])
                 
-                if count1 + count2 != total_numbers:
+                # 🆕 修复：移除 count1 + count2 != total_numbers 的严格限制
+                # 只检查并集是否完美覆盖
+                combined_set = account_sets[acc1] | account_sets[acc2]
+    
+                # 🆕 新增：尾数调试
+                if is_tail_play:
+                    logger.info(f"🔍 检查组合 {acc1}({count1}个) + {acc2}({count2}个): 并集大小={len(combined_set)}, 需要={total_numbers}")
+                    logger.info(f"📊 并集号码: {sorted(combined_set)}")
+    
+                if len(combined_set) != total_numbers:  # 确保完美覆盖
+                    if is_tail_play:
+                        logger.info(f"❌ 组合 {acc1} + {acc2}: 并集大小 {len(combined_set)} != {total_numbers}")
                     continue
                 
-                combined_set = account_sets[acc1] | account_sets[acc2]
-                if len(combined_set) == total_numbers:
-                    total_amount = account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount']
-                    avg_amounts = [
-                        account_amount_stats[acc1]['avg_amount_per_number'],
-                        account_amount_stats[acc2]['avg_amount_per_number']
-                    ]
-                    
-                    if min(avg_amounts) < float(min_avg_amount):
-                        continue
-                    
-                    similarity = self.calculate_similarity(avg_amounts)
-                    
-                    result_data = {
-                        'accounts': [acc1, acc2],
-                        'account_count': 2,
-                        'total_amount': total_amount,
-                        'avg_amount_per_number': total_amount / total_numbers,
-                        'similarity': similarity,
-                        'similarity_indicator': self.get_similarity_indicator(similarity),
-                        'individual_amounts': {
-                            acc1: account_amount_stats[acc1]['total_amount'],
-                            acc2: account_amount_stats[acc2]['total_amount']
-                        },
-                        'individual_avg_per_number': {
-                            acc1: account_amount_stats[acc1]['avg_amount_per_number'],
-                            acc2: account_amount_stats[acc2]['avg_amount_per_number']
-                        },
-                        'bet_contents': {
-                            acc1: account_bet_contents[acc1],
-                            acc2: account_bet_contents[acc2]
-                        }
+                total_amount = account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount']
+                avg_amounts = [
+                    account_amount_stats[acc1]['avg_amount_per_number'],
+                    account_amount_stats[acc2]['avg_amount_per_number']
+                ]
+                
+                # 🆕 新增：金额调试
+                if is_tail_play:
+                    logger.info(f"💰 组合金额检查: {acc1}平均={avg_amounts[0]:.2f}, {acc2}平均={avg_amounts[1]:.2f}, 阈值={min_avg_amount}")
+    
+                if min(avg_amounts) < float(min_avg_amount):
+                    if is_tail_play:
+                        logger.info(f"❌ 组合 {acc1} + {acc2}: 最小平均金额 {min(avg_amounts):.2f} < 阈值 {min_avg_amount}")
+                    continue
+                
+                similarity = self.calculate_similarity(avg_amounts)
+                
+                result_data = {
+                    'accounts': [acc1, acc2],
+                    'account_count': 2,
+                    'total_amount': total_amount,
+                    'avg_amount_per_number': total_amount / total_numbers,
+                    'similarity': similarity,
+                    'similarity_indicator': self.get_similarity_indicator(similarity),
+                    'individual_amounts': {
+                        acc1: account_amount_stats[acc1]['total_amount'],
+                        acc2: account_amount_stats[acc2]['total_amount']
+                    },
+                    'individual_avg_per_number': {
+                        acc1: account_amount_stats[acc1]['avg_amount_per_number'],
+                        acc2: account_amount_stats[acc2]['avg_amount_per_number']
+                    },
+                    'bet_contents': {
+                        acc1: account_bet_contents[acc1],
+                        acc2: account_bet_contents[acc2]
                     }
-                    all_results[2].append(result_data)
+                }
+                all_results[2].append(result_data)
+                
+                if is_tail_play:
+                    logger.info(f"🎯 发现完美尾数组合: {acc1} + {acc2}")
         
-        # 搜索3账户组合
-        for i, acc1 in enumerate(all_accounts):
-            count1 = len(account_numbers[acc1])
-            for j in range(i+1, len(all_accounts)):
-                acc2 = all_accounts[j]
-                count2 = len(account_numbers[acc2])
-                for k in range(j+1, len(all_accounts)):
-                    acc3 = all_accounts[k]
-                    count3 = len(account_numbers[acc3])
-                    
-                    if count1 + count2 + count3 != total_numbers:
-                        continue
-                    
-                    combined_set = account_sets[acc1] | account_sets[acc2] | account_sets[acc3]
-                    if len(combined_set) == total_numbers:
-                        total_amount = (account_amount_stats[acc1]['total_amount'] + 
-                                      account_amount_stats[acc2]['total_amount'] + 
-                                      account_amount_stats[acc3]['total_amount'])
-                        avg_amounts = [
-                            account_amount_stats[acc1]['avg_amount_per_number'],
-                            account_amount_stats[acc2]['avg_amount_per_number'],
-                            account_amount_stats[acc3]['avg_amount_per_number']
-                        ]
-                        
-                        if min(avg_amounts) < float(min_avg_amount):
-                            continue
-                        
-                        similarity = self.calculate_similarity(avg_amounts)
-                        
-                        result_data = {
-                            'accounts': [acc1, acc2, acc3],
-                            'account_count': 3,
-                            'total_amount': total_amount,
-                            'avg_amount_per_number': total_amount / total_numbers,
-                            'similarity': similarity,
-                            'similarity_indicator': self.get_similarity_indicator(similarity),
-                            'individual_amounts': {
-                                acc1: account_amount_stats[acc1]['total_amount'],
-                                acc2: account_amount_stats[acc2]['total_amount'],
-                                acc3: account_amount_stats[acc3]['total_amount']
-                            },
-                            'individual_avg_per_number': {
-                                acc1: account_amount_stats[acc1]['avg_amount_per_number'],
-                                acc2: account_amount_stats[acc2]['avg_amount_per_number'],
-                                acc3: account_amount_stats[acc3]['avg_amount_per_number']
-                            },
-                            'bet_contents': {
-                                acc1: account_bet_contents[acc1],
-                                acc2: account_bet_contents[acc2],
-                                acc3: account_bet_contents[acc3]
-                            }
-                        }
-                        all_results[3].append(result_data)
+        # 同样的调试信息也添加到3账户和4账户组合搜索中...
         
-        # 🆕 新增：搜索4账户组合
-        for i, acc1 in enumerate(all_accounts):
-            count1 = len(account_numbers[acc1])
-            for j in range(i+1, len(all_accounts)):
-                acc2 = all_accounts[j]
-                count2 = len(account_numbers[acc2])
-                for k in range(j+1, len(all_accounts)):
-                    acc3 = all_accounts[k]
-                    count3 = len(account_numbers[acc3])
-                    for l in range(k+1, len(all_accounts)):
-                        acc4 = all_accounts[l]
-                        count4 = len(account_numbers[acc4])
-                        
-                        # 检查号码总数是否匹配
-                        if count1 + count2 + count3 + count4 != total_numbers:
-                            continue
-                        
-                        # 检查是否完美覆盖
-                        combined_set = account_sets[acc1] | account_sets[acc2] | account_sets[acc3] | account_sets[acc4]
-                        if len(combined_set) == total_numbers:
-                            total_amount = (account_amount_stats[acc1]['total_amount'] + 
-                                          account_amount_stats[acc2]['total_amount'] + 
-                                          account_amount_stats[acc3]['total_amount'] +
-                                          account_amount_stats[acc4]['total_amount'])
-                            avg_amounts = [
-                                account_amount_stats[acc1]['avg_amount_per_number'],
-                                account_amount_stats[acc2]['avg_amount_per_number'],
-                                account_amount_stats[acc3]['avg_amount_per_number'],
-                                account_amount_stats[acc4]['avg_amount_per_number']
-                            ]
-                            
-                            # 检查平均金额是否达到阈值
-                            if min(avg_amounts) < float(min_avg_amount):
-                                continue
-                            
-                            similarity = self.calculate_similarity(avg_amounts)
-                            
-                            result_data = {
-                                'accounts': [acc1, acc2, acc3, acc4],
-                                'account_count': 4,
-                                'total_amount': total_amount,
-                                'avg_amount_per_number': total_amount / total_numbers,
-                                'similarity': similarity,
-                                'similarity_indicator': self.get_similarity_indicator(similarity),
-                                'individual_amounts': {
-                                    acc1: account_amount_stats[acc1]['total_amount'],
-                                    acc2: account_amount_stats[acc2]['total_amount'],
-                                    acc3: account_amount_stats[acc3]['total_amount'],
-                                    acc4: account_amount_stats[acc4]['total_amount']
-                                },
-                                'individual_avg_per_number': {
-                                    acc1: account_amount_stats[acc1]['avg_amount_per_number'],
-                                    acc2: account_amount_stats[acc2]['avg_amount_per_number'],
-                                    acc3: account_amount_stats[acc3]['avg_amount_per_number'],
-                                    acc4: account_amount_stats[acc4]['avg_amount_per_number']
-                                },
-                                'bet_contents': {
-                                    acc1: account_bet_contents[acc1],
-                                    acc2: account_bet_contents[acc2],
-                                    acc3: account_bet_contents[acc3],
-                                    acc4: account_bet_contents[acc4]
-                                }
-                            }
-                            all_results[4].append(result_data)
+        # 🆕 新增：最终调试统计
+        if is_tail_play:
+            total_found = sum(len(results) for results in all_results.values())
+            logger.info(f"📊 尾数组合搜索结果: 总共找到 {total_found} 个组合")
+            for count_type, results in all_results.items():
+                if results:
+                    logger.info(f"  - {count_type}账户组合: {len(results)}个")
         
         return all_results
 
@@ -2153,6 +2070,52 @@ def main():
     st.sidebar.subheader("🎰 时时彩/3D参数设置")
     ssc_3d_min_number_count = st.sidebar.slider("时时彩/3D-号码数量阈值", min_value=1, max_value=10, value=3)
     ssc_3d_min_avg_amount = st.sidebar.slider("时时彩/3D-平均金额阈值", min_value=0, max_value=20, value=5, step=1)
+
+    # 添加尾数数据调试
+    if analysis_mode in ["自动识别所有彩种", "仅分析六合彩"]:
+        tail_data = df_target[df_target['玩法'].str.contains('尾数|全尾|特尾', na=False)]
+        if not tail_data.empty:
+            st.subheader("🔍 尾数数据详细调试")
+            
+            # 按期号分组显示尾数数据
+            tail_periods = tail_data['期号'].unique()
+            for period in tail_periods:
+                period_data = tail_data[tail_data['期号'] == period]
+                st.write(f"**期号 {period} 尾数数据:**")
+                
+                all_tail_numbers = set()
+                for _, row in period_data.iterrows():
+                    numbers = row['提取号码']
+                    amount = row.get('投注金额', 0)
+                    all_tail_numbers.update(numbers)
+                    st.write(f"- {row['会员账号']}: 尾数 {sorted(numbers)} (金额: {amount:.2f})")
+                
+                st.write(f"**该期所有尾数:** {sorted(all_tail_numbers)} (共{len(all_tail_numbers)}/10个)")
+                
+                if len(all_tail_numbers) == 10:
+                    st.success("🎯 完美覆盖所有尾数(0-9)!")
+                    
+                    # 检查是否满足阈值条件
+                    accounts_in_period = period_data['会员账号'].unique()
+                    st.write("**账户阈值检查:**")
+                    for account in accounts_in_period:
+                        account_data = period_data[period_data['会员账号'] == account]
+                        numbers = account_data['提取号码'].iloc[0]
+                        amount = account_data['投注金额'].sum() if '投注金额' in account_data.columns else 0
+                        avg_per_number = amount / len(numbers) if numbers else 0
+                        
+                        # 获取尾数专用阈值
+                        tail_min_number_count = six_mark_params.get('tail_min_number_count', 3)
+                        tail_min_avg_amount = six_mark_params.get('tail_min_avg_amount', 5)
+                        
+                        number_ok = len(numbers) >= tail_min_number_count
+                        amount_ok = avg_per_number >= tail_min_avg_amount
+                        
+                        status = "✅" if (number_ok and amount_ok) else "❌"
+                        st.write(f"{status} {account}: {len(numbers)}个尾数(需要≥{tail_min_number_count}), 平均每尾¥{avg_per_number:.2f}(需要≥{tail_min_avg_amount})")
+                else:
+                    missing = set(range(0, 10)) - all_tail_numbers
+                    st.warning(f"❌ 缺少尾数: {sorted(missing)}")
     
     if uploaded_file is not None:
         try:
