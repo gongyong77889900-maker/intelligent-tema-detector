@@ -1901,15 +1901,21 @@ class MultiLotteryCoverageAnalyzer:
             user_min_number_count = six_mark_params['min_number_count']
             user_min_avg_amount = six_mark_params['min_avg_amount']
             
+            print(f"🔍 六合彩分析模式 - 号码阈值: {user_min_number_count}, 金额阈值: {user_min_avg_amount}")
+            
         elif analysis_mode == "仅分析时时彩/PK10/赛车":
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
             user_min_number_count = ten_number_params['min_number_count']
             user_min_avg_amount = ten_number_params['min_avg_amount']
             
+            print(f"🔍 时时彩分析模式 - 号码阈值: {user_min_number_count}, 金额阈值: {user_min_avg_amount}")
+            
         elif analysis_mode == "仅分析快三":
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
             user_min_number_count = fast_three_params['min_number_count']
             user_min_avg_amount = fast_three_params['min_avg_amount']
+            
+            print(f"🔍 快三分析模式 - 号码阈值: {user_min_number_count}, 金额阈值: {user_min_avg_amount}")
             
         else:  # 自动识别所有彩种
             # 分别处理不同彩种，使用各自的增强阈值
@@ -1925,10 +1931,22 @@ class MultiLotteryCoverageAnalyzer:
                 grouped_six = df_six_mark.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_six:
                     if len(group) >= 2:
+                        # 🆕 根据玩法类型使用不同的阈值
+                        play_str = str(position).strip().lower()
+                        if any(keyword in play_str for keyword in ['尾数', '全尾', '特尾']):
+                            # 使用尾数专用阈值
+                            user_min_number_count = six_mark_params.get('tail_min_number_count', 3)
+                            user_min_avg_amount = six_mark_params.get('tail_min_avg_amount', 5)
+                            print(f"🔍 尾数玩法使用专用阈值: 号码={user_min_number_count}, 金额={user_min_avg_amount}")
+                        else:
+                            # 使用普通六合彩阈值
+                            user_min_number_count = six_mark_params['min_number_count']
+                            user_min_avg_amount = six_mark_params['min_avg_amount']
+                        
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position, 
-                            six_mark_params['min_number_count'], 
-                            six_mark_params['min_avg_amount']
+                            user_min_number_count, 
+                            user_min_avg_amount
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
@@ -1981,9 +1999,25 @@ class MultiLotteryCoverageAnalyzer:
             status_text.text(f"分析进度: {idx+1}/{total_groups} - {period} ({lottery} - {position})")
             
             if len(group) >= 2:
-                result = self.analyze_period_lottery_position(
-                    group, period, lottery, position, user_min_number_count, user_min_avg_amount
-                )
+                # 🆕 在非自动模式下也要根据玩法类型选择阈值
+                play_str = str(position).strip().lower()
+                if any(keyword in play_str for keyword in ['尾数', '全尾', '特尾']):
+                    # 使用尾数专用阈值
+                    tail_min_number_count = six_mark_params.get('tail_min_number_count', 3)
+                    tail_min_avg_amount = six_mark_params.get('tail_min_avg_amount', 5)
+                    print(f"🔍 尾数玩法使用专用阈值: 号码={tail_min_number_count}, 金额={tail_min_avg_amount}")
+                    result = self.analyze_period_lottery_position(
+                        group, period, lottery, position, 
+                        tail_min_number_count, 
+                        tail_min_avg_amount
+                    )
+                else:
+                    result = self.analyze_period_lottery_position(
+                        group, period, lottery, position, 
+                        user_min_number_count, 
+                        user_min_avg_amount
+                    )
+                
                 if result:
                     all_period_results[(period, lottery, position)] = result
         
@@ -2297,13 +2331,35 @@ def main():
     six_mark_min_avg_amount = st.sidebar.slider(
         "六合彩-平均金额阈值", 
         min_value=0, 
-        max_value=50,  # 调高最大值
-        value=10,      # 修改：从2改为10
+        max_value=50,
+        value=10,
         step=1,
-        help="六合彩：只分析平均每号金额大于等于10的账户"  # 更新帮助文本
+        help="六合彩：只分析平均每号金额大于等于此值的账户"
+    )
+    
+    # 🆕 新增：六合彩尾数专用阈值设置
+    st.sidebar.subheader("🔢 六合彩尾数参数设置")
+    
+    six_mark_tail_min_number_count = st.sidebar.slider(
+        "六合彩尾数-号码数量阈值", 
+        min_value=1, 
+        max_value=10, 
+        value=3,
+        help="六合彩尾数：只分析投注号码数量大于等于此值的账户"
+    )
+    
+    six_mark_tail_min_avg_amount = st.sidebar.slider(
+        "六合彩尾数-平均金额阈值", 
+        min_value=0, 
+        max_value=20,
+        value=5,
+        step=1,
+        help="六合彩尾数：只分析平均每号金额大于等于此值的账户"
     )
     
     # 时时彩/PK10/赛车专用阈值设置
+    st.sidebar.subheader("🏎️ 时时彩/PK10/赛车参数设置")
+    
     ten_number_min_number_count = st.sidebar.slider(
         "赛车类-号码数量阈值", 
         min_value=1, 
@@ -2315,13 +2371,15 @@ def main():
     ten_number_min_avg_amount = st.sidebar.slider(
         "赛车类-平均金额阈值", 
         min_value=0, 
-        max_value=20,  # 调高最大值
-        value=5,       # 修改：从1改为5
+        max_value=20,
+        value=5,
         step=1,
-        help="时时彩/PK10/赛车：只分析平均每号金额大于等于5的账户"  # 更新帮助文本
+        help="时时彩/PK10/赛车：只分析平均每号金额大于等于此值的账户"
     )
     
     # 快三专用阈值设置
+    st.sidebar.subheader("🎲 快三参数设置")
+    
     fast_three_min_number_count = st.sidebar.slider(
         "快三-号码数量阈值", 
         min_value=1, 
@@ -2333,11 +2391,16 @@ def main():
     fast_three_min_avg_amount = st.sidebar.slider(
         "快三-平均金额阈值", 
         min_value=0, 
-        max_value=20,  # 调高最大值
-        value=5,       # 修改：从1改为5
+        max_value=20,
+        value=5,
         step=1,
-        help="快三和值玩法：只分析平均每号金额大于等于5的账户"  # 更新帮助文本
+        help="快三和值玩法：只分析平均每号金额大于等于此值的账户"
     )
+    
+    # 🆕 新增：测试按钮
+    if st.sidebar.button("🧪 运行尾数检测测试"):
+        analyzer.test_tail_number_detection()
+        st.sidebar.success("测试完成，请查看控制台输出")
     
     if uploaded_file is not None:
         try:
@@ -2551,7 +2614,9 @@ def main():
                 with st.spinner("正在进行完美覆盖分析..."):
                     six_mark_params = {
                         'min_number_count': six_mark_min_number_count,
-                        'min_avg_amount': six_mark_min_avg_amount
+                        'min_avg_amount': six_mark_min_avg_amount,
+                        'tail_min_number_count': six_mark_tail_min_number_count,  # 🆕 新增尾数阈值
+                        'tail_min_avg_amount': six_mark_tail_min_avg_amount       # 🆕 新增尾数阈值
                     }
                     ten_number_params = {
                         'min_number_count': ten_number_min_number_count,
