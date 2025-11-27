@@ -707,11 +707,8 @@ class MultiLotteryCoverageAnalyzer:
         """根据玩法和彩种类型获取具体的配置"""
         play_str = str(play_method).strip().lower() if play_method else ""
         
-        print(f"🔍 配置查询: 彩种={lottery_category}, 玩法='{play_str}'")
-        
         # 🆕 六合彩尾数玩法
-        if lottery_category == 'six_mark' and any(keyword in play_str for keyword in ['尾数', '特尾', '全尾']):
-            print("✅ 使用六合彩尾数配置 (0-9)")
+        if lottery_category == 'six_mark' and any(keyword in play_str for keyword in ['尾数', '全尾', '特尾']):
             return self.lottery_configs['six_mark_tail']
         
         # 🆕 快三基础玩法
@@ -731,9 +728,7 @@ class MultiLotteryCoverageAnalyzer:
             return self.lottery_configs['ssc_3d']
         
         # 默认配置
-        default_config = self.lottery_configs.get(lottery_category, self.lottery_configs['six_mark'])
-        print(f"✅ 使用默认配置: {default_config['type_name']}")
-        return default_config
+        return self.lottery_configs.get(lottery_category, self.lottery_configs['six_mark'])
     
     def enhanced_column_mapping(self, df):
         """增强版列名识别"""
@@ -1987,10 +1982,20 @@ class MultiLotteryCoverageAnalyzer:
         return all_period_results
 
     def display_enhanced_results(self, all_period_results, analysis_mode):
-        """增强结果展示 - 支持4账户组合显示"""
+        """增强结果展示 - 支持4账户组合"""
         if not all_period_results:
             st.info("🎉 未发现完美覆盖组合")
             return
+        
+        # 🆕 调试：显示所有检测到的结果
+        st.write(f"🔍 调试: 总共检测到 {len(all_period_results)} 个分组的结果")
+        
+        for key, result in all_period_results.items():
+            period, lottery, position = key
+            st.write(f"🔍 调试: {period} {lottery} {position} -> {result['total_combinations']} 个组合")
+            for combo in result['all_combinations']:
+                accounts = combo['accounts']
+                st.write(f"  - 组合: {accounts}, 账户数: {combo['account_count']}, 相似度: {combo['similarity']}%")
         
         # 按账户组合和彩种分组
         account_pair_groups = defaultdict(lambda: defaultdict(list))
@@ -2019,6 +2024,13 @@ class MultiLotteryCoverageAnalyzer:
                 }
                 
                 account_pair_groups[account_pair][lottery_key].append(combo_info)
+        
+        # 🆕 调试：显示分组后的结果
+        st.write(f"🔍 调试: 分组后共有 {len(account_pair_groups)} 个账户组合")
+        for account_pair, lottery_groups in account_pair_groups.items():
+            st.write(f"🔍 调试: 账户组合 {account_pair}")
+            for lottery_key, combos in lottery_groups.items():
+                st.write(f"  - {lottery_key}: {len(combos)} 个组合")
         
         # 显示彩种类型统计 - 更新为显示各种组合类型的数量
         st.subheader("🎲 组合类型统计")
@@ -2056,7 +2068,7 @@ class MultiLotteryCoverageAnalyzer:
             st.metric("有效账户数", total_filtered_accounts)
         with col4:
             st.metric("涉及彩种", total_lotteries)
-    
+        
         # 参与账户详细统计
         st.subheader("👥 参与账户详细统计")
         account_stats = self._calculate_detailed_account_stats(all_period_results)
@@ -2076,7 +2088,7 @@ class MultiLotteryCoverageAnalyzer:
         self._display_by_account_pair_lottery(account_pair_groups, analysis_mode)
 
     def _calculate_detailed_account_stats(self, all_period_results):
-        """详细账户统计 - 支持4账户组合"""
+        """详细账户统计 - 支持4账户组合和尾数玩法"""
         account_stats = []
         account_participation = defaultdict(lambda: {
             'periods': set(),
@@ -2118,15 +2130,24 @@ class MultiLotteryCoverageAnalyzer:
         return sorted(account_stats, key=lambda x: x['参与组合数'], reverse=True)
 
     def _display_by_account_pair_lottery(self, account_pair_groups, analysis_mode):
-        """按账户组合和彩种展示"""
+        """按账户组合和彩种展示 - 修复版本"""
         category_display = {
             'six_mark': '六合彩',
+            'six_mark_tail': '六合彩尾数',  # 🆕 新增尾数类别显示
             '10_number': '时时彩/PK10/赛车',
             'fast_three': '快三'
         }
         
+        # 🆕 调试：显示所有要展示的组合
+        if not account_pair_groups:
+            st.info("❌ 没有找到要展示的组合")
+            return
+        
         # 遍历每个账户组合
         for account_pair, lottery_groups in account_pair_groups.items():
+            # 🆕 调试：显示当前处理的账户组合
+            st.write(f"🔍 处理账户组合: {account_pair}")
+            
             # 遍历每个彩种
             for lottery_key, combos in lottery_groups.items():
                 # 按期号排序
