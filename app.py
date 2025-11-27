@@ -103,43 +103,57 @@ class MultiLotteryCoverageAnalyzer:
                 'number_range': set(range(1, 50)),
                 'total_numbers': 49,
                 'type_name': '六合彩',
-                'play_keywords': ['特码', '特玛', '特马', '特碼', '正码', '正特', '正肖', '平码', '平特']
+                'play_keywords': ['特码', '特玛', '特马', '特碼', '正码', '正特', '正肖', '平码', '平特'],
+                'default_min_number_count': 11,  # 🆕 默认阈值
+                'default_min_avg_amount': 10     # 🆕 默认阈值
             },
             'six_mark_tail': {  # 🆕 新增：六合彩尾数玩法
                 'number_range': set(range(0, 10)),  # 尾数0-9
                 'total_numbers': 10,
                 'type_name': '六合彩尾数',
-                'play_keywords': ['尾数', '特尾', '全尾']
+                'play_keywords': ['尾数', '特尾', '全尾'],
+                'default_min_number_count': 3,   # 🆕 默认阈值
+                'default_min_avg_amount': 5      # 🆕 默认阈值
             },
             '10_number': {
                 'number_range': set(range(1, 11)),
                 'total_numbers': 10,
                 'type_name': '10个号码彩种',
-                'play_keywords': ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎', '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '第一名', '第二名', '第三名', '前一']
+                'play_keywords': ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎', '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '第一名', '第二名', '第三名', '前一'],
+                'default_min_number_count': 3,   # 🆕 默认阈值
+                'default_min_avg_amount': 5      # 🆕 默认阈值
             },
             '10_number_sum': {  # 🆕 新增：冠亚和玩法
                 'number_range': set(range(3, 20)),  # 冠亚和3-19
                 'total_numbers': 17,
                 'type_name': '冠亚和',
-                'play_keywords': ['冠亚和', '冠亚和值']
+                'play_keywords': ['冠亚和', '冠亚和值'],
+                'default_min_number_count': 5,   # 🆕 默认阈值
+                'default_min_avg_amount': 5      # 🆕 默认阈值
             },
             'fast_three_base': {  # 🆕 新增：快三基础玩法
                 'number_range': set(range(1, 7)),  # 基础号码1-6
                 'total_numbers': 6,
                 'type_name': '快三基础',
-                'play_keywords': ['三军', '独胆', '单码', '二不同号', '三不同号']
+                'play_keywords': ['三军', '独胆', '单码', '二不同号', '三不同号'],
+                'default_min_number_count': 2,   # 🆕 默认阈值
+                'default_min_avg_amount': 5      # 🆕 默认阈值
             },
             'fast_three_sum': {  # 🆕 新增：快三和值玩法
                 'number_range': set(range(3, 19)),  # 和值范围3-18
                 'total_numbers': 16,
                 'type_name': '快三和值',
-                'play_keywords': ['和值', '点数']
+                'play_keywords': ['和值', '点数'],
+                'default_min_number_count': 4,   # 🆕 默认阈值
+                'default_min_avg_amount': 5      # 🆕 默认阈值
             },
             'ssc_3d': {  # 🆕 新增：时时彩和3D系列
                 'number_range': set(range(0, 10)),  # 号码0-9
                 'total_numbers': 10,
                 'type_name': '时时彩/3D',
-                'play_keywords': ['定位胆', '第1球', '第2球', '第3球', '第4球', '第5球', '万位', '千位', '百位', '十位', '个位']
+                'play_keywords': ['定位胆', '第1球', '第2球', '第3球', '第4球', '第5球', '万位', '千位', '百位', '十位', '个位'],
+                'default_min_number_count': 3,   # 🆕 默认阈值
+                'default_min_avg_amount': 5      # 🆕 默认阈值
             }
         }
         
@@ -614,37 +628,23 @@ class MultiLotteryCoverageAnalyzer:
         
         return df_clean, no_number_count, non_number_play_count
 
-    def get_lottery_thresholds(self, lottery_category, user_min_avg_amount):
-        """根据彩种类型获取阈值配置 - 修复版本"""
-        base_thresholds = {
-            'six_mark': {
-                'min_avg_amount': float(user_min_avg_amount),  # 使用用户设置
-                'description': '六合彩'
-            },
-            '10_number': {
-                'min_avg_amount': float(user_min_avg_amount),  # 使用用户设置
-                'description': '时时彩/PK10/赛车'
-            },
-            'fast_three': {
-                'min_avg_amount': float(user_min_avg_amount),  # 使用用户设置
-                'description': '快三'
-            },
-            '3d_series': {
-                'min_avg_amount': float(user_min_avg_amount),  # 使用用户设置
-                'description': '3D系列'
-            },
-            'five_star': {
-                'min_avg_amount': float(user_min_avg_amount),  # 使用用户设置
-                'description': '五星彩'
-            }
+    def get_lottery_thresholds(self, lottery_category, user_min_avg_amount=None):
+        """根据彩种类型获取阈值配置 - 使用配置中的默认阈值"""
+        config = self.get_lottery_config(lottery_category)
+        
+        # 使用配置中的默认阈值，如果用户提供了值则使用用户的
+        min_number_count = config.get('default_min_number_count', 3)
+        min_avg_amount = config.get('default_min_avg_amount', 5)
+        
+        # 如果用户提供了平均金额阈值，使用用户的设置
+        if user_min_avg_amount is not None:
+            min_avg_amount = float(user_min_avg_amount)
+        
+        return {
+            'min_number_count': min_number_count,
+            'min_avg_amount': min_avg_amount,
+            'description': config['type_name']
         }
-        
-        config = base_thresholds.get(lottery_category, {
-            'min_avg_amount': float(user_min_avg_amount),  # 其他彩种也使用用户设置
-            'description': '其他彩种'
-        })
-        
-        return config
     
     def identify_lottery_category(self, lottery_name):
         """识别彩种类型 - 增强六合彩识别"""
@@ -1673,11 +1673,8 @@ class MultiLotteryCoverageAnalyzer:
         
         return all_results
 
-    def analyze_period_lottery_position(self, group, period, lottery, position, min_number_count, min_avg_amount):
-        """分析特定期数、彩种和位置 - 使用正确的号码范围"""
-        min_number_count = int(min_number_count)
-        min_avg_amount = float(min_avg_amount)
-        
+    def analyze_period_lottery_position(self, group, period, lottery, position, user_min_number_count, user_min_avg_amount):
+        """分析特定期数、彩种和位置 - 使用动态阈值"""
         lottery_category = self.identify_lottery_category(lottery)
         if not lottery_category:
             print(f"❌ 无法识别彩种类型: {lottery}")
@@ -1687,8 +1684,18 @@ class MultiLotteryCoverageAnalyzer:
         config = self.get_play_specific_config(lottery_category, position)
         total_numbers = config['total_numbers']
         
+        # 🆕 使用动态阈值
+        threshold_config = self.get_lottery_thresholds(lottery_category, user_min_avg_amount)
+        min_number_count = threshold_config['min_number_count']
+        min_avg_amount = threshold_config['min_avg_amount']
+        
+        # 如果用户提供了号码数量阈值，使用用户的设置
+        if user_min_number_count is not None:
+            min_number_count = int(user_min_number_count)
+        
         print(f"🔍 开始分析: {period} {lottery} {position}")
         print(f"🔍 配置: 号码范围={config['number_range']}, 总号码数={total_numbers}")
+        print(f"🔍 阈值: 号码数≥{min_number_count}, 平均金额≥{min_avg_amount}")
         
         has_amount_column = '投注金额' in group.columns
         account_numbers = {}
@@ -1872,30 +1879,18 @@ class MultiLotteryCoverageAnalyzer:
         # 根据分析模式决定分组方式
         if analysis_mode == "仅分析六合彩":
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
-            min_number_count = six_mark_params['min_number_count']
-            min_avg_amount = six_mark_params['min_avg_amount']
-            
-            # 使用阈值管理
-            threshold_config = self.get_lottery_thresholds('six_mark', min_avg_amount)
-            effective_min_avg_amount = threshold_config['min_avg_amount']
+            user_min_number_count = six_mark_params['min_number_count']
+            user_min_avg_amount = six_mark_params['min_avg_amount']
             
         elif analysis_mode == "仅分析时时彩/PK10/赛车":
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
-            min_number_count = ten_number_params['min_number_count']
-            min_avg_amount = ten_number_params['min_avg_amount']
-            
-            # 使用阈值管理
-            threshold_config = self.get_lottery_thresholds('10_number', min_avg_amount)
-            effective_min_avg_amount = threshold_config['min_avg_amount']
+            user_min_number_count = ten_number_params['min_number_count']
+            user_min_avg_amount = ten_number_params['min_avg_amount']
             
         elif analysis_mode == "仅分析快三":
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
-            min_number_count = fast_three_params['min_number_count']
-            min_avg_amount = fast_three_params['min_avg_amount']
-            
-            # 使用阈值管理
-            threshold_config = self.get_lottery_thresholds('fast_three', min_avg_amount)
-            effective_min_avg_amount = threshold_config['min_avg_amount']
+            user_min_number_count = fast_three_params['min_number_count']
+            user_min_avg_amount = fast_three_params['min_avg_amount']
             
         else:  # 自动识别所有彩种
             # 分别处理不同彩种，使用各自的增强阈值
@@ -1911,7 +1906,6 @@ class MultiLotteryCoverageAnalyzer:
                 grouped_six = df_six_mark.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_six:
                     if len(group) >= 2:
-                        threshold_config = self.get_lottery_thresholds('six_mark', six_mark_params['min_avg_amount'])
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position, 
                             six_mark_params['min_number_count'], 
@@ -1926,7 +1920,6 @@ class MultiLotteryCoverageAnalyzer:
                 grouped_10 = df_10_number.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_10:
                     if len(group) >= 2:
-                        threshold_config = self.get_lottery_thresholds('10_number', ten_number_params['min_avg_amount'])
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position,
                             ten_number_params['min_number_count'],
@@ -1941,7 +1934,6 @@ class MultiLotteryCoverageAnalyzer:
                 grouped_fast_three = df_fast_three.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_fast_three:
                     if len(group) >= 2:
-                        threshold_config = self.get_lottery_thresholds('fast_three', fast_three_params['min_avg_amount'])
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position,
                             fast_three_params['min_number_count'],
@@ -1971,7 +1963,7 @@ class MultiLotteryCoverageAnalyzer:
             
             if len(group) >= 2:
                 result = self.analyze_period_lottery_position(
-                    group, period, lottery, position, min_number_count, effective_min_avg_amount
+                    group, period, lottery, position, user_min_number_count, user_min_avg_amount
                 )
                 if result:
                     all_period_results[(period, lottery, position)] = result
