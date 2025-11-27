@@ -2453,7 +2453,7 @@ def main():
         help="时时彩/PK10/赛车基础玩法：只分析平均每号金额大于等于此值的账户"
     )
     
-    # 新增：冠亚和专用阈值设置
+    # 🆕 新增：冠亚和专用阈值设置
     st.sidebar.subheader("🥇 冠亚和参数设置")
     
     ten_number_sum_min_number_count = st.sidebar.slider(
@@ -2494,7 +2494,7 @@ def main():
         help="快三和值玩法：只分析平均每号金额大于等于此值的账户"
     )
     
-    # 新增：快三基础玩法专用阈值设置
+    # 🆕 新增：快三基础玩法专用阈值设置
     st.sidebar.subheader("🎯 快三基础玩法参数设置")
     
     fast_three_base_min_number_count = st.sidebar.slider(
@@ -2534,48 +2534,10 @@ def main():
         help="时时彩/3D系列：只分析平均每号金额大于等于此值的账户"
     )
     
-    # 新增：测试按钮
+    # 🆕 新增：测试按钮
     if st.sidebar.button("🧪 运行尾数检测测试"):
         analyzer.test_tail_number_detection()
         st.sidebar.success("测试完成，请查看控制台输出")
-    
-    # 🆕 添加向后兼容的变量，避免NameError
-    # 这些变量将在后续代码中被新变量替换
-    fast_three_min_number_count = fast_three_sum_min_number_count
-    fast_three_min_avg_amount = fast_three_sum_min_avg_amount
-
-    if uploaded_file is not None:
-        try:
-            # ... 文件读取和数据预处理代码 ...
-            
-            # 分析数据 - 使用增强版分析
-            with st.spinner("正在进行完美覆盖分析..."):
-                six_mark_params = {
-                    'min_number_count': six_mark_min_number_count,
-                    'min_avg_amount': six_mark_min_avg_amount,
-                    'tail_min_number_count': six_mark_tail_min_number_count,
-                    'tail_min_avg_amount': six_mark_tail_min_avg_amount
-                }
-                ten_number_params = {
-                    'min_number_count': ten_number_min_number_count,
-                    'min_avg_amount': ten_number_min_avg_amount,
-                    'sum_min_number_count': ten_number_sum_min_number_count,
-                    'sum_min_avg_amount': ten_number_sum_min_avg_amount
-                }
-                fast_three_params = {
-                    'sum_min_number_count': fast_three_sum_min_number_count,
-                    'sum_min_avg_amount': fast_three_sum_min_avg_amount,
-                    'base_min_number_count': fast_three_base_min_number_count,
-                    'base_min_avg_amount': fast_three_base_min_avg_amount
-                }
-                ssc_3d_params = {
-                    'min_number_count': ssc_3d_min_number_count,
-                    'min_avg_amount': ssc_3d_min_avg_amount
-                }
-                
-                all_period_results = analyzer.analyze_with_progress(
-                    df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode
-                )
     
     if uploaded_file is not None:
         try:
