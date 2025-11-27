@@ -2233,22 +2233,33 @@ def main():
                 st.info(f"📊 当前分析模式: {analysis_mode}")
                 threshold_config = analyzer.get_lottery_thresholds('six_mark', six_mark_min_avg_amount)
                 st.info(f"🎯 六合彩参数: 号码数量阈值 ≥ {six_mark_min_number_count}, 平均金额阈值 ≥ {threshold_config['min_avg_amount']}")
+                st.info(f"🔢 六合彩尾数参数: 号码数量阈值 ≥ {six_mark_tail_min_number_count}, 平均金额阈值 ≥ {six_mark_tail_min_avg_amount}")
+                
             elif analysis_mode == "仅分析时时彩/PK10/赛车":
                 st.info(f"📊 当前分析模式: {analysis_mode}")
                 threshold_config = analyzer.get_lottery_thresholds('10_number', ten_number_min_avg_amount)
-                st.info(f"🏎️ 赛车类参数: 号码数量阈值 ≥ {ten_number_min_number_count}, 平均金额阈值 ≥ {threshold_config['min_avg_amount']}")
+                st.info(f"🏎️ 赛车类基础参数: 号码数量阈值 ≥ {ten_number_min_number_count}, 平均金额阈值 ≥ {threshold_config['min_avg_amount']}")
+                st.info(f"🥇 冠亚和参数: 号码数量阈值 ≥ {ten_number_sum_min_number_count}, 平均金额阈值 ≥ {ten_number_sum_min_avg_amount}")
+                
             elif analysis_mode == "仅分析快三":
                 st.info(f"📊 当前分析模式: {analysis_mode}")
-                threshold_config = analyzer.get_lottery_thresholds('fast_three', fast_three_min_avg_amount)
-                st.info(f"🎲 快三参数: 号码数量阈值 ≥ {fast_three_min_number_count}, 平均金额阈值 ≥ {threshold_config['min_avg_amount']}")
+                threshold_config = analyzer.get_lottery_thresholds('fast_three', fast_three_sum_min_avg_amount)
+                st.info(f"🎲 快三和值参数: 号码数量阈值 ≥ {fast_three_sum_min_number_count}, 平均金额阈值 ≥ {threshold_config['min_avg_amount']}")
+                st.info(f"🎯 快三基础参数: 号码数量阈值 ≥ {fast_three_base_min_number_count}, 平均金额阈值 ≥ {fast_three_base_min_avg_amount}")
+                
             else:
                 st.info(f"📊 当前分析模式: {analysis_mode}")
                 six_mark_config = analyzer.get_lottery_thresholds('six_mark', six_mark_min_avg_amount)
                 ten_number_config = analyzer.get_lottery_thresholds('10_number', ten_number_min_avg_amount)
-                fast_three_config = analyzer.get_lottery_thresholds('fast_three', fast_three_min_avg_amount)
-                st.info(f"🎯 六合彩参数: 号码数量 ≥ {six_mark_min_number_count}, 平均金额 ≥ {six_mark_config['min_avg_amount']}")
-                st.info(f"🏎️ 赛车类参数: 号码数量 ≥ {ten_number_min_number_count}, 平均金额 ≥ {ten_number_config['min_avg_amount']}")
-                st.info(f"🎲 快三参数: 号码数量 ≥ {fast_three_min_number_count}, 平均金额 ≥ {fast_three_config['min_avg_amount']}")
+                fast_three_config = analyzer.get_lottery_thresholds('fast_three', fast_three_sum_min_avg_amount)
+                
+                st.info(f"🎯 六合彩基础参数: 号码数量 ≥ {six_mark_min_number_count}, 平均金额 ≥ {six_mark_config['min_avg_amount']}")
+                st.info(f"🔢 六合彩尾数参数: 号码数量 ≥ {six_mark_tail_min_number_count}, 平均金额 ≥ {six_mark_tail_min_avg_amount}")
+                st.info(f"🏎️ 赛车类基础参数: 号码数量 ≥ {ten_number_min_number_count}, 平均金额 ≥ {ten_number_config['min_avg_amount']}")
+                st.info(f"🥇 冠亚和参数: 号码数量 ≥ {ten_number_sum_min_number_count}, 平均金额 ≥ {ten_number_sum_min_avg_amount}")
+                st.info(f"🎲 快三和值参数: 号码数量 ≥ {fast_three_sum_min_number_count}, 平均金额 ≥ {fast_three_config['min_avg_amount']}")
+                st.info(f"🎯 快三基础参数: 号码数量 ≥ {fast_three_base_min_number_count}, 平均金额 ≥ {fast_three_base_min_avg_amount}")
+                st.info(f"🎰 时时彩/3D参数: 号码数量 ≥ {ssc_3d_min_number_count}, 平均金额 ≥ {ssc_3d_min_avg_amount}")
             
             # 将列名识别和数据质量检查放入折叠框
             with st.expander("🔧 数据预处理过程", expanded=False):
