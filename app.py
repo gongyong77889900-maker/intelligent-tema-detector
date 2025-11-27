@@ -2316,6 +2316,68 @@ def main():
                         analysis_mode
                     )
 
+                # 🆕 新增：尾数数据调试
+                if analysis_mode in ["自动识别所有彩种", "仅分析六合彩"]:
+                    tail_data = df_target[df_target['玩法'].str.contains('尾数|全尾|特尾', na=False)]
+                    if not tail_data.empty:
+                        st.subheader("🔍 尾数数据详细调试")
+                        
+                        # 按期号分组显示尾数数据
+                        tail_periods = tail_data['期号'].unique()
+                        for period in tail_periods:
+                            period_data = tail_data[tail_data['期号'] == period]
+                            st.write(f"**期号 {period} 尾数数据:**")
+                            
+                            all_tail_numbers = set()
+                            account_info = {}
+                            for _, row in period_data.iterrows():
+                                numbers = row['提取号码']
+                                amount = row.get('投注金额', 0)
+                                all_tail_numbers.update(numbers)
+                                account_info[row['会员账号']] = {
+                                    'numbers': numbers,
+                                    'amount': amount
+                                }
+                                st.write(f"- {row['会员账号']}: 尾数 {sorted(numbers)} (金额: {amount:.2f})")
+                            
+                            st.write(f"**该期所有尾数:** {sorted(all_tail_numbers)} (共{len(all_tail_numbers)}/10个)")
+                            
+                            if len(all_tail_numbers) == 10:
+                                st.success("🎯 完美覆盖所有尾数(0-9)!")
+                                
+                                # 检查是否满足阈值条件
+                                st.write("**账户阈值检查:**")
+                                for account, info in account_info.items():
+                                    numbers = info['numbers']
+                                    amount = info['amount']
+                                    avg_per_number = amount / len(numbers) if numbers else 0
+                                    
+                                    # 获取尾数专用阈值
+                                    tail_min_number_count = six_mark_params.get('tail_min_number_count', 3)
+                                    tail_min_avg_amount = six_mark_params.get('tail_min_avg_amount', 5)
+                                    
+                                    number_ok = len(numbers) >= tail_min_number_count
+                                    amount_ok = avg_per_number >= tail_min_avg_amount
+                                    
+                                    status = "✅" if (number_ok and amount_ok) else "❌"
+                                    st.write(f"{status} {account}: {len(numbers)}个尾数(需要≥{tail_min_number_count}), 平均每尾¥{avg_per_number:.2f}(需要≥{tail_min_avg_amount})")
+                                
+                                # 检查是否在分析结果中
+                                st.write("**分析结果检查:**")
+                                found_in_results = False
+                                for result_key, result in all_period_results.items():
+                                    period_result, lottery_result, position_result = result_key
+                                    if period_result == period and '尾数' in position_result:
+                                        st.success(f"✅ 在分析结果中找到该期尾数组合: {len(result['all_combinations'])}个组合")
+                                        found_in_results = True
+                                        break
+                                
+                                if not found_in_results:
+                                    st.error("❌ 该期尾数完美覆盖但未在分析结果中找到!")
+                            else:
+                                missing = set(range(0, 10)) - all_tail_numbers
+                                st.warning(f"❌ 缺少尾数: {sorted(missing)}")
+
                 # 显示结果 - 使用增强版展示
                 st.header("📊 完美覆盖组合检测结果")
                 analyzer.display_enhanced_results(all_period_results, analysis_mode)
