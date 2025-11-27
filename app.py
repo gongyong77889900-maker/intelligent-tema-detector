@@ -1393,50 +1393,54 @@ class MultiLotteryCoverageAnalyzer:
             return "🔴"
     
     def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers):
-        """寻找完美组合 - 彻底重写版本"""
+        """寻找完美组合 - 修复版本：确保并集完美覆盖所有号码，但移除单个账户号码数量之和的限制"""
         
         all_results = {2: [], 3: [], 4: []}
         all_accounts = list(account_numbers.keys())
         
-        if len(all_accounts) < 2:
-            return all_results
-        
         account_sets = {account: set(numbers) for account, numbers in account_numbers.items()}
         
-        # 🆕 详细调试信息
-        debug_info = []
-        is_tail_play = (total_numbers == 10)
-        
+        # 🆕 新增：调试信息
+        is_tail_play = (total_numbers == 10)  # 尾数玩法总号码数为10
         if is_tail_play:
-            debug_info.append(f"🔍 尾数组合搜索: 需要{total_numbers}个号码, {len(all_accounts)}个账户")
+            print(f"🔍 尾数组合搜索: 需要{total_numbers}个号码, {len(all_accounts)}个账户")
             for account in all_accounts:
-                debug_info.append(f"📊 {account}: {sorted(account_numbers[account])} (平均¥{account_amount_stats[account]['avg_amount_per_number']:.2f})")
+                numbers = account_numbers[account]
+                stats = account_amount_stats[account]
+                print(f"📊 {account}: {sorted(numbers)} (数量:{len(numbers)}, 总金额:{stats['total_amount']}, 平均:{stats['avg_amount_per_number']:.2f})")
         
         # 搜索2账户组合
-        found_2_account = False
         for i, acc1 in enumerate(all_accounts):
+            count1 = len(account_numbers[acc1])
             for j in range(i+1, len(all_accounts)):
                 acc2 = all_accounts[j]
+                count2 = len(account_numbers[acc2])
                 
                 combined_set = account_sets[acc1] | account_sets[acc2]
                 
+                if is_tail_play:
+                    print(f"🔍 检查组合 {acc1}({count1}个) + {acc2}({count2}个): 并集大小={len(combined_set)}, 需要={total_numbers}")
+                    print(f"📊 并集号码: {sorted(combined_set)}")
+                
                 if len(combined_set) != total_numbers:
                     if is_tail_play:
-                        debug_info.append(f"❌ {acc1}+{acc2}: 并集{len(combined_set)}个≠{total_numbers}")
+                        print(f"❌ 组合 {acc1} + {acc2}: 并集大小 {len(combined_set)} != {total_numbers}")
                     continue
                 
+                total_amount = account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount']
                 avg_amounts = [
                     account_amount_stats[acc1]['avg_amount_per_number'],
                     account_amount_stats[acc2]['avg_amount_per_number']
                 ]
                 
+                if is_tail_play:
+                    print(f"💰 组合金额检查: {acc1}平均={avg_amounts[0]:.2f}, {acc2}平均={avg_amounts[1]:.2f}, 阈值={min_avg_amount}")
+                
                 if min(avg_amounts) < float(min_avg_amount):
                     if is_tail_play:
-                        debug_info.append(f"❌ {acc1}+{acc2}: 最小金额{min(avg_amounts):.2f}<{min_avg_amount}")
+                        print(f"❌ 组合 {acc1} + {acc2}: 最小平均金额 {min(avg_amounts):.2f} < 阈值 {min_avg_amount}")
                     continue
                 
-                # 🎯 找到完美组合
-                total_amount = account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount']
                 similarity = self.calculate_similarity(avg_amounts)
                 
                 result_data = {
@@ -1460,33 +1464,39 @@ class MultiLotteryCoverageAnalyzer:
                     }
                 }
                 all_results[2].append(result_data)
-                found_2_account = True
                 
                 if is_tail_play:
-                    debug_info.append(f"🎯 找到2账户组合: {acc1}+{acc2}")
+                    print(f"🎯 发现完美尾数组合: {acc1} + {acc2}")
         
-        # 🆕 输出调试信息
-        if is_tail_play and debug_info:
-            st.subheader("🔍 尾数组合搜索调试")
-            for info in debug_info:
-                st.write(info)
-            
-            if found_2_account:
-                st.success(f"✅ 找到 {len(all_results[2])} 个2账户尾数组合")
-            else:
-                st.error("❌ 未找到任何2账户尾数组合")
+        # 🆕 新增：最终调试统计
+        if is_tail_play:
+            total_found = sum(len(results) for results in all_results.values())
+            print(f"📊 尾数组合搜索结果: 总共找到 {total_found} 个组合")
+            for count_type, results in all_results.items():
+                if results:
+                    print(f"  - {count_type}账户组合: {len(results)}个")
         
         return all_results
 
     def analyze_period_lottery_position(self, group, period, lottery, position, user_min_number_count, user_min_avg_amount):
         """分析特定期数、彩种和位置 - 使用动态阈值"""
+        
         lottery_category = self.identify_lottery_category(lottery)
         if not lottery_category:
             return None
         
+        # 🆕 新增：调试信息
+        is_tail_play = any(keyword in position for keyword in ['尾数', '全尾', '特尾'])
+        if is_tail_play:
+            print(f"🔍 开始分析尾数玩法: {period} {lottery} {position}")
+            print(f"🔧 用户设置的阈值: 号码≥{user_min_number_count}, 金额≥{user_min_avg_amount}")
+        
         # 🆕 修正：根据玩法获取正确的配置
         config = self.get_play_specific_config(lottery_category, position)
         total_numbers = config['total_numbers']
+        
+        if is_tail_play:
+            print(f"🔧 尾数配置: 总号码数={total_numbers}, 号码范围={config['number_range']}")
         
         # 🆕 使用动态阈值
         default_min_number_count = config.get('default_min_number_count', 3)
@@ -1494,6 +1504,10 @@ class MultiLotteryCoverageAnalyzer:
         
         # 如果用户提供了阈值，则使用用户的，否则使用默认值
         min_number_count = int(user_min_number_count) if user_min_number_count is not None else default_min_number_count
+        min_avg_amount = float(user_min_avg_amount) if user_min_avg_amount is not None else default_min_avg_amount
+        
+        if is_tail_play:
+            print(f"🔧 最终使用的阈值: 号码≥{min_number_count}, 金额≥{min_avg_amount}")
         min_avg_amount = float(user_min_avg_amount) if user_min_avg_amount is not None else default_min_avg_amount
        
         has_amount_column = '投注金额' in group.columns
@@ -2439,6 +2453,10 @@ def main():
                         else:
                             missing = set(range(0, 10)) - all_tail_numbers
                             st.error(f"❌ 缺少尾数: {sorted(missing)}")
+                
+                # 在分析完成后调用尾数调试
+                if analysis_mode in ["自动识别所有彩种", "仅分析六合彩"]:
+                    debug_tail_coverage(analyzer, df_target, six_mark_params)
 
                 # 🆕 新增：尾数数据调试
                 if analysis_mode in ["自动识别所有彩种", "仅分析六合彩"]:
