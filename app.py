@@ -707,8 +707,11 @@ class MultiLotteryCoverageAnalyzer:
         """根据玩法和彩种类型获取具体的配置"""
         play_str = str(play_method).strip().lower() if play_method else ""
         
-        # 🆕 六合彩尾数玩法
-        if lottery_category == 'six_mark' and any(keyword in play_str for keyword in ['尾数', '全尾', '特尾']):
+        print(f"🔍 配置查询: 彩种={lottery_category}, 玩法='{play_str}'")
+        
+        # 🆕 六合彩尾数玩法 - 最高优先级
+        if any(keyword in play_str for keyword in ['尾数', '全尾', '特尾']):
+            print("✅ 使用六合彩尾数配置 (0-9)")
             return self.lottery_configs['six_mark_tail']
         
         # 🆕 快三基础玩法
@@ -728,7 +731,9 @@ class MultiLotteryCoverageAnalyzer:
             return self.lottery_configs['ssc_3d']
         
         # 默认配置
-        return self.lottery_configs.get(lottery_category, self.lottery_configs['six_mark'])
+        default_config = self.lottery_configs.get(lottery_category, self.lottery_configs['six_mark'])
+        print(f"✅ 使用默认配置: {default_config['type_name']}")
+        return default_config
     
     def enhanced_column_mapping(self, df):
         """增强版列名识别"""
@@ -1501,10 +1506,17 @@ class MultiLotteryCoverageAnalyzer:
     
     def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers):
         """寻找完美组合 - 修复版本：确保并集完美覆盖所有号码，但移除单个账户号码数量之和的限制"""
+        print(f"🔍 DEBUG: 开始寻找完美组合，总号码数={total_numbers}, 最小平均金额={min_avg_amount}")
+        print(f"🔍 DEBUG: 可用账户: {list(account_numbers.keys())}")
+        
         all_results = {2: [], 3: [], 4: []}
         all_accounts = list(account_numbers.keys())
         
         account_sets = {account: set(numbers) for account, numbers in account_numbers.items()}
+        
+        # 显示每个账户的号码
+        for account, numbers in account_numbers.items():
+            print(f"🔍 DEBUG: 账户 {account} 号码: {sorted(numbers)} (共{len(numbers)}个)")
         
         # 搜索2账户组合
         for i, acc1 in enumerate(all_accounts):
@@ -1516,6 +1528,8 @@ class MultiLotteryCoverageAnalyzer:
                 # 🆕 修复：移除 count1 + count2 != total_numbers 的严格限制
                 # 但仍然检查并集是否完美覆盖
                 combined_set = account_sets[acc1] | account_sets[acc2]
+                print(f"🔍 DEBUG: 检查组合 {acc1} + {acc2}: 并集大小={len(combined_set)}, 需要={total_numbers}")
+                
                 if len(combined_set) != total_numbers:  # 确保完美覆盖
                     continue
                 
@@ -1525,10 +1539,13 @@ class MultiLotteryCoverageAnalyzer:
                     account_amount_stats[acc2]['avg_amount_per_number']
                 ]
                 
+                print(f"🔍 DEBUG: 金额检查: {acc1}={avg_amounts[0]}, {acc2}={avg_amounts[1]}, 最小值={min(avg_amounts)}, 阈值={min_avg_amount}")
+                
                 if min(avg_amounts) < float(min_avg_amount):
                     continue
                 
                 similarity = self.calculate_similarity(avg_amounts)
+                print(f"✅ 找到完美组合: {acc1} + {acc2}, 相似度={similarity}%")
                 
                 result_data = {
                     'accounts': [acc1, acc2],
@@ -1675,6 +1692,9 @@ class MultiLotteryCoverageAnalyzer:
 
     def analyze_period_lottery_position(self, group, period, lottery, position, user_min_number_count, user_min_avg_amount):
         """分析特定期数、彩种和位置 - 使用动态阈值"""
+        print(f"🔍 DEBUG: 进入分析方法 - 期号: {period}, 彩种: {lottery}, 玩法: {position}")
+        print(f"🔍 DEBUG: 用户设置阈值 - 号码数: {user_min_number_count}, 平均金额: {user_min_avg_amount}")
+        
         lottery_category = self.identify_lottery_category(lottery)
         if not lottery_category:
             print(f"❌ 无法识别彩种类型: {lottery}")
@@ -1685,17 +1705,16 @@ class MultiLotteryCoverageAnalyzer:
         total_numbers = config['total_numbers']
         
         # 🆕 使用动态阈值
-        threshold_config = self.get_lottery_thresholds(lottery_category, user_min_avg_amount)
-        min_number_count = threshold_config['min_number_count']
-        min_avg_amount = threshold_config['min_avg_amount']
+        default_min_number_count = config.get('default_min_number_count', 3)
+        default_min_avg_amount = config.get('default_min_avg_amount', 5)
         
-        # 如果用户提供了号码数量阈值，使用用户的设置
-        if user_min_number_count is not None:
-            min_number_count = int(user_min_number_count)
+        # 如果用户提供了阈值，则使用用户的，否则使用默认值
+        min_number_count = int(user_min_number_count) if user_min_number_count is not None else default_min_number_count
+        min_avg_amount = float(user_min_avg_amount) if user_min_avg_amount is not None else default_min_avg_amount
         
         print(f"🔍 开始分析: {period} {lottery} {position}")
         print(f"🔍 配置: 号码范围={config['number_range']}, 总号码数={total_numbers}")
-        print(f"🔍 阈值: 号码数≥{min_number_count}, 平均金额≥{min_avg_amount}")
+        print(f"🔍 最终阈值: 号码数≥{min_number_count}, 平均金额≥{min_avg_amount}")
         
         has_amount_column = '投注金额' in group.columns
         account_numbers = {}
