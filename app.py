@@ -2136,6 +2136,10 @@ def main():
     
     # ========== 快三参数设置 ==========
     st.sidebar.subheader("🎲 快三参数设置")
+    # 添加缺失的快三基础参数
+    fast_three_min_number_count = st.sidebar.slider("快三-号码数量阈值", min_value=1, max_value=16, value=4)
+    fast_three_min_avg_amount = st.sidebar.slider("快三-平均金额阈值", min_value=0, max_value=20, value=5, step=1)
+    
     # 快三和值玩法
     fast_three_sum_min_number_count = st.sidebar.slider("快三和值-号码数量阈值", min_value=1, max_value=16, value=4)
     fast_three_sum_min_avg_amount = st.sidebar.slider("快三和值-平均金额阈值", min_value=0, max_value=20, value=5, step=1)
