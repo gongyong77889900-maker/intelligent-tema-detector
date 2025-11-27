@@ -2128,52 +2128,6 @@ def main():
                 st.info(f"🎲 快三参数: 号码数量 ≥ {fast_three_min_number_count}, 平均金额 ≥ {fast_three_config['min_avg_amount']}")
                 st.info(f"🎯 快三基础参数: 号码数量 ≥ {fast_three_base_min_number_count}, 平均金额 ≥ {fast_three_base_min_avg_amount}")
             
-    # 添加尾数数据调试
-    if analysis_mode in ["自动识别所有彩种", "仅分析六合彩"]:
-        tail_data = df_target[df_target['玩法'].str.contains('尾数|全尾|特尾', na=False)]
-        if not tail_data.empty:
-            st.subheader("🔍 尾数数据详细调试")
-            
-            # 按期号分组显示尾数数据
-            tail_periods = tail_data['期号'].unique()
-            for period in tail_periods:
-                period_data = tail_data[tail_data['期号'] == period]
-                st.write(f"**期号 {period} 尾数数据:**")
-                
-                all_tail_numbers = set()
-                for _, row in period_data.iterrows():
-                    numbers = row['提取号码']
-                    amount = row.get('投注金额', 0)
-                    all_tail_numbers.update(numbers)
-                    st.write(f"- {row['会员账号']}: 尾数 {sorted(numbers)} (金额: {amount:.2f})")
-                
-                st.write(f"**该期所有尾数:** {sorted(all_tail_numbers)} (共{len(all_tail_numbers)}/10个)")
-                
-                if len(all_tail_numbers) == 10:
-                    st.success("🎯 完美覆盖所有尾数(0-9)!")
-                    
-                    # 检查是否满足阈值条件
-                    accounts_in_period = period_data['会员账号'].unique()
-                    st.write("**账户阈值检查:**")
-                    for account in accounts_in_period:
-                        account_data = period_data[period_data['会员账号'] == account]
-                        numbers = account_data['提取号码'].iloc[0]
-                        amount = account_data['投注金额'].sum() if '投注金额' in account_data.columns else 0
-                        avg_per_number = amount / len(numbers) if numbers else 0
-                        
-                        # 获取尾数专用阈值
-                        tail_min_number_count = six_mark_params.get('tail_min_number_count', 3)
-                        tail_min_avg_amount = six_mark_params.get('tail_min_avg_amount', 5)
-                        
-                        number_ok = len(numbers) >= tail_min_number_count
-                        amount_ok = avg_per_number >= tail_min_avg_amount
-                        
-                        status = "✅" if (number_ok and amount_ok) else "❌"
-                        st.write(f"{status} {account}: {len(numbers)}个尾数(需要≥{tail_min_number_count}), 平均每尾¥{avg_per_number:.2f}(需要≥{tail_min_avg_amount})")
-                else:
-                    missing = set(range(0, 10)) - all_tail_numbers
-                    st.warning(f"❌ 缺少尾数: {sorted(missing)}")
-
             # 将列名识别和数据质量检查放入折叠框
             with st.expander("🔧 数据预处理过程", expanded=False):
                 # 增强版列名映射
