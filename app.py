@@ -485,11 +485,12 @@ class MultiLotteryCoverageAnalyzer:
         return self.cached_extract_amount(str(amount_str))
 
     def enhanced_data_preprocessing(self, df_clean):
-        """增强数据预处理流程"""
-        # 1. 首先识别彩种类型
+        """完全重写的数据预处理流程 - 确保号码和金额提取独立"""
+        
+        # 步骤1: 首先识别彩种类型
         df_clean['彩种类型'] = df_clean['彩种'].apply(self.identify_lottery_category)
         
-        # 2. 统一玩法分类
+        # 步骤2: 统一玩法分类
         df_clean['玩法'] = df_clean.apply(
             lambda row: self.normalize_play_category(
                 row['玩法'], 
@@ -498,21 +499,25 @@ class MultiLotteryCoverageAnalyzer:
             axis=1
         )
         
-        # 3. 提取号码
+        # 步骤3: 独立进行号码提取 - 使用修复版本
         df_clean['提取号码'] = df_clean.apply(
-            lambda row: self.cached_extract_numbers(
+            lambda row: self.fixed_extract_numbers(
                 row['内容'], 
                 row['彩种类型'] if not pd.isna(row['彩种类型']) else 'six_mark'
             ), 
             axis=1
         )
         
-        # 4. 过滤无号码记录
+        # 步骤4: 独立进行金额提取
+        if '金额' in df_clean.columns:
+            df_clean['投注金额'] = df_clean['金额'].apply(self.fixed_extract_amount)
+        
+        # 步骤5: 过滤无号码记录
         initial_count = len(df_clean)
         df_clean = df_clean[df_clean['提取号码'].apply(lambda x: len(x) > 0)]
         no_number_count = initial_count - len(df_clean)
         
-        # 5. 过滤非号码投注玩法
+        # 步骤6: 过滤非号码投注玩法
         df_clean = self.filter_number_bets_only(df_clean)
         non_number_play_count = initial_count - no_number_count - len(df_clean)
         
@@ -1111,12 +1116,11 @@ class MultiLotteryCoverageAnalyzer:
     
     @lru_cache(maxsize=5000)  # 增加缓存大小以提高性能
     def cached_extract_numbers(self, content, lottery_category):
-        """带缓存的号码提取 - 修复版本"""
-        content_str = str(content) if content else ""
-        return self.enhanced_extract_numbers(content_str, lottery_category)
+        """临时禁用缓存，直接调用修复版本"""
+        return self.fixed_extract_numbers(content, lottery_category)
     
     def enhanced_extract_numbers(self, content, lottery_category='six_mark'):
-        """增强号码提取 - 完整修复版本"""
+        """完全重写的号码提取函数 - 确保正确处理带前缀的号码"""
         content_str = str(content).strip()
         numbers = []
         
@@ -1131,14 +1135,19 @@ class MultiLotteryCoverageAnalyzer:
             content_str = re.sub(r'[\s\u3000]+', ' ', content_str)
             content_str = re.sub(r'[\(（].*?[\)）]', '', content_str)
             
-            # 🆕 修复：专门处理"玩法-号码"格式
+            # 🆕 关键修复：专门处理"玩法-号码"格式
             # 处理"特码-01,02,03"、"正码一-05,06,07"等格式
-            prefix_pattern = r'^[^:：\d]+[-~—]\s*([\d,\s]+)'
-            prefix_match = re.match(prefix_pattern, content_str)
-            if prefix_match:
-                number_part = prefix_match.group(1).strip()
-                number_part = re.sub(r'\s+', '', number_part)
-                if number_part:
+            if '-' in content_str or '—' in content_str or '~' in content_str:
+                # 分割前缀和号码部分
+                separator_pattern = r'[-—~]'
+                parts = re.split(separator_pattern, content_str, 1)  # 只分割一次
+                if len(parts) == 2:
+                    prefix, number_part = parts
+                    # 清理号码部分
+                    number_part = number_part.strip()
+                    number_part = re.sub(r'\s+', '', number_part)
+                    
+                    # 按逗号分割提取数字
                     number_strs = number_part.split(',')
                     for num_str in number_strs:
                         if num_str and num_str.isdigit():
@@ -1148,13 +1157,15 @@ class MultiLotteryCoverageAnalyzer:
                     if numbers:
                         return sorted(list(set(numbers)))
             
-            # 🆕 修复：处理冒号格式
-            colon_pattern = r'^[^:：]+[:：]\s*([\d,\s]+)'
-            colon_match = re.match(colon_pattern, content_str)
-            if colon_match:
-                number_part = colon_match.group(1).strip()
-                number_part = re.sub(r'\s+', '', number_part)
-                if number_part:
+            # 🆕 处理冒号格式
+            if ':' in content_str or '：' in content_str:
+                colon_separator = ':' if ':' in content_str else '：'
+                parts = content_str.split(colon_separator, 1)
+                if len(parts) == 2:
+                    prefix, number_part = parts
+                    number_part = number_part.strip()
+                    number_part = re.sub(r'\s+', '', number_part)
+                    
                     number_strs = number_part.split(',')
                     for num_str in number_strs:
                         if num_str and num_str.isdigit():
@@ -1164,22 +1175,7 @@ class MultiLotteryCoverageAnalyzer:
                     if numbers:
                         return sorted(list(set(numbers)))
             
-            # 🆕 修复：直接处理逗号分隔的号码（可能是清理后的内容）
-            if ',' in content_str or '，' in content_str:
-                # 使用正则表达式分割，处理中英文逗号
-                number_strs = re.split(r'[,，]', content_str)
-                for num_str in number_strs:
-                    num_str_clean = num_str.strip()
-                    # 提取数字（可能包含前导零）
-                    digit_match = re.search(r'(\d+)', num_str_clean)
-                    if digit_match:
-                        num_val = int(digit_match.group(1))
-                        if num_val in number_range:
-                            numbers.append(num_val)
-                if numbers:
-                    return sorted(list(set(numbers)))
-            
-            # 🆕 最后的手段：提取所有1-2位数字
+            # 🆕 最后的手段：直接提取所有1-2位数字
             number_matches = re.findall(r'\b\d{1,2}\b', content_str)
             for match in number_matches:
                 num = int(match)
@@ -1191,11 +1187,37 @@ class MultiLotteryCoverageAnalyzer:
         except Exception as e:
             logger.warning(f"号码提取失败: {content_str}, 错误: {str(e)}")
             return []
+
+    def fixed_extract_numbers(self, content, lottery_category):
+        """修复的号码提取 - 不使用缓存，完全独立"""
+        content_str = str(content) if content else ""
+        return self.enhanced_extract_numbers(content_str, lottery_category)
+
+    def fixed_extract_amount(self, amount_text):
+        """修复的金额提取 - 不使用缓存，完全独立"""
+        try:
+            if pd.isna(amount_text) or amount_text is None:
+                return 0.0
+            
+            text = str(amount_text).strip()
+            
+            if text == '':
+                return 0.0
+            
+            # 方法1: 直接提取第一个数字
+            numbers = re.findall(r'\d+\.?\d*', text)
+            if numbers:
+                return float(numbers[0])
+            
+            return 0.0
+                
+        except Exception as e:
+            return 0.0
     
     @lru_cache(maxsize=500)
     def cached_extract_amount(self, amount_text):
-        """带缓存的金额提取"""
-        return self.extract_bet_amount(amount_text)
+        """临时禁用缓存，直接调用修复版本"""
+        return self.fixed_extract_amount(amount_text)
     
     def extract_bet_amount(self, amount_text):
         """金额提取函数 - 修复版本：只提取第一个数字"""
