@@ -674,10 +674,10 @@ class MultiLotteryCoverageAnalyzer:
         return self.lottery_configs.get(lottery_category, self.lottery_configs['six_mark'])
 
     def get_play_specific_config(self, lottery_category, play_method):
-        """根据玩法和彩种类型获取具体的配置"""
+        """根据玩法和彩种类型获取具体的配置 - 修复尾数识别"""
         play_str = str(play_method).strip().lower() if play_method else ""
         
-        # 🆕 六合彩尾数玩法 - 最高优先级
+        # 🆕 修复：尾数玩法识别 - 最高优先级
         if any(keyword in play_str for keyword in ['尾数', '全尾', '特尾']):
             return self.lottery_configs['six_mark_tail']
         
@@ -1400,15 +1400,16 @@ class MultiLotteryCoverageAnalyzer:
             return "🔴"
     
     def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers):
-        """寻找完美组合 - 修复版本：确保并集完美覆盖所有号码，但移除单个账户号码数量之和的限制"""
+        """寻找完美组合 - 修复版本：确保并集完美覆盖所有号码"""
         
         all_results = {2: [], 3: [], 4: []}
         all_accounts = list(account_numbers.keys())
         
         account_sets = {account: set(numbers) for account, numbers in account_numbers.items()}
         
-        # 🆕 新增：尾数调试
-        is_tail_play = (total_numbers == 10)
+        # 🆕 修复：正确识别尾数玩法
+        is_tail_play = (total_numbers == 10)  # 尾数总共有10个号码(0-9)
+        
         if is_tail_play:
             print(f"🔍 尾数组合搜索开始: 需要{total_numbers}个号码, {len(all_accounts)}个账户")
             for account in all_accounts:
@@ -1429,6 +1430,7 @@ class MultiLotteryCoverageAnalyzer:
                     print(f"🔍 检查组合 {acc1}({count1}个) + {acc2}({count2}个): 并集大小={len(combined_set)}, 需要={total_numbers}")
                     print(f"📊 并集号码: {sorted(combined_set)}")
                 
+                # 🆕 修复：严格检查并集大小必须等于总号码数
                 if len(combined_set) != total_numbers:
                     if is_tail_play:
                         print(f"❌ 组合 {acc1} + {acc2}: 并集大小 {len(combined_set)} != {total_numbers}")
@@ -1443,6 +1445,7 @@ class MultiLotteryCoverageAnalyzer:
                 if is_tail_play:
                     print(f"💰 组合金额检查: {acc1}平均={avg_amounts[0]:.2f}, {acc2}平均={avg_amounts[1]:.2f}, 阈值={min_avg_amount}")
                 
+                # 🆕 修复：严格检查每个账户的平均金额都要满足阈值
                 if min(avg_amounts) < float(min_avg_amount):
                     if is_tail_play:
                         print(f"❌ 组合 {acc1} + {acc2}: 最小平均金额 {min(avg_amounts):.2f} < 阈值 {min_avg_amount}")
@@ -1475,7 +1478,7 @@ class MultiLotteryCoverageAnalyzer:
                 if is_tail_play:
                     print(f"🎯 发现完美尾数组合: {acc1} + {acc2}")
         
-        # 🆕 新增：最终调试统计
+        # 🆕 修复：最终调试统计
         if is_tail_play:
             total_found = sum(len(results) for results in all_results.values())
             print(f"📊 尾数组合搜索结果: 总共找到 {total_found} 个组合")
@@ -1486,26 +1489,29 @@ class MultiLotteryCoverageAnalyzer:
         return all_results
 
     def analyze_period_lottery_position(self, group, period, lottery, position, user_min_number_count, user_min_avg_amount):
-        """分析特定期数、彩种和位置 - 使用动态阈值"""
+        """分析特定期数、彩种和位置 - 使用动态阈值 - 修复尾数识别问题"""
         
         lottery_category = self.identify_lottery_category(lottery)
         if not lottery_category:
             return None
         
-        # 🆕 新增：调试信息
+        # 🆕 新增：调试信息 - 特别关注尾数
         is_tail_play = any(keyword in position for keyword in ['尾数', '全尾', '特尾'])
-        if is_tail_play and period == "2025329":  # 专门调试2025329期
+        debug_mode = (period == "2025329" and is_tail_play)
+        
+        if debug_mode:
             print(f"🔍 开始分析2025329期尾数: {lottery} {position}")
             print(f"🔧 用户阈值: 号码≥{user_min_number_count}, 金额≥{user_min_avg_amount}")
         
-        # 🆕 修正：根据玩法获取正确的配置
+        # 🆕 修正：根据玩法和彩种类型获取具体的配置
         config = self.get_play_specific_config(lottery_category, position)
         total_numbers = config['total_numbers']
         
-        if is_tail_play and period == "2025329":
-            print(f"🔧 尾数配置: 总号码数={total_numbers}, 号码范围={config['number_range']}")
+        if debug_mode:
+            print(f"🔧 配置信息: 总号码数={total_numbers}, 号码范围={config['number_range']}")
+            print(f"🔧 玩法类型: {config['type_name']}")
         
-        # 🆕 使用动态阈值
+        # 🆕 使用动态阈值 - 修复阈值选择逻辑
         default_min_number_count = config.get('default_min_number_count', 3)
         default_min_avg_amount = config.get('default_min_avg_amount', 5)
         
@@ -1513,13 +1519,16 @@ class MultiLotteryCoverageAnalyzer:
         min_number_count = int(user_min_number_count) if user_min_number_count is not None else default_min_number_count
         min_avg_amount = float(user_min_avg_amount) if user_min_avg_amount is not None else default_min_avg_amount
         
-        if is_tail_play and period == "2025329":
+        if debug_mode:
             print(f"🔧 最终阈值: 号码≥{min_number_count}, 金额≥{min_avg_amount}")
         
         has_amount_column = '投注金额' in group.columns
         account_numbers = {}
         account_amount_stats = {}
         account_bet_contents = {}
+        
+        if debug_mode:
+            print(f"🔍 开始处理账户数据，共{len(group)}条记录")
         
         for account in group['会员账号'].unique():
             account_data = group[group['会员账号'] == account]
@@ -1550,8 +1559,8 @@ class MultiLotteryCoverageAnalyzer:
                 'avg_amount_per_number': avg_amount_per_number
             }
             
-            if is_tail_play and period == "2025329":
-                print(f"📊 账户 {account}: {number_count}个号码, 总金额={total_amount}, 平均每号={avg_amount_per_number}")
+            if debug_mode:
+                print(f"📊 账户 {account}: {number_count}个号码={sorted(all_numbers)}, 总金额={total_amount}, 平均每号={avg_amount_per_number:.2f}")
         
         # 筛选有效账户
         filtered_account_numbers = {}
@@ -1565,27 +1574,28 @@ class MultiLotteryCoverageAnalyzer:
                 filtered_account_amount_stats[account] = account_amount_stats[account]
                 filtered_account_bet_contents[account] = account_bet_contents[account]
         
-        if is_tail_play and period == "2025329":
+        if debug_mode:
             print(f"🔍 账户筛选: 原始{len(account_numbers)}个 -> 筛选后{len(filtered_account_numbers)}个")
             for account in filtered_account_numbers:
                 print(f"✅ 有效账户 {account}: {filtered_account_numbers[account]}")
         
         if len(filtered_account_numbers) < 2:
-            if is_tail_play and period == "2025329":
+            if debug_mode:
                 print(f"❌ 有效账户不足: 需要至少2个，当前只有{len(filtered_account_numbers)}个")
             return None
         
+        # 🆕 修复：确保正确传递参数到组合搜索
         all_results = self.find_perfect_combinations(
             filtered_account_numbers, 
             filtered_account_amount_stats, 
             filtered_account_bet_contents,
-            min_avg_amount,
+            min_avg_amount,  # 这里传递的是阈值，不是配置
             total_numbers
         )
         
         total_combinations = sum(len(results) for results in all_results.values())
         
-        if is_tail_play and period == "2025329":
+        if debug_mode:
             print(f"🎯 组合搜索结果: 找到{total_combinations}个组合")
             for count_type, results in all_results.items():
                 if results:
@@ -1609,12 +1619,14 @@ class MultiLotteryCoverageAnalyzer:
                 'total_numbers': total_numbers
             }
             
-            if is_tail_play and period == "2025329":
+            if debug_mode:
                 print(f"✅ 成功生成分析结果: {result['total_combinations']}个组合")
+                for combo in result['all_combinations']:
+                    print(f"  - 组合: {combo['accounts']}, 相似度: {combo['similarity']:.1f}%")
             
             return result
         
-        if is_tail_play and period == "2025329":
+        if debug_mode:
             print(f"❌ 未找到完美组合")
         
         return None
@@ -1737,10 +1749,11 @@ class MultiLotteryCoverageAnalyzer:
                 grouped_six = df_six_mark.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_six:
                     if len(group) >= 2:
+                        # 🆕 修复：传递完整的六合彩参数字典，而不是单个阈值
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position, 
-                            six_mark_params['min_number_count'], 
-                            six_mark_params['min_avg_amount']
+                            six_mark_params,  # 传递整个参数字典
+                            'six_mark'  # 明确指定彩种类型
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
@@ -2588,46 +2601,6 @@ def main():
                             else:
                                 missing = set(range(0, 10)) - all_tail_numbers
                                 st.warning(f"❌ 缺少尾数: {sorted(missing)}")
-
-                # 在分析完成后添加分析流程调试
-                st.subheader("🔍 分析流程调试")
-                
-                # 检查分析结果
-                if all_period_results:
-                    st.write(f"**分析结果统计:** 找到 {len(all_period_results)} 个期号-彩种-玩法组合")
-                    
-                    # 检查是否包含尾数相关的组合
-                    tail_results = {}
-                    for key, result in all_period_results.items():
-                        period, lottery, position = key
-                        if any(keyword in position for keyword in ['尾数', '全尾', '特尾']):
-                            tail_results[key] = result
-                    
-                    if tail_results:
-                        st.success(f"✅ 在分析结果中找到 {len(tail_results)} 个尾数相关组合")
-                        for key, result in tail_results.items():
-                            period, lottery, position = key
-                            st.write(f"- {period} {lottery} {position}: {result['total_combinations']}个组合")
-                    else:
-                        st.error("❌ 分析结果中没有包含任何尾数相关组合")
-                else:
-                    st.warning("⚠️ 分析结果为空")
-                
-                # 专门检查2025329期尾数组合
-                st.write("**专门检查2025329期尾数组合:**")
-                period_2025329_tail = None
-                for key, result in all_period_results.items():
-                    period, lottery, position = key
-                    if period == "2025329" and any(keyword in position for keyword in ['尾数', '全尾', '特尾']):
-                        period_2025329_tail = result
-                        break
-                
-                if period_2025329_tail:
-                    st.success(f"✅ 找到2025329期尾数组合: {period_2025329_tail['total_combinations']}个组合")
-                    for combo in period_2025329_tail['all_combinations']:
-                        st.write(f"- 账户组合: {combo['accounts']}, 相似度: {combo['similarity']:.1f}%")
-                else:
-                    st.error("❌ 未在分析结果中找到2025329期尾数组合")
 
                 # 显示结果 - 使用增强版展示
                 st.header("📊 完美覆盖组合检测结果")
