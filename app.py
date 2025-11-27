@@ -29,11 +29,6 @@ COVERAGE_CONFIG = {
         '10_number': 1,
         'fast_three': 1,
     },
-    'similarity_thresholds': {
-        'excellent': 90,
-        'good': 80,
-        'fair': 70
-    },
     'target_lotteries': {
         'six_mark': [
             '新澳门六合彩', '澳门六合彩', '香港六合彩', '一分六合彩',
@@ -104,56 +99,56 @@ class MultiLotteryCoverageAnalyzer:
                 'total_numbers': 49,
                 'type_name': '六合彩',
                 'play_keywords': ['特码', '特玛', '特马', '特碼', '正码', '正特', '正肖', '平码', '平特'],
-                'default_min_number_count': 11,  # 🆕 默认阈值
-                'default_min_avg_amount': 10     # 🆕 默认阈值
+                'default_min_number_count': 11,
+                'default_min_avg_amount': 10
             },
-            'six_mark_tail': {  # 🆕 新增：六合彩尾数玩法
-                'number_range': set(range(0, 10)),  # 尾数0-9
+            'six_mark_tail': {
+                'number_range': set(range(0, 10)),
                 'total_numbers': 10,
                 'type_name': '六合彩尾数',
                 'play_keywords': ['尾数', '特尾', '全尾'],
-                'default_min_number_count': 3,   # 🆕 默认阈值
-                'default_min_avg_amount': 5      # 🆕 默认阈值
+                'default_min_number_count': 3,
+                'default_min_avg_amount': 5
             },
             '10_number': {
                 'number_range': set(range(1, 11)),
                 'total_numbers': 10,
                 'type_name': '10个号码彩种',
                 'play_keywords': ['定位胆', '一字定位', '一字', '定位', '大小单双', '龙虎', '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '第一名', '第二名', '第三名', '前一'],
-                'default_min_number_count': 3,   # 🆕 默认阈值
-                'default_min_avg_amount': 5      # 🆕 默认阈值
+                'default_min_number_count': 3,
+                'default_min_avg_amount': 5
             },
-            '10_number_sum': {  # 🆕 新增：冠亚和玩法
-                'number_range': set(range(3, 20)),  # 冠亚和3-19
+            '10_number_sum': {
+                'number_range': set(range(3, 20)),
                 'total_numbers': 17,
                 'type_name': '冠亚和',
                 'play_keywords': ['冠亚和', '冠亚和值'],
-                'default_min_number_count': 5,   # 🆕 默认阈值
-                'default_min_avg_amount': 5      # 🆕 默认阈值
+                'default_min_number_count': 5,
+                'default_min_avg_amount': 5
             },
-            'fast_three_base': {  # 🆕 新增：快三基础玩法
-                'number_range': set(range(1, 7)),  # 基础号码1-6
+            'fast_three_base': {
+                'number_range': set(range(1, 7)),
                 'total_numbers': 6,
                 'type_name': '快三基础',
                 'play_keywords': ['三军', '独胆', '单码', '二不同号', '三不同号'],
-                'default_min_number_count': 2,   # 🆕 默认阈值
-                'default_min_avg_amount': 5      # 🆕 默认阈值
+                'default_min_number_count': 2,
+                'default_min_avg_amount': 5
             },
-            'fast_three_sum': {  # 🆕 新增：快三和值玩法
-                'number_range': set(range(3, 19)),  # 和值范围3-18
+            'fast_three_sum': {
+                'number_range': set(range(3, 19)),
                 'total_numbers': 16,
                 'type_name': '快三和值',
                 'play_keywords': ['和值', '点数'],
-                'default_min_number_count': 4,   # 🆕 默认阈值
-                'default_min_avg_amount': 5      # 🆕 默认阈值
+                'default_min_number_count': 4,
+                'default_min_avg_amount': 5
             },
-            'ssc_3d': {  # 🆕 新增：时时彩和3D系列
-                'number_range': set(range(0, 10)),  # 号码0-9
+            'ssc_3d': {
+                'number_range': set(range(0, 10)),
                 'total_numbers': 10,
                 'type_name': '时时彩/3D',
                 'play_keywords': ['定位胆', '第1球', '第2球', '第3球', '第4球', '第5球', '万位', '千位', '百位', '十位', '个位'],
-                'default_min_number_count': 3,   # 🆕 默认阈值
-                'default_min_avg_amount': 5      # 🆕 默认阈值
+                'default_min_number_count': 3,
+                'default_min_avg_amount': 5
             }
         }
         
@@ -174,10 +169,9 @@ class MultiLotteryCoverageAnalyzer:
         
         self.account_keywords = ['会员', '账号', '账户', '用户', '玩家', 'id', 'name', 'user', 'player']
         
-        # 玩法分类映射 - 扩展支持六合彩正码正特
+        # 玩法分类映射
         self.play_mapping = {
-            # ========== 六合彩号码玩法 ==========
-            # 特码相关
+            # 六合彩号码玩法
             '特码': '特码',
             '特码A': '特码',
             '特码B': '特码',
@@ -239,13 +233,6 @@ class MultiLotteryCoverageAnalyzer:
             '正玛特_正四特': '正4特',
             '正玛特_正五特': '正5特',
             '正玛特_正六特': '正6特',
-            '正玛特': '正特',
-            '正玛特_正一特': '正1特',
-            '正玛特_正二特': '正2特', 
-            '正玛特_正三特': '正3特',
-            '正玛特_正四特': '正4特',
-            '正玛特_正五特': '正5特',
-            '正玛特_正六特': '正6特',
             
             # 平码相关
             '平码': '平码',
@@ -258,8 +245,7 @@ class MultiLotteryCoverageAnalyzer:
             '全尾': '全尾',
             '尾数_正特尾数': '尾数',
             
-            # ========== 时时彩/PK10/赛车号码玩法 ==========
-            # 定位胆相关
+            # 时时彩/PK10/赛车号码玩法
             '定位胆': '定位胆',
             '一字定位': '定位胆',
             '一字': '定位胆',
@@ -319,12 +305,12 @@ class MultiLotteryCoverageAnalyzer:
             '定位_十位': '十位',
             '定位_个位': '个位',
             
-            # ========== 快三号码玩法 ==========
+            # 快三号码玩法
             '和值': '和值',
             '和值_大小单双': '和值',
             '点数': '和值',
             
-            # ========== 3D系列号码玩法 ==========
+            # 3D系列号码玩法
             '百位': '百位',
             '十位': '十位',
             '个位': '个位',
@@ -336,14 +322,13 @@ class MultiLotteryCoverageAnalyzer:
             '定位胆_十位': '十位',
             '定位胆_个位': '个位',
             
-            # ========== 其他号码玩法 ==========
+            # 其他号码玩法
             '总和': '总和',
             '斗牛': '斗牛'
         }
 
         # 扩展玩法映射
         self.play_mapping.update({
-            # 🆕 新增：快三基础玩法
             '三军': '三军',
             '三軍': '三军',
             '独胆': '三军', 
@@ -355,19 +340,16 @@ class MultiLotteryCoverageAnalyzer:
             '三不同': '三不同号',
             '三不同號': '三不同号',
             
-            # 🆕 新增：冠亚和玩法
             '冠亚和': '冠亚和',
             '冠亚和值': '冠亚和',
             '冠亞和': '冠亚和',
             '冠亞和值': '冠亚和',
             
-            # 🆕 扩展：六合彩尾数玩法
             '尾数_头尾数': '尾数_头尾数',
             '头尾数': '尾数_头尾数',
             '特尾': '特尾',
             '全尾': '全尾',
             
-            # 🆕 扩展：时时彩球位玩法
             '第1球': '第1球',
             '第2球': '第2球', 
             '第3球': '第3球',
@@ -375,7 +357,6 @@ class MultiLotteryCoverageAnalyzer:
             '第5球': '第5球',
             '1-5球': '1-5球',
             
-            # 🆕 扩展：3D系列玩法
             '百十': '百十',
             '百个': '百个',
             '十个': '十个',
@@ -383,7 +364,7 @@ class MultiLotteryCoverageAnalyzer:
         })
         
         self.position_mapping = {
-            # ========== 六合彩位置 ==========
+            # 六合彩位置
             '特码': ['特码', '特玛', '特马', '特碼', '特码球', '特码_特码', '特码A', '特码B'],
             '正码': ['正码', '正码1-6 正码', '正码1-6_正码', '正码1-6'],
             '正码一': ['正码一', '正码1', '正一码', '正码1-6_正码一', '正1', 'zm1', 'z1m'],
@@ -407,7 +388,7 @@ class MultiLotteryCoverageAnalyzer:
             '特尾': ['特尾', '特尾数', '特码尾数', 'tw', 'tewei'],
             '全尾': ['全尾', '全尾数', '全部尾数', 'qw', 'quanwei'],
             
-            # ========== 时时彩/PK10/赛车位置 ==========
+            # 时时彩/PK10/赛车位置
             '冠军': ['冠军', '第一名', '第1名', '1st', '前一', '前一位', '第一位', '1位', 'gj', 'guanjun'],
             '亚军': ['亚军', '第二名', '第2名', '2nd', '前二', '第二位', '2位', 'yj', 'yajun'],
             '季军': ['季军', '第三名', '第3名', '3rd', '前三', '第三位', '3位', 'jj', 'jijun'],
@@ -430,13 +411,13 @@ class MultiLotteryCoverageAnalyzer:
             '定位胆_第1~5名': ['定位胆_第1~5名', '定位胆1-5名', '1-5名定位胆'],
             '定位胆_第6~10名': ['定位胆_第6~10名', '定位胆6-10名', '6-10名定位胆'],
             
-            # ========== 快三位置 ==========
+            # 快三位置
             '和值': ['和值', '和数', '和', '和值_大小单双', '点数', 'hz', 'hezhi'],
             '三军': ['三军', '三軍', '独胆', '单码', 'sj', 'sanjun'],
             '二不同号': ['二不同号', '二不同', '二不同號', 'ebth', 'erbutonghao'],
             '三不同号': ['三不同号', '三不同', '三不同號', 'sbth', 'sanbutonghao'],
             
-            # ========== 3D系列位置 ==========
+            # 3D系列位置
             '百位': ['百位', '定位_百位', '百位定位', 'bw', 'baiwei', '第1位_3D'],
             '十位': ['十位', '定位_十位', '十位定位', 'sw', 'shiwei', '第2位_3D'],
             '个位': ['个位', '定位_个位', '个位定位', 'gw', 'gewei', '第3位_3D'],
@@ -445,14 +426,14 @@ class MultiLotteryCoverageAnalyzer:
             '十个': ['十个', '十个位', '十个定位', 'sg', 'shige'],
             '百十个': ['百十个', '百十个位', '百十个定位', 'bsg', 'baishige'],
             
-            # ========== 五星彩位置 ==========
+            # 五星彩位置
             '万位': ['万位', '第1位', '第一位', '1st', 'ww', 'wanwei'],
             '千位': ['千位', '第2位', '第二位', '2nd', 'qw', 'qianwei'],
             '百位_5x': ['百位_5x', '第3位', '第三位', '3rd', 'bw5', 'baiwei5'],
             '十位_5x': ['十位_5x', '第4位', '第四位', '4th', 'sw5', 'shiwei5'],
             '个位_5x': ['个位_5x', '第5位', '第五位', '5th', 'gw5', 'gewei5'],
             
-            # ========== 快乐8位置 ==========
+            # 快乐8位置
             '选一': ['选一', '一中一', '1中1', '选1', 'xuan1', 'x1'],
             '选二': ['选二', '二中二', '2中2', '选2', 'xuan2', 'x2'],
             '选三': ['选三', '三中三', '3中3', '选3', 'xuan3', 'x3'],
@@ -467,27 +448,22 @@ class MultiLotteryCoverageAnalyzer:
 
         # 扩展位置映射
         self.position_mapping.update({
-            # 🆕 新增：快三基础玩法位置
             '三军': ['三军', '三軍', '独胆', '单码', 'sj', 'sanjun'],
             '二不同号': ['二不同号', '二不同', '二不同號', 'ebth', 'erbutonghao'],
             '三不同号': ['三不同号', '三不同', '三不同號', 'sbth', 'sanbutonghao'],
             
-            # 🆕 新增：冠亚和位置
             '冠亚和': ['冠亚和', '冠亚和值', '冠亞和', '冠亞和值', 'gyh', 'guanyabe'],
             
-            # 🆕 扩展：六合彩尾数位置
             '尾数_头尾数': ['尾数_头尾数', '头尾数', '头尾', '尾数头尾', 'tws', 'touweishu'],
             '特尾': ['特尾', '特尾数', '特码尾数', 'tw', 'tewei'],
             '全尾': ['全尾', '全尾数', '全部尾数', 'qw', 'quanwei'],
             
-            # 🆕 扩展：时时彩球位
             '第1球': ['第1球', '第一球', '万位', '第一位', '定位_万位', '万位定位', 'd1q', 'di1qiu'],
             '第2球': ['第2球', '第二球', '千位', '第二位', '定位_千位', '千位定位', 'd2q', 'di2qiu'],
             '第3球': ['第3球', '第三球', '百位', '第三位', '定位_百位', '百位定位', 'd3q', 'di3qiu'],
             '第4球': ['第4球', '第四球', '十位', '第四位', '定位_十位', '十位定位', 'd4q', 'di4qiu'],
             '第5球': ['第5球', '第五球', '个位', '第五位', '定位_个位', '个位定位', 'd5q', 'di5qiu'],
             
-            # 🆕 扩展：3D系列位置
             '百十': ['百十', '百十位', '百十定位', 'bs', 'baishi'],
             '百个': ['百个', '百个位', '百个定位', 'bg', 'baige'],
             '十个': ['十个', '十个位', '十个定位', 'sg', 'shige'],
@@ -495,26 +471,25 @@ class MultiLotteryCoverageAnalyzer:
         })
 
     def filter_number_bets_only(self, df):
-        """过滤只保留涉及具体号码投注的记录 - 修复版本"""
+        """过滤只保留涉及具体号码投注的记录"""
         
-        # 定义非号码投注的关键词 - 只过滤明确的大小单双等
+        # 定义非号码投注的关键词
         non_number_keywords = [
             '大小', '单双', '龙虎', '和值大小', '和值单双', '特单', '特双', '特大', '特小',
             '大', '小', '单', '双', '龙', '虎', '合数单双', '合数大小', '尾数大小',
             '尾数单双', '总和大小', '总和单双'
         ]
         
-        # 定义需要保留的号码投注玩法 - 扩展尾数相关玩法
+        # 定义需要保留的号码投注玩法
         number_play_keywords = [
-            '特码', '正码', '平码', '平特', '尾数', '特尾', '全尾',  # 六合彩
-            '正特', '正一特', '正二特', '正三特', '正四特', '正五特', '正六特',  # 新增正码特
-            '正1特', '正2特', '正3特', '正4特', '正5特', '正6特',  # 新增数字格式
-            '正玛特', '正码特',  # 新增变体
-            '定位胆', '冠军', '亚军', '季军', '第四名', '第五名', '第六名',  # PK10/赛车
-            '第七名', '第八名', '第九名', '第十名', '前一',  # PK10/赛车
-            '和值', '点数',  # 快三（具体数字）
-            '百位', '十位', '个位', '百十', '百个', '十个', '百十个'  # 3D系列
-            # 🆕 注意：移除了 '尾数_头尾数'，因为实际玩法是 '尾数'、'全尾'、'特尾'
+            '特码', '正码', '平码', '平特', '尾数', '特尾', '全尾',
+            '正特', '正一特', '正二特', '正三特', '正四特', '正五特', '正六特',
+            '正1特', '正2特', '正3特', '正4特', '正5特', '正6特',
+            '正玛特', '正码特',
+            '定位胆', '冠军', '亚军', '季军', '第四名', '第五名', '第六名',
+            '第七名', '第八名', '第九名', '第十名', '前一',
+            '和值', '点数',
+            '百位', '十位', '个位', '百十', '百个', '十个', '百十个'
         ]
         
         # 过滤条件1：玩法必须包含号码投注关键词
@@ -598,7 +573,7 @@ class MultiLotteryCoverageAnalyzer:
         # 1. 首先识别彩种类型
         df_clean['彩种类型'] = df_clean['彩种'].apply(self.identify_lottery_category)
         
-        # 2. 统一玩法分类 - 确保尾数玩法被正确识别
+        # 2. 统一玩法分类
         df_clean['玩法'] = df_clean.apply(
             lambda row: self.normalize_play_category(
                 row['玩法'], 
@@ -607,12 +582,12 @@ class MultiLotteryCoverageAnalyzer:
             axis=1
         )
         
-        # 3. 提取号码 - 使用正确的玩法和彩种类型
+        # 3. 提取号码
         df_clean['提取号码'] = df_clean.apply(
             lambda row: self.cached_extract_numbers(
                 row['内容'], 
                 row['彩种类型'] if not pd.isna(row['彩种类型']) else 'six_mark',
-                row['玩法']  # 🆕 传递玩法信息用于尾数识别
+                row['玩法']
             ), 
             axis=1
         )
@@ -629,7 +604,7 @@ class MultiLotteryCoverageAnalyzer:
         return df_clean, no_number_count, non_number_play_count
 
     def get_lottery_thresholds(self, lottery_category, user_min_avg_amount=None):
-        """根据彩种类型获取阈值配置 - 使用配置中的默认阈值"""
+        """根据彩种类型获取阈值配置"""
         config = self.get_lottery_config(lottery_category)
         
         # 使用配置中的默认阈值，如果用户提供了值则使用用户的
@@ -647,7 +622,7 @@ class MultiLotteryCoverageAnalyzer:
         }
     
     def identify_lottery_category(self, lottery_name):
-        """识别彩种类型 - 增强六合彩识别"""
+        """识别彩种类型"""
         lottery_str = str(lottery_name).strip().lower()
         
         # 检查六合彩
@@ -707,32 +682,28 @@ class MultiLotteryCoverageAnalyzer:
         """根据玩法和彩种类型获取具体的配置"""
         play_str = str(play_method).strip().lower() if play_method else ""
         
-        print(f"🔍 配置查询: 彩种={lottery_category}, 玩法='{play_str}'")
-        
-        # 🆕 六合彩尾数玩法 - 最高优先级
+        # 六合彩尾数玩法
         if any(keyword in play_str for keyword in ['尾数', '全尾', '特尾']):
-            print("✅ 使用六合彩尾数配置 (0-9)")
             return self.lottery_configs['six_mark_tail']
         
-        # 🆕 快三基础玩法
+        # 快三基础玩法
         elif lottery_category == 'fast_three' and any(keyword in play_str for keyword in ['三军', '独胆', '单码', '二不同号', '三不同号']):
             return self.lottery_configs['fast_three_base']
         
-        # 🆕 快三和值玩法
+        # 快三和值玩法
         elif lottery_category == 'fast_three' and any(keyword in play_str for keyword in ['和值', '点数']):
             return self.lottery_configs['fast_three_sum']
         
-        # 🆕 冠亚和玩法
+        # 冠亚和玩法
         elif lottery_category == '10_number' and any(keyword in play_str for keyword in ['冠亚和', '冠亚和值']):
             return self.lottery_configs['10_number_sum']
         
-        # 🆕 时时彩和3D系列
+        # 时时彩和3D系列
         elif lottery_category in ['10_number', '3d_series'] and any(keyword in play_str for keyword in ['第1球', '第2球', '第3球', '第4球', '第5球', '万位', '千位', '百位', '十位', '个位']):
             return self.lottery_configs['ssc_3d']
         
         # 默认配置
         default_config = self.lottery_configs.get(lottery_category, self.lottery_configs['six_mark'])
-        print(f"✅ 使用默认配置: {default_config['type_name']}")
         return default_config
     
     def enhanced_column_mapping(self, df):
@@ -802,10 +773,10 @@ class MultiLotteryCoverageAnalyzer:
         return issues
 
     def normalize_position(self, play_method):
-        """统一位置名称 - 增强正码特位置识别"""
+        """统一位置名称"""
         play_str = str(play_method).strip()
         
-        # ========== 最高优先级：正玛特独立映射 ==========
+        # 最高优先级：正玛特独立映射
         if '正玛特' in play_str:
             if '正一' in play_str or '正1' in play_str:
                 return '正一特'
@@ -822,7 +793,7 @@ class MultiLotteryCoverageAnalyzer:
             else:
                 return '正特'
         
-        # ========== 新增：正码特独立映射 ==========
+        # 正码特独立映射
         if '正码特' in play_str:
             if '正一' in play_str or '正1' in play_str:
                 return '正一特'
@@ -945,18 +916,18 @@ class MultiLotteryCoverageAnalyzer:
         return text
 
     def enhanced_extract_position_from_content(self, play_method, content, lottery_category):
-        """从内容中提取具体位置信息 - 针对定位胆等复合玩法"""
+        """从内容中提取具体位置信息"""
         play_str = str(play_method).strip()
         content_str = str(content).strip()
         
-        # 🆕 增强定位胆玩法识别
+        # 增强定位胆玩法识别
         if play_str == '定位胆' and (':' in content_str or '：' in content_str):
-            # 提取位置信息（如"亚军:03,04,05"中的"亚军"）
+            # 提取位置信息
             position_match = re.match(r'^([^:：]+)[:：]', content_str)
             if position_match:
                 position = position_match.group(1).strip()
                 
-                # 🆕 增强位置名称映射
+                # 增强位置名称映射
                 position_mapping = {
                     '冠军': '冠军', '亚军': '亚军', '季军': '季军',
                     '第四名': '第四名', '第五名': '第五名', '第六名': '第六名',
@@ -970,10 +941,8 @@ class MultiLotteryCoverageAnalyzer:
                     '1st': '冠军', '2nd': '亚军', '3rd': '季军', '4th': '第四名', '5th': '第五名',
                     '6th': '第六名', '7th': '第七名', '8th': '第八名', '9th': '第九名', '10th': '第十名',
                     '前一': '冠军', '前二': '亚军', '前三': '季军',
-                    # 🆕 新增：处理可能的空格和格式变体
                     '冠 军': '冠军', '亚 军': '亚军', '季 军': '季军',
                     '冠　军': '冠军', '亚　军': '亚军', '季　军': '季军',
-                    # 🆕 新增：处理数字格式
                     '第 1 名': '冠军', '第 2 名': '亚军', '第 3 名': '季军',
                     '第1 名': '冠军', '第2 名': '亚军', '第3 名': '季军',
                 }
@@ -981,7 +950,7 @@ class MultiLotteryCoverageAnalyzer:
                 normalized_position = position_mapping.get(position, position)
                 return normalized_position
         
-        # 🆕 新增：处理没有冒号但内容明确包含位置名称的情况
+        # 处理没有冒号但内容明确包含位置名称的情况
         if play_str == '定位胆':
             content_lower = content_str.lower()
             position_keywords = {
@@ -1005,14 +974,14 @@ class MultiLotteryCoverageAnalyzer:
         return play_str
     
     def normalize_play_category(self, play_method, lottery_category='six_mark'):
-        """统一玩法分类 - 增强各种玩法的识别"""
+        """统一玩法分类"""
         play_str = str(play_method).strip()
         
         # 规范化特殊字符
         import re
         play_normalized = re.sub(r'\s+', ' ', play_str)
         
-        # ========== 最高优先级：正玛特独立映射 ==========
+        # 最高优先级：正玛特独立映射
         if '正玛特' in play_normalized:
             if '正一' in play_normalized or '正1' in play_normalized:
                 return '正一特'
@@ -1029,7 +998,7 @@ class MultiLotteryCoverageAnalyzer:
             else:
                 return '正特'
         
-        # ========== 新增：正码特独立映射 ==========
+        # 正码特独立映射
         if '正码特' in play_normalized:
             if '正一' in play_normalized or '正1' in play_normalized:
                 return '正一特'
@@ -1079,7 +1048,7 @@ class MultiLotteryCoverageAnalyzer:
                 sub_play = parts[1].strip()
                 
                 # 处理正码特和正玛特格式
-                if '正码特' in main_play or '正玛特' in main_play:  # 关键修复
+                if '正码特' in main_play or '正玛特' in main_play:
                     if '正一' in sub_play or '正1' in sub_play:
                         return '正1特'
                     elif '正二' in sub_play or '正2' in sub_play:
@@ -1099,7 +1068,7 @@ class MultiLotteryCoverageAnalyzer:
         play_lower = play_normalized.lower()
         
         if lottery_category == 'six_mark':
-            # 六合彩号码玩法智能匹配 - 增强正玛特识别
+            # 六合彩号码玩法智能匹配
             if any(word in play_lower for word in ['特码', '特玛', '特马', '特碼']):
                 return '特码'
             elif any(word in play_lower for word in ['正码一', '正码1', '正一码']):
@@ -1126,16 +1095,15 @@ class MultiLotteryCoverageAnalyzer:
                 return '正5特'
             elif any(word in play_lower for word in ['正六特', '正6特']):
                 return '正6特'
-            # 🆕 关键修复：增强尾数玩法识别
+            # 尾数玩法识别
             elif any(word in play_lower for word in ['尾数']):
                 return '尾数'
             elif any(word in play_lower for word in ['全尾']):
                 return '全尾'
             elif any(word in play_lower for word in ['特尾']):
                 return '特尾'
-            # 关键修复：增强正玛特识别
+            # 正玛特识别
             elif any(word in play_lower for word in ['正玛特']):
-                # 如果正玛特后面有具体位置信息
                 if '正一' in play_lower or '正1' in play_lower:
                     return '正1特'
                 elif '正二' in play_lower or '正2' in play_lower:
@@ -1236,28 +1204,27 @@ class MultiLotteryCoverageAnalyzer:
     
     @lru_cache(maxsize=5000)
     def cached_extract_numbers(self, content, lottery_category, play_method=None):
-        """带缓存的号码提取 - 修复版本，支持玩法参数"""
+        """带缓存的号码提取"""
         content_str = str(content) if content else ""
         return self.enhanced_extract_numbers(content_str, lottery_category, play_method)
     
     def enhanced_extract_numbers(self, content, lottery_category='six_mark', play_method=None):
-        """增强号码提取 - 专门处理定位胆格式和尾数格式"""
+        """增强号码提取"""
         content_str = str(content).strip()
         numbers = []
         
         try:
-            # 🆕 新增：处理空内容
+            # 处理空内容
             if not content_str or content_str.lower() in ['', 'null', 'none', 'nan']:
                 return []
             
-            # 🆕 修正：根据玩法确定具体的配置
+            # 根据玩法确定具体的配置
             config = self.get_play_specific_config(lottery_category, play_method)
             number_range = config['number_range']
             
-            # 🆕 增强：处理尾数特殊格式（最高优先级）
+            # 增强：处理尾数特殊格式
             play_str = str(play_method).strip().lower() if play_method else ""
             if any(keyword in play_str for keyword in ['尾数', '全尾', '特尾']):
-                print(f"🔍 调试尾数提取: 玩法='{play_str}', 内容='{content_str}'")
                 
                 # 处理 "全尾-8尾,9尾,7尾,6尾,5尾" 这种格式
                 if '全尾-' in content_str:
@@ -1271,7 +1238,6 @@ class MultiLotteryCoverageAnalyzer:
                         if num in number_range:
                             numbers.append(num)
                     if numbers:
-                        print(f"✅ 尾数提取结果1: {numbers}")
                         return list(set(numbers))
                 
                 # 处理 "全尾-1尾,2尾,3尾,4尾,0尾" 这种格式
@@ -1283,7 +1249,6 @@ class MultiLotteryCoverageAnalyzer:
                         if num in number_range:
                             numbers.append(num)
                     if numbers:
-                        print(f"✅ 尾数提取结果2: {numbers}")
                         return list(set(numbers))
                 
                 # 处理简单的逗号分隔格式
@@ -1298,16 +1263,15 @@ class MultiLotteryCoverageAnalyzer:
                             if num in number_range:
                                 numbers.append(num)
                     if numbers:
-                        print(f"✅ 尾数提取结果3: {numbers}")
                         return list(set(numbers))
             
-            # 🆕 新增：处理特殊字符和空白
+            # 处理特殊字符和空白
             content_str = re.sub(r'[\s\u3000]+', ' ', content_str)
             
-            # 🆕 新增：处理括号内的内容
+            # 处理括号内的内容
             content_str = re.sub(r'[\(（].*?[\)）]', '', content_str)
             
-            # 🆕 新增：专门处理定位胆格式（位置:号码）
+            # 专门处理定位胆格式（位置:号码）
             if ':' in content_str or '：' in content_str:
                 colon_patterns = [
                     r'^[^:：]+[:：]\s*([\d,\s]+)$',
@@ -1330,7 +1294,7 @@ class MultiLotteryCoverageAnalyzer:
                             if numbers:
                                 return list(set(numbers))
             
-            # 🆕 修复：处理多种分隔符格式
+            # 处理多种分隔符格式
             separators = [',', '，', ' ', ';', '；', '、', '/', '\\', '|']
             
             # 首先尝试从整个内容中提取所有数字
@@ -1359,7 +1323,7 @@ class MultiLotteryCoverageAnalyzer:
                     if numbers:
                         break
             
-            # 🆕 新增：处理连续数字格式
+            # 处理连续数字格式
             if not numbers and re.match(r'^\d{2,}$', content_str.replace(' ', '')):
                 clean_content = content_str.replace(' ', '')
                 if lottery_category == 'six_mark':
@@ -1376,7 +1340,7 @@ class MultiLotteryCoverageAnalyzer:
                             if num in number_range:
                                 numbers.append(num)
             
-            # 🆕 新增：处理范围格式
+            # 处理范围格式
             range_patterns = [
                 r'(\d+)\s*[-~～]\s*(\d+)',
                 r'从\s*(\d+)\s*到\s*(\d+)',
@@ -1394,7 +1358,7 @@ class MultiLotteryCoverageAnalyzer:
                                 if num in number_range:
                                     numbers.append(num)
             
-            # 🆕 新增：处理号码+特殊标记
+            # 处理号码+特殊标记
             marked_numbers = re.findall(r'(\d{1,2})[*√★☆♥♦♣♠]', content_str)
             for num_str in marked_numbers:
                 if num_str.isdigit():
@@ -1402,12 +1366,12 @@ class MultiLotteryCoverageAnalyzer:
                     if num in number_range:
                         numbers.append(num)
             
-            # 🆕 新增：处理常见逗号分隔格式
+            # 处理常见逗号分隔格式
             if not numbers and re.match(r'^(\d{1,2},)*\d{1,2}$', content_str):
                 new_numbers = [int(x.strip()) for x in content_str.split(',') if x.strip().isdigit()]
                 numbers.extend(new_numbers)
             
-            # 🆕 新增：提取所有1-2位数字
+            # 提取所有1-2位数字
             if not numbers:
                 number_matches = re.findall(r'\b\d{1,2}\b', content_str)
                 for match in number_matches:
@@ -1415,12 +1379,11 @@ class MultiLotteryCoverageAnalyzer:
                     if num in number_range:
                         numbers.append(num)
             
-            # 🆕 新增：去重并排序
+            # 去重并排序
             numbers = list(set(numbers))
             numbers = [num for num in numbers if num in number_range]
             numbers.sort()
-            
-            print(f"🔍 最终号码提取结果: {numbers}")
+
             return numbers
                 
         except Exception as e:
@@ -1433,7 +1396,7 @@ class MultiLotteryCoverageAnalyzer:
         return self.extract_bet_amount(amount_text)
     
     def extract_bet_amount(self, amount_text):
-        """金额提取函数 - 修复版本：只提取第一个数字"""
+        """金额提取函数"""
         try:
             if pd.isna(amount_text) or amount_text is None:
                 return 0.0
@@ -1486,37 +1449,13 @@ class MultiLotteryCoverageAnalyzer:
             logger.warning(f"金额提取失败: {amount_text}, 错误: {str(e)}")
             return 0.0
     
-    def calculate_similarity(self, avgs):
-        """计算金额匹配度"""
-        if not avgs or max(avgs) == 0:
-            return 0
-        return (min(avgs) / max(avgs)) * 100
-    
-    def get_similarity_indicator(self, similarity):
-        """获取相似度颜色指示符"""
-        thresholds = COVERAGE_CONFIG['similarity_thresholds']
-        if similarity >= thresholds['excellent']: 
-            return "🟢"
-        elif similarity >= thresholds['good']: 
-            return "🟡"
-        elif similarity >= thresholds['fair']: 
-            return "🟠"
-        else: 
-            return "🔴"
-    
     def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers):
-        """寻找完美组合 - 修复版本：确保并集完美覆盖所有号码，但移除单个账户号码数量之和的限制"""
-        print(f"🔍 DEBUG: 开始寻找完美组合，总号码数={total_numbers}, 最小平均金额={min_avg_amount}")
-        print(f"🔍 DEBUG: 可用账户: {list(account_numbers.keys())}")
-        
+        """寻找完美组合 - 专注于完美覆盖检测"""
+    
         all_results = {2: [], 3: [], 4: []}
         all_accounts = list(account_numbers.keys())
         
         account_sets = {account: set(numbers) for account, numbers in account_numbers.items()}
-        
-        # 显示每个账户的号码
-        for account, numbers in account_numbers.items():
-            print(f"🔍 DEBUG: 账户 {account} 号码: {sorted(numbers)} (共{len(numbers)}个)")
         
         # 搜索2账户组合
         for i, acc1 in enumerate(all_accounts):
@@ -1525,11 +1464,9 @@ class MultiLotteryCoverageAnalyzer:
                 acc2 = all_accounts[j]
                 count2 = len(account_numbers[acc2])
                 
-                # 🆕 修复：移除 count1 + count2 != total_numbers 的严格限制
-                # 但仍然检查并集是否完美覆盖
+                # 检查并集是否完美覆盖
                 combined_set = account_sets[acc1] | account_sets[acc2]
-                print(f"🔍 DEBUG: 检查组合 {acc1} + {acc2}: 并集大小={len(combined_set)}, 需要={total_numbers}")
-                
+
                 if len(combined_set) != total_numbers:  # 确保完美覆盖
                     continue
                 
@@ -1538,22 +1475,15 @@ class MultiLotteryCoverageAnalyzer:
                     account_amount_stats[acc1]['avg_amount_per_number'],
                     account_amount_stats[acc2]['avg_amount_per_number']
                 ]
-                
-                print(f"🔍 DEBUG: 金额检查: {acc1}={avg_amounts[0]}, {acc2}={avg_amounts[1]}, 最小值={min(avg_amounts)}, 阈值={min_avg_amount}")
-                
+          
                 if min(avg_amounts) < float(min_avg_amount):
                     continue
-                
-                similarity = self.calculate_similarity(avg_amounts)
-                print(f"✅ 找到完美组合: {acc1} + {acc2}, 相似度={similarity}%")
                 
                 result_data = {
                     'accounts': [acc1, acc2],
                     'account_count': 2,
                     'total_amount': total_amount,
                     'avg_amount_per_number': total_amount / total_numbers,
-                    'similarity': similarity,
-                    'similarity_indicator': self.get_similarity_indicator(similarity),
                     'individual_amounts': {
                         acc1: account_amount_stats[acc1]['total_amount'],
                         acc2: account_amount_stats[acc2]['total_amount']
@@ -1579,8 +1509,7 @@ class MultiLotteryCoverageAnalyzer:
                     acc3 = all_accounts[k]
                     count3 = len(account_numbers[acc3])
                     
-                    # 🆕 修复：移除 count1 + count2 + count3 != total_numbers 的严格限制
-                    # 但仍然检查并集是否完美覆盖
+                    # 检查并集是否完美覆盖
                     combined_set = account_sets[acc1] | account_sets[acc2] | account_sets[acc3]
                     if len(combined_set) != total_numbers:  # 确保完美覆盖
                         continue
@@ -1597,15 +1526,11 @@ class MultiLotteryCoverageAnalyzer:
                     if min(avg_amounts) < float(min_avg_amount):
                         continue
                     
-                    similarity = self.calculate_similarity(avg_amounts)
-                    
                     result_data = {
                         'accounts': [acc1, acc2, acc3],
                         'account_count': 3,
                         'total_amount': total_amount,
                         'avg_amount_per_number': total_amount / total_numbers,
-                        'similarity': similarity,
-                        'similarity_indicator': self.get_similarity_indicator(similarity),
                         'individual_amounts': {
                             acc1: account_amount_stats[acc1]['total_amount'],
                             acc2: account_amount_stats[acc2]['total_amount'],
@@ -1624,7 +1549,7 @@ class MultiLotteryCoverageAnalyzer:
                     }
                     all_results[3].append(result_data)
         
-        # 🆕 新增：搜索4账户组合
+        # 搜索4账户组合
         for i, acc1 in enumerate(all_accounts):
             count1 = len(account_numbers[acc1])
             for j in range(i+1, len(all_accounts)):
@@ -1637,8 +1562,7 @@ class MultiLotteryCoverageAnalyzer:
                         acc4 = all_accounts[l]
                         count4 = len(account_numbers[acc4])
                         
-                        # 🆕 修复：移除 count1 + count2 + count3 + count4 != total_numbers 的严格限制
-                        # 但仍然检查并集是否完美覆盖
+                        # 检查并集是否完美覆盖
                         combined_set = account_sets[acc1] | account_sets[acc2] | account_sets[acc3] | account_sets[acc4]
                         if len(combined_set) != total_numbers:  # 确保完美覆盖
                             continue
@@ -1658,15 +1582,11 @@ class MultiLotteryCoverageAnalyzer:
                         if min(avg_amounts) < float(min_avg_amount):
                             continue
                         
-                        similarity = self.calculate_similarity(avg_amounts)
-                        
                         result_data = {
                             'accounts': [acc1, acc2, acc3, acc4],
                             'account_count': 4,
                             'total_amount': total_amount,
                             'avg_amount_per_number': total_amount / total_numbers,
-                            'similarity': similarity,
-                            'similarity_indicator': self.get_similarity_indicator(similarity),
                             'individual_amounts': {
                                 acc1: account_amount_stats[acc1]['total_amount'],
                                 acc2: account_amount_stats[acc2]['total_amount'],
@@ -1691,31 +1611,24 @@ class MultiLotteryCoverageAnalyzer:
         return all_results
 
     def analyze_period_lottery_position(self, group, period, lottery, position, user_min_number_count, user_min_avg_amount):
-        """分析特定期数、彩种和位置 - 使用动态阈值"""
-        print(f"🔍 DEBUG: 进入分析方法 - 期号: {period}, 彩种: {lottery}, 玩法: {position}")
-        print(f"🔍 DEBUG: 用户设置阈值 - 号码数: {user_min_number_count}, 平均金额: {user_min_avg_amount}")
-        
+        """分析特定期数、彩种和位置"""
+    
         lottery_category = self.identify_lottery_category(lottery)
         if not lottery_category:
-            print(f"❌ 无法识别彩种类型: {lottery}")
             return None
         
-        # 🆕 修正：根据玩法获取正确的配置
+        # 根据玩法获取正确的配置
         config = self.get_play_specific_config(lottery_category, position)
         total_numbers = config['total_numbers']
         
-        # 🆕 使用动态阈值
+        # 使用动态阈值
         default_min_number_count = config.get('default_min_number_count', 3)
         default_min_avg_amount = config.get('default_min_avg_amount', 5)
         
         # 如果用户提供了阈值，则使用用户的，否则使用默认值
         min_number_count = int(user_min_number_count) if user_min_number_count is not None else default_min_number_count
         min_avg_amount = float(user_min_avg_amount) if user_min_avg_amount is not None else default_min_avg_amount
-        
-        print(f"🔍 开始分析: {period} {lottery} {position}")
-        print(f"🔍 配置: 号码范围={config['number_range']}, 总号码数={total_numbers}")
-        print(f"🔍 最终阈值: 号码数≥{min_number_count}, 平均金额≥{min_avg_amount}")
-        
+       
         has_amount_column = '投注金额' in group.columns
         account_numbers = {}
         account_amount_stats = {}
@@ -1728,15 +1641,11 @@ class MultiLotteryCoverageAnalyzer:
             total_amount = 0
             
             for _, row in account_data.iterrows():
-                # 🆕 调试：显示原始内容和提取的号码
-                print(f"🔍 处理账户 {account}: 内容='{row['内容']}'")
-                
                 if '提取号码' in row:
                     numbers = row['提取号码']
                 else:
                     numbers = self.cached_extract_numbers(row['内容'], lottery_category, position)
-                
-                print(f"✅ 提取号码: {numbers}")
+    
                 all_numbers.update(numbers)
                 
                 if has_amount_column:
@@ -1753,9 +1662,7 @@ class MultiLotteryCoverageAnalyzer:
                 'total_amount': total_amount,
                 'avg_amount_per_number': avg_amount_per_number
             }
-            
-            print(f"📊 账户统计: {account} -> 号码数={number_count}, 总金额={total_amount}, 平均={avg_amount_per_number}")
-        
+       
         # 筛选有效账户
         filtered_account_numbers = {}
         filtered_account_amount_stats = {}
@@ -1767,15 +1674,10 @@ class MultiLotteryCoverageAnalyzer:
                 filtered_account_numbers[account] = numbers
                 filtered_account_amount_stats[account] = account_amount_stats[account]
                 filtered_account_bet_contents[account] = account_bet_contents[account]
-                print(f"✅ 有效账户: {account} 号码数={len(numbers)} 平均金额={stats['avg_amount_per_number']}")
-            else:
-                print(f"❌ 无效账户: {account} 号码数={len(numbers)} 平均金额={stats['avg_amount_per_number']}")
         
         if len(filtered_account_numbers) < 2:
-            print(f"❌ 有效账户不足: {len(filtered_account_numbers)} < 2")
             return None
         
-        print(f"✅ 开始寻找完美组合，总号码数={total_numbers}")
         all_results = self.find_perfect_combinations(
             filtered_account_numbers, 
             filtered_account_amount_stats, 
@@ -1785,14 +1687,13 @@ class MultiLotteryCoverageAnalyzer:
         )
         
         total_combinations = sum(len(results) for results in all_results.values())
-        print(f"🎯 找到组合: 2账户={len(all_results[2])}, 3账户={len(all_results[3])}, 4账户={len(all_results[4])}")
         
         if total_combinations > 0:
             all_combinations = []
             for results in all_results.values():
                 all_combinations.extend(results)
             
-            all_combinations.sort(key=lambda x: (x['account_count'], -x['similarity']))
+            all_combinations.sort(key=lambda x: (x['account_count'], -x['total_amount']))
             
             return {
                 'period': period,
@@ -1808,7 +1709,7 @@ class MultiLotteryCoverageAnalyzer:
         return None
 
     def analyze_account_behavior(self, df):
-        """新增：账户行为分析"""
+        """账户行为分析"""
         account_stats = {}
         
         for account in df['会员账号'].unique():
@@ -1893,52 +1794,45 @@ class MultiLotteryCoverageAnalyzer:
             st.metric("平均期数", f"{df_stats['投注期数'].mean():.1f}")
 
     def analyze_with_progress(self, df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode):
-        """带进度显示的分析 - 使用增强阈值管理"""
+        """带进度显示的分析"""
         
         # 根据分析模式决定分组方式
         if analysis_mode == "仅分析六合彩":
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
             user_min_number_count = six_mark_params['min_number_count']
             user_min_avg_amount = six_mark_params['min_avg_amount']
-            
-            print(f"🔍 六合彩分析模式 - 号码阈值: {user_min_number_count}, 金额阈值: {user_min_avg_amount}")
-            
+        
         elif analysis_mode == "仅分析时时彩/PK10/赛车":
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
             user_min_number_count = ten_number_params['min_number_count']
             user_min_avg_amount = ten_number_params['min_avg_amount']
-            
-            print(f"🔍 时时彩分析模式 - 号码阈值: {user_min_number_count}, 金额阈值: {user_min_avg_amount}")
-            
+        
         elif analysis_mode == "仅分析快三":
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
-            user_min_number_count = fast_three_params['sum_min_number_count']  # 默认使用和值阈值
+            user_min_number_count = fast_three_params['sum_min_number_count']
             user_min_avg_amount = fast_three_params['sum_min_avg_amount']
-            
-            print(f"🔍 快三分析模式 - 号码阈值: {user_min_number_count}, 金额阈值: {user_min_avg_amount}")
-            
+          
         else:  # 自动识别所有彩种
-            # 分别处理不同彩种，使用各自的增强阈值
+            # 分别处理不同彩种，使用各自的阈值
             df_six_mark = df_target[df_target['彩种类型'] == 'six_mark']
             df_10_number = df_target[df_target['彩种类型'] == '10_number']
             df_fast_three = df_target[df_target['彩种类型'] == 'fast_three']
-            df_ssc_3d = df_target[df_target['彩种类型'] == '3d_series']  # 🆕 新增3D系列
+            df_ssc_3d = df_target[df_target['彩种类型'] == '3d_series']
             
             all_period_results = {}
             
-            # 分析六合彩 - 使用增强阈值
+            # 分析六合彩
             if len(df_six_mark) > 0:
                 st.info("🔍 正在分析六合彩数据...")
                 grouped_six = df_six_mark.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_six:
                     if len(group) >= 2:
-                        # 🆕 根据玩法类型使用不同的阈值
+                        # 根据玩法类型使用不同的阈值
                         play_str = str(position).strip().lower()
                         if any(keyword in play_str for keyword in ['尾数', '全尾', '特尾']):
                             # 使用尾数专用阈值
                             user_min_number_count = six_mark_params.get('tail_min_number_count', 3)
                             user_min_avg_amount = six_mark_params.get('tail_min_avg_amount', 5)
-                            print(f"🔍 尾数玩法使用专用阈值: 号码={user_min_number_count}, 金额={user_min_avg_amount}")
                         else:
                             # 使用普通六合彩阈值
                             user_min_number_count = six_mark_params['min_number_count']
@@ -1952,19 +1846,18 @@ class MultiLotteryCoverageAnalyzer:
                         if result:
                             all_period_results[(period, lottery, position)] = result
             
-            # 分析时时彩/PK10/赛车 - 使用增强阈值
+            # 分析时时彩/PK10/赛车
             if len(df_10_number) > 0:
                 st.info("🔍 正在分析时时彩/PK10/赛车数据...")
                 grouped_10 = df_10_number.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_10:
                     if len(group) >= 2:
-                        # 🆕 根据玩法类型使用不同的阈值
+                        # 根据玩法类型使用不同的阈值
                         play_str = str(position).strip().lower()
                         if any(keyword in play_str for keyword in ['冠亚和', '冠亚和值']):
                             # 使用冠亚和专用阈值
                             user_min_number_count = ten_number_params.get('sum_min_number_count', 5)
                             user_min_avg_amount = ten_number_params.get('sum_min_avg_amount', 5)
-                            print(f"🔍 冠亚和玩法使用专用阈值: 号码={user_min_number_count}, 金额={user_min_avg_amount}")
                         else:
                             # 使用普通时时彩阈值
                             user_min_number_count = ten_number_params['min_number_count']
@@ -1978,24 +1871,22 @@ class MultiLotteryCoverageAnalyzer:
                         if result:
                             all_period_results[(period, lottery, position)] = result
             
-            # 分析快三 - 使用增强阈值
+            # 分析快三
             if len(df_fast_three) > 0:
                 st.info("🎲 正在分析快三数据...")
                 grouped_fast_three = df_fast_three.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_fast_three:
                     if len(group) >= 2:
-                        # 🆕 根据玩法类型使用不同的阈值
+                        # 根据玩法类型使用不同的阈值
                         play_str = str(position).strip().lower()
                         if any(keyword in play_str for keyword in ['和值', '点数']):
                             # 使用快三和值专用阈值
                             user_min_number_count = fast_three_params.get('sum_min_number_count', 4)
                             user_min_avg_amount = fast_three_params.get('sum_min_avg_amount', 5)
-                            print(f"🔍 快三和值使用专用阈值: 号码={user_min_number_count}, 金额={user_min_avg_amount}")
                         elif any(keyword in play_str for keyword in ['三军', '独胆', '单码', '二不同号', '三不同号']):
                             # 使用快三基础专用阈值
                             user_min_number_count = fast_three_params.get('base_min_number_count', 2)
                             user_min_avg_amount = fast_three_params.get('base_min_avg_amount', 5)
-                            print(f"🔍 快三基础玩法使用专用阈值: 号码={user_min_number_count}, 金额={user_min_avg_amount}")
                         else:
                             # 使用默认快三阈值（和值）
                             user_min_number_count = fast_three_params.get('sum_min_number_count', 4)
@@ -2009,7 +1900,7 @@ class MultiLotteryCoverageAnalyzer:
                         if result:
                             all_period_results[(period, lottery, position)] = result
             
-            # 🆕 新增：分析3D系列
+            # 分析3D系列
             if len(df_ssc_3d) > 0:
                 st.info("🎰 正在分析3D系列数据...")
                 grouped_ssc_3d = df_ssc_3d.groupby(['期号', '彩种', '玩法'])
@@ -2047,7 +1938,7 @@ class MultiLotteryCoverageAnalyzer:
             status_text.text(f"分析进度: {idx+1}/{total_groups} - {period} ({lottery} - {position})")
             
             if len(group) >= 2:
-                # 🆕 在非自动模式下也要根据玩法类型选择阈值
+                # 根据玩法类型选择阈值
                 play_str = str(position).strip().lower()
                 
                 if analysis_mode == "仅分析六合彩":
@@ -2083,9 +1974,7 @@ class MultiLotteryCoverageAnalyzer:
                         # 使用默认快三阈值（和值）
                         user_min_number_count = fast_three_params.get('sum_min_number_count', 4)
                         user_min_avg_amount = fast_three_params.get('sum_min_avg_amount', 5)
-                
-                print(f"🔍 玩法 {position} 使用阈值: 号码={user_min_number_count}, 金额={user_min_avg_amount}")
-                
+             
                 result = self.analyze_period_lottery_position(
                     group, period, lottery, position, 
                     user_min_number_count, 
@@ -2101,21 +1990,11 @@ class MultiLotteryCoverageAnalyzer:
         return all_period_results
 
     def display_enhanced_results(self, all_period_results, analysis_mode):
-        """增强结果展示 - 支持4账户组合"""
+        """增强结果展示"""
         if not all_period_results:
             st.info("🎉 未发现完美覆盖组合")
             return
-        
-        # 🆕 调试：显示所有检测到的结果
-        st.write(f"🔍 调试: 总共检测到 {len(all_period_results)} 个分组的结果")
-        
-        for key, result in all_period_results.items():
-            period, lottery, position = key
-            st.write(f"🔍 调试: {period} {lottery} {position} -> {result['total_combinations']} 个组合")
-            for combo in result['all_combinations']:
-                accounts = combo['accounts']
-                st.write(f"  - 组合: {accounts}, 账户数: {combo['account_count']}, 相似度: {combo['similarity']}%")
-        
+
         # 按账户组合和彩种分组
         account_pair_groups = defaultdict(lambda: defaultdict(list))
         
@@ -2143,15 +2022,8 @@ class MultiLotteryCoverageAnalyzer:
                 }
                 
                 account_pair_groups[account_pair][lottery_key].append(combo_info)
-        
-        # 🆕 调试：显示分组后的结果
-        st.write(f"🔍 调试: 分组后共有 {len(account_pair_groups)} 个账户组合")
-        for account_pair, lottery_groups in account_pair_groups.items():
-            st.write(f"🔍 调试: 账户组合 {account_pair}")
-            for lottery_key, combos in lottery_groups.items():
-                st.write(f"  - {lottery_key}: {len(combos)} 个组合")
-        
-        # 显示彩种类型统计 - 更新为显示各种组合类型的数量
+
+        # 显示彩种类型统计
         st.subheader("🎲 组合类型统计")
         col1, col2, col3, col4 = st.columns(4)
         
@@ -2175,8 +2047,8 @@ class MultiLotteryCoverageAnalyzer:
         st.subheader("📊 检测汇总")
         total_combinations = sum(result['total_combinations'] for result in all_period_results.values())
         total_filtered_accounts = sum(result['filtered_accounts'] for result in all_period_results.values())
-        total_periods = len(set(result['period'] for result in all_period_results.values()))
-        total_lotteries = len(set(result['lottery'] for result in all_period_results.values()))
+        total_periods = len(set(result['period'] for result in all_period_results.values())
+        total_lotteries = len(set(result['lottery'] for result in all_period_results.values())
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -2207,7 +2079,7 @@ class MultiLotteryCoverageAnalyzer:
         self._display_by_account_pair_lottery(account_pair_groups, analysis_mode)
 
     def _calculate_detailed_account_stats(self, all_period_results):
-        """详细账户统计 - 支持4账户组合和尾数玩法"""
+        """详细账户统计"""
         account_stats = []
         account_participation = defaultdict(lambda: {
             'periods': set(),
@@ -2215,7 +2087,7 @@ class MultiLotteryCoverageAnalyzer:
             'positions': set(),
             'total_combinations': 0,
             'total_bet_amount': 0,
-            'combo_types': set()  # 新增：记录参与的组合类型
+            'combo_types': set()
         })
         
         for result in all_period_results.values():
@@ -2228,7 +2100,7 @@ class MultiLotteryCoverageAnalyzer:
                         account_info['positions'].add(result['position'])
                     account_info['total_combinations'] += 1
                     account_info['total_bet_amount'] += combo['individual_amounts'][account]
-                    account_info['combo_types'].add(combo['account_count'])  # 记录组合类型
+                    account_info['combo_types'].add(combo['account_count'])
         
         for account, info in account_participation.items():
             stat_record = {
@@ -2236,7 +2108,7 @@ class MultiLotteryCoverageAnalyzer:
                 '参与组合数': info['total_combinations'],
                 '涉及期数': len(info['periods']),
                 '涉及彩种': len(info['lotteries']),
-                '组合类型': ', '.join([f"{t}账户" for t in sorted(info['combo_types'])]),  # 新增组合类型信息
+                '组合类型': ', '.join([f"{t}账户" for t in sorted(info['combo_types'])]),
                 '总投注金额': info['total_bet_amount'],
                 '平均每期金额': info['total_bet_amount'] / len(info['periods']) if info['periods'] else 0
             }
@@ -2249,24 +2121,21 @@ class MultiLotteryCoverageAnalyzer:
         return sorted(account_stats, key=lambda x: x['参与组合数'], reverse=True)
 
     def _display_by_account_pair_lottery(self, account_pair_groups, analysis_mode):
-        """按账户组合和彩种展示 - 修复版本"""
+        """按账户组合和彩种展示"""
         category_display = {
             'six_mark': '六合彩',
-            'six_mark_tail': '六合彩尾数',  # 🆕 新增尾数类别显示
+            'six_mark_tail': '六合彩尾数',
             '10_number': '时时彩/PK10/赛车',
             'fast_three': '快三'
         }
         
-        # 🆕 调试：显示所有要展示的组合
         if not account_pair_groups:
             st.info("❌ 没有找到要展示的组合")
             return
         
         # 遍历每个账户组合
         for account_pair, lottery_groups in account_pair_groups.items():
-            # 🆕 调试：显示当前处理的账户组合
-            st.write(f"🔍 处理账户组合: {account_pair}")
-            
+    
             # 遍历每个彩种
             for lottery_key, combos in lottery_groups.items():
                 # 按期号排序
@@ -2287,17 +2156,13 @@ class MultiLotteryCoverageAnalyzer:
                         st.markdown(f"**完美组合 {idx}:** {account_pair}")
                         
                         # 组合信息
-                        col1, col2, col3, col4 = st.columns(4)
+                        col1, col2, col3 = st.columns(3)
                         with col1:
                             st.write(f"**账户数量:** {combo['account_count']}个")
                         with col2:
                             st.write(f"**期号:** {period}")
                         with col3:
                             st.write(f"**总金额:** ¥{combo['total_amount']:,.2f}")
-                        with col4:
-                            similarity = combo['similarity']
-                            indicator = combo['similarity_indicator']
-                            st.write(f"**金额匹配度:** {similarity:.1f}% {indicator}")
                         
                         # 彩种类型信息
                         category_name = category_display.get(lottery_category, lottery_category)
@@ -2322,7 +2187,7 @@ class MultiLotteryCoverageAnalyzer:
                             st.markdown("---")
 
     def enhanced_export(self, all_period_results, analysis_mode):
-        """增强导出功能 - 支持4账户组合"""
+        """增强导出功能"""
         export_data = []
         
         category_display = {
@@ -2342,19 +2207,17 @@ class MultiLotteryCoverageAnalyzer:
                     '彩种': result['lottery'],
                     '彩种类型': category_display.get(lottery_category, lottery_category),
                     '号码总数': total_numbers,
-                    '组合类型': f"{combo['account_count']}账户组合",  # 现在支持2,3,4账户
+                    '组合类型': f"{combo['account_count']}账户组合",
                     '账户组合': ' ↔ '.join(combo['accounts']),
                     '总投注金额': combo['total_amount'],
-                    '平均每号金额': combo['avg_amount_per_number'],
-                    '金额匹配度': f"{combo['similarity']:.1f}%",
-                    '匹配度等级': combo['similarity_indicator']
+                    '平均每号金额': combo['avg_amount_per_number']
                 }
                 
                 # 添加位置信息
                 if 'position' in result and result['position']:
                     export_record['投注位置'] = result['position']
                 
-                # 各账户详情 - 现在最多支持4个账户
+                # 各账户详情
                 for i, account in enumerate(combo['accounts'], 1):
                     export_record[f'账户{i}'] = account
                     export_record[f'账户{i}总金额'] = combo['individual_amounts'][account]
@@ -2373,7 +2236,7 @@ def main():
     
     analyzer = MultiLotteryCoverageAnalyzer()
     
-    # 侧边栏设置 - 分别设置不同彩种的阈值
+    # 侧边栏设置
     st.sidebar.header("⚙️ 分析参数设置")
     
     # 文件上传
@@ -2391,10 +2254,9 @@ def main():
         help="选择要分析的彩种类型"
     )
     
-    # ========== 六合彩参数设置 ==========
+    # 六合彩参数设置
     st.sidebar.subheader("🎯 六合彩参数设置")
     
-    # 六合彩特码、正码等基础玩法
     six_mark_min_number_count = st.sidebar.slider(
         "六合彩基础-号码数量阈值", 
         min_value=1, 
@@ -2432,10 +2294,9 @@ def main():
         help="六合彩尾数：只分析平均每号金额大于等于此值的账户"
     )
     
-    # ========== 时时彩/PK10/赛车参数设置 ==========
+    # 时时彩/PK10/赛车参数设置
     st.sidebar.subheader("🏎️ 时时彩/PK10/赛车参数设置")
     
-    # 时时彩基础玩法（定位胆、名次等）
     ten_number_min_number_count = st.sidebar.slider(
         "赛车类基础-号码数量阈值", 
         min_value=1, 
@@ -2453,7 +2314,7 @@ def main():
         help="时时彩/PK10/赛车基础玩法：只分析平均每号金额大于等于此值的账户"
     )
     
-    # 🆕 新增：冠亚和专用阈值设置
+    # 冠亚和专用阈值设置
     st.sidebar.subheader("🥇 冠亚和参数设置")
     
     ten_number_sum_min_number_count = st.sidebar.slider(
@@ -2473,10 +2334,9 @@ def main():
         help="冠亚和玩法：只分析平均每号金额大于等于此值的账户"
     )
     
-    # ========== 快三参数设置 ==========
+    # 快三参数设置
     st.sidebar.subheader("🎲 快三参数设置")
     
-    # 快三和值玩法
     fast_three_sum_min_number_count = st.sidebar.slider(
         "快三和值-号码数量阈值", 
         min_value=1, 
@@ -2494,7 +2354,7 @@ def main():
         help="快三和值玩法：只分析平均每号金额大于等于此值的账户"
     )
     
-    # 🆕 新增：快三基础玩法专用阈值设置
+    # 快三基础玩法专用阈值设置
     st.sidebar.subheader("🎯 快三基础玩法参数设置")
     
     fast_three_base_min_number_count = st.sidebar.slider(
@@ -2514,7 +2374,7 @@ def main():
         help="快三基础玩法（三军、独胆等）：只分析平均每号金额大于等于此值的账户"
     )
     
-    # ========== 时时彩/3D参数设置 ==========
+    # 时时彩/3D参数设置
     st.sidebar.subheader("🎰 时时彩/3D参数设置")
     
     ssc_3d_min_number_count = st.sidebar.slider(
@@ -2533,22 +2393,15 @@ def main():
         step=1,
         help="时时彩/3D系列：只分析平均每号金额大于等于此值的账户"
     )
-    
-    # 🆕 新增：测试按钮
-    if st.sidebar.button("🧪 运行尾数检测测试"):
-        analyzer.test_tail_number_detection()
-        st.sidebar.success("测试完成，请查看控制台输出")
-    
+
     if uploaded_file is not None:
         try:
-            # 读取文件 - 增强编码处理
+            # 读取文件
             if uploaded_file.name.endswith('.csv'):
                 try:
-                    # 先尝试UTF-8
                     df = pd.read_csv(uploaded_file)
                 except UnicodeDecodeError:
-                    # 如果UTF-8失败，尝试其他编码
-                    uploaded_file.seek(0)  # 重置文件指针
+                    uploaded_file.seek(0)
                     try:
                         df = pd.read_csv(uploaded_file, encoding='gbk')
                     except:
@@ -2557,7 +2410,6 @@ def main():
                             df = pd.read_csv(uploaded_file, encoding='gb2312')
                         except:
                             uploaded_file.seek(0)
-                            # 最后尝试忽略错误
                             df = pd.read_csv(uploaded_file, encoding_errors='ignore')
             else:
                 df = pd.read_excel(uploaded_file)
@@ -2577,7 +2429,6 @@ def main():
                 
             elif analysis_mode == "仅分析快三":
                 st.info(f"📊 当前分析模式: {analysis_mode}")
-                # 使用快三和值玩法的阈值作为显示
                 threshold_config = analyzer.get_lottery_thresholds('fast_three', fast_three_sum_min_avg_amount)
                 st.info(f"🎲 快三参数: 号码数量阈值 ≥ {fast_three_sum_min_number_count}, 平均金额阈值 ≥ {threshold_config['min_avg_amount']}")
                 
@@ -2585,15 +2436,14 @@ def main():
                 st.info(f"📊 当前分析模式: {analysis_mode}")
                 six_mark_config = analyzer.get_lottery_thresholds('six_mark', six_mark_min_avg_amount)
                 ten_number_config = analyzer.get_lottery_thresholds('10_number', ten_number_min_avg_amount)
-                # 使用快三和值玩法的阈值作为显示
                 fast_three_config = analyzer.get_lottery_thresholds('fast_three', fast_three_sum_min_avg_amount)
                 st.info(f"🎯 六合彩参数: 号码数量 ≥ {six_mark_min_number_count}, 平均金额 ≥ {six_mark_config['min_avg_amount']}")
                 st.info(f"🏎️ 赛车类参数: 号码数量 ≥ {ten_number_min_number_count}, 平均金额 ≥ {ten_number_config['min_avg_amount']}")
                 st.info(f"🎲 快三参数: 号码数量 ≥ {fast_three_sum_min_number_count}, 平均金额 ≥ {fast_three_config['min_avg_amount']}")
             
-            # 将列名识别和数据质量检查放入折叠框
+            # 数据预处理过程
             with st.expander("🔧 数据预处理过程", expanded=False):
-                # 增强版列名映射
+                # 列名识别
                 with st.spinner("正在进行列名识别..."):
                     column_mapping = analyzer.enhanced_column_mapping(df)
                 
@@ -2639,7 +2489,6 @@ def main():
                 
                 # 从投注内容中提取具体位置信息
                 with st.spinner("正在从投注内容中提取具体位置信息..."):
-                    # 创建临时列来存储从内容中提取的位置
                     df_clean['提取位置'] = df_clean.apply(
                         lambda row: analyzer.enhanced_extract_position_from_content(
                             row['玩法'], row['内容'], row['彩种类型'] if '彩种类型' in df_clean.columns else 'six_mark'
@@ -2647,13 +2496,11 @@ def main():
                         axis=1
                     )
                     
-                    # 对于成功提取到具体位置的记录，更新玩法列为提取的位置
                     mask = df_clean['提取位置'] != df_clean['玩法']
                     if mask.sum() > 0:
                         st.success(f"✅ 从内容中提取到 {mask.sum()} 条记录的具体位置信息")
                         df_clean.loc[mask, '玩法'] = df_clean.loc[mask, '提取位置']
                     
-                    # 删除临时列
                     df_clean = df_clean.drop('提取位置', axis=1)
                 
                 # 应用金额提取
@@ -2701,7 +2548,7 @@ def main():
                 if analysis_mode == "仅分析六合彩":
                     valid_plays = ['特码', '正码一', '正码二', '正码三', '正码四', '正码五', '正码六', 
                                  '正一特', '正二特', '正三特', '正四特', '正五特', '正六特', '平码', '平特',
-                                 '尾数', '全尾', '特尾']  # 🆕 新增尾数相关玩法
+                                 '尾数', '全尾', '特尾']
                 elif analysis_mode == "仅分析时时彩/PK10/赛车":
                     valid_plays = ['冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆', '前一']
                 elif analysis_mode == "仅分析快三":
@@ -2709,7 +2556,7 @@ def main():
                 else:
                     valid_plays = ['特码', '正码一', '正码二', '正码三', '正码四', '正码五', '正码六', 
                                  '正一特', '正二特', '正三特', '正四特', '正五特', '正六特', '平码', '平特',
-                                 '尾数', '全尾', '特尾',  # 🆕 新增尾数相关玩法
+                                 '尾数', '全尾', '特尾',
                                  '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆', '前一', '和值']
                 
                 df_target = df_clean[df_clean['玩法'].isin(valid_plays)]
@@ -2738,21 +2585,13 @@ def main():
                     st.error("❌ 未找到符合条件的有效玩法数据")
                     st.info("""
                     **可能原因:**
-                    1. 彩种名称不匹配 - 当前支持的彩种类型:
-                       - **六合彩**: 新澳门六合彩, 澳门六合彩, 香港六合彩等
-                       - **时时彩/PK10/赛车**: 时时彩, PK10, 赛车, 幸运28等
-                       - **快三**: 快三, 快3, K3, 分分快三等
-                    
-                    2. 玩法名称不匹配 - 当前支持的玩法:
-                       - **六合彩**: 特码, 正码一至正码六, 正一特至正六特, 平码, 平特
-                       - **时时彩/PK10/赛车**: 冠军、亚军、季军、第四名到第十名、定位胆、前一
-                       - **快三**: 和值
-                    
+                    1. 彩种名称不匹配
+                    2. 玩法名称不匹配
                     3. 数据格式问题
                     """)
                     return
 
-                # 分析数据 - 使用增强版分析
+                # 分析数据
                 with st.spinner("正在进行完美覆盖分析..."):
                     six_mark_params = {
                         'min_number_count': six_mark_min_number_count,
@@ -2763,25 +2602,25 @@ def main():
                     ten_number_params = {
                         'min_number_count': ten_number_min_number_count,
                         'min_avg_amount': ten_number_min_avg_amount,
-                        'sum_min_number_count': ten_number_sum_min_number_count,  # 🆕 新增冠亚和阈值
-                        'sum_min_avg_amount': ten_number_sum_min_avg_amount       # 🆕 新增冠亚和阈值
+                        'sum_min_number_count': ten_number_sum_min_number_count,
+                        'sum_min_avg_amount': ten_number_sum_min_avg_amount
                     }
                     fast_three_params = {
-                        'sum_min_number_count': fast_three_sum_min_number_count,  # 🆕 新增快三和值阈值
-                        'sum_min_avg_amount': fast_three_sum_min_avg_amount,      # 🆕 新增快三和值阈值
-                        'base_min_number_count': fast_three_base_min_number_count, # 🆕 新增快三基础阈值
-                        'base_min_avg_amount': fast_three_base_min_avg_amount      # 🆕 新增快三基础阈值
+                        'sum_min_number_count': fast_three_sum_min_number_count,
+                        'sum_min_avg_amount': fast_three_sum_min_avg_amount,
+                        'base_min_number_count': fast_three_base_min_number_count,
+                        'base_min_avg_amount': fast_three_base_min_avg_amount
                     }
                     ssc_3d_params = {
-                        'min_number_count': ssc_3d_min_number_count,              # 🆕 新增时时彩/3D阈值
-                        'min_avg_amount': ssc_3d_min_avg_amount                   # 🆕 新增时时彩/3D阈值
+                        'min_number_count': ssc_3d_min_number_count,
+                        'min_avg_amount': ssc_3d_min_avg_amount
                     }
                     
                     all_period_results = analyzer.analyze_with_progress(
                         df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode
                     )
 
-                # 显示结果 - 使用增强版展示
+                # 显示结果
                 st.header("📊 完美覆盖组合检测结果")
                 analyzer.display_enhanced_results(all_period_results, analysis_mode)
                 
@@ -2824,7 +2663,6 @@ def main():
             st.error(f"❌ 处理文件时出错: {str(e)}")
             logger.error(f"文件处理错误: {str(e)}", exc_info=True)
             
-            # 提供更详细的错误信息
             with st.expander("🔍 查看详细错误信息", expanded=False):
                 st.code(f"""
         错误类型: {type(e).__name__}
@@ -2835,8 +2673,6 @@ def main():
         2. 文件格式问题 - 确保文件是有效的CSV或Excel格式
         3. 内存不足 - 尝试分析较小的数据文件
         4. 列名不匹配 - 检查文件是否包含必要的列
-                
-        如果问题持续存在，请联系技术支持。
                 """)
     
     else:
@@ -2845,13 +2681,13 @@ def main():
         ### 🚀 系统特色功能:
 
         **🎲 全彩种支持**
-        - ✅ **六合彩**: 1-49个号码，支持特码、正码、正特、平码等多种玩法
-        - ✅ **时时彩/PK10/赛车**: 1-10共10个号码，**按位置精准分析**  
+        - ✅ **六合彩**: 1-49个号码，支持特码、正码、正特、平码、尾数等多种玩法
+        - ✅ **时时彩/PK10/赛车**: 1-10共10个号码，按位置精准分析
         - ✅ **快三**: 3-18共16个号码，和值玩法
         - 🔄 **自动识别**: 智能识别彩种类型
 
         **📍 位置精准分析**
-        - ✅ **六合彩位置**: 特码、正码一至正码六、正一特至正六特、平码、平特
+        - ✅ **六合彩位置**: 特码、正码一至正码六、正一特至正六特、平码、平特、尾数
         - ✅ **PK10/赛车位置**: 冠军、亚军、季军、第四名到第十名、前一
         - ✅ **快三位置**: 和值
         - ✅ **位置统计**: 按位置统计完美组合数量
@@ -2876,17 +2712,14 @@ def main():
 
         **六合彩 (49个号码)**
         - 检测同一期号、同一位置内不同账户的投注号码是否形成完美覆盖（1-49全部覆盖）
-        - 分析各账户的投注金额匹配度，识别可疑的协同投注行为
-        - 支持特码、正码、正特、平码等多种玩法
+        - 支持特码、正码、正特、平码、尾数等多种玩法
 
         **时时彩/PK10/赛车 (10个号码)**  
         - **按位置精准分析**: 冠军、亚军、季军等每个位置独立分析
         - 检测同一位置内，不同账户是否覆盖全部10个号码（1-10）
-        - 识别对刷行为：多个账户在同一位置合作覆盖所有号码
 
         **快三 (16个号码)**
         - **和值玩法**: 检测同一期号内不同账户是否覆盖全部16个和值（3-18）
-        - 分析各账户的投注金额匹配度，识别可疑的协同投注行为
 
         ### 📝 支持的列名格式:
         """)
