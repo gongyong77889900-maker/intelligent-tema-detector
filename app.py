@@ -1660,8 +1660,8 @@ class MultiLotteryCoverageAnalyzer:
         with col3:
             st.metric("平均期数", f"{df_stats['投注期数'].mean():.1f}")
 
-    def analyze_with_progress(self, df_target, six_mark_params, ten_number_params, fast_three_params, analysis_mode):
-        """带进度显示的分析 - 修复参数传递"""
+    def analyze_with_progress(self, df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode):
+        """带进度显示的分析 - 使用增强阈值管理"""
         
         # 根据分析模式决定参数
         if analysis_mode == "仅分析六合彩":
@@ -2285,8 +2285,9 @@ def main():
 
                 # 分析数据 - 使用增强版分析
                 with st.spinner("正在进行完美覆盖分析..."):
+                    # 参数设置
                     six_mark_params = {
-                        'min_number_count': six_mark_min_number_count,  # 确保使用侧边栏变量
+                        'min_number_count': six_mark_min_number_count,
                         'min_avg_amount': six_mark_min_avg_amount,
                         'tail_min_number_count': six_mark_tail_min_number_count,
                         'tail_min_avg_amount': six_mark_tail_min_avg_amount
@@ -2307,8 +2308,8 @@ def main():
                         'min_number_count': ssc_3d_min_number_count,
                         'min_avg_amount': ssc_3d_min_avg_amount
                     }
-
-                    # 🆕 在这里添加参数确认显示
+                    
+                    # 🆕 参数确认显示
                     st.subheader("⚙️ 当前参数确认")
                     col1, col2 = st.columns(2)
                     
@@ -2326,13 +2327,14 @@ def main():
                         st.write(f"- 冠亚和号码阈值: ≥{ten_number_sum_min_number_count}")
                         st.write(f"- 冠亚和金额阈值: ≥{ten_number_sum_min_avg_amount}")
                     
-                    # 添加参数测试按钮
-                    if st.button("🔄 测试参数调节"):
-                        st.success("✅ 参数已更新！")
-                        st.info(f"当前尾数阈值: 号码≥{six_mark_tail_min_number_count}, 金额≥{six_mark_tail_min_avg_amount}")
-                    
+                    # 调用分析方法 - 确保参数数量匹配
                     all_period_results = analyzer.analyze_with_progress(
-                        df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode
+                        df_target, 
+                        six_mark_params, 
+                        ten_number_params, 
+                        fast_three_params, 
+                        ssc_3d_params,  # 🆕 新增参数
+                        analysis_mode
                     )
                     
                     # 🆕 添加参数调试显示
