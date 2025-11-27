@@ -2114,94 +2114,41 @@ def main():
         help="选择要分析的彩种类型"
     )
     
+    # ========== 六合彩参数设置 ==========
     st.sidebar.subheader("🎯 六合彩参数设置")
+    six_mark_min_number_count = st.sidebar.slider("六合彩-号码数量阈值", min_value=1, max_value=30, value=11)
+    six_mark_min_avg_amount = st.sidebar.slider("六合彩-平均金额阈值", min_value=0, max_value=50, value=10, step=1)
     
-    # 六合彩专用阈值设置
-    six_mark_min_number_count = st.sidebar.slider(
-        "六合彩-号码数量阈值", 
-        min_value=1, 
-        max_value=30, 
-        value=11,
-        help="六合彩：只分析投注号码数量大于等于此值的账户"
-    )
-
-    six_mark_tail_min_number_count = st.sidebar.slider(
-        "六合彩尾数-号码数量阈值", 
-        min_value=1, max_value=10, value=3,
-        help="六合彩尾数：只分析投注号码数量大于等于此值的账户"
-    )
-    six_mark_tail_min_avg_amount = st.sidebar.slider(
-        "六合彩尾数-平均金额阈值", 
-        min_value=0, max_value=20, value=5, step=1,
-        help="六合彩尾数：只分析平均每号金额大于等于此值的账户"
-    )
+    # 六合彩尾数专用阈值设置
+    st.sidebar.subheader("🔢 六合彩尾数参数设置")
+    six_mark_tail_min_number_count = st.sidebar.slider("六合彩尾数-号码数量阈值", min_value=1, max_value=10, value=3)
+    six_mark_tail_min_avg_amount = st.sidebar.slider("六合彩尾数-平均金额阈值", min_value=0, max_value=20, value=5, step=1)
     
-    six_mark_min_avg_amount = st.sidebar.slider(
-        "六合彩-平均金额阈值", 
-        min_value=0, 
-        max_value=50,  # 调高最大值
-        value=10,      # 修改：从2改为10
-        step=1,
-        help="六合彩：只分析平均每号金额大于等于10的账户"  # 更新帮助文本
-    )
+    # ========== 时时彩/PK10/赛车参数设置 ==========
+    st.sidebar.subheader("🏎️ 时时彩/PK10/赛车参数设置")
+    ten_number_min_number_count = st.sidebar.slider("赛车类-号码数量阈值", min_value=1, max_value=10, value=3)
+    ten_number_min_avg_amount = st.sidebar.slider("赛车类-平均金额阈值", min_value=0, max_value=20, value=5, step=1)
     
-    # 时时彩/PK10/赛车专用阈值设置
-    ten_number_min_number_count = st.sidebar.slider(
-        "赛车类-号码数量阈值", 
-        min_value=1, 
-        max_value=10, 
-        value=3,
-        help="时时彩/PK10/赛车：只分析投注号码数量大于等于此值的账户"
-    )
+    # 🆕 新增：冠亚和专用阈值设置
+    st.sidebar.subheader("🥇 冠亚和参数设置")
+    ten_number_sum_min_number_count = st.sidebar.slider("冠亚和-号码数量阈值", min_value=1, max_value=17, value=5)
+    ten_number_sum_min_avg_amount = st.sidebar.slider("冠亚和-平均金额阈值", min_value=0, max_value=20, value=5, step=1)
     
-    ten_number_min_avg_amount = st.sidebar.slider(
-        "赛车类-平均金额阈值", 
-        min_value=0, 
-        max_value=20,  # 调高最大值
-        value=5,       # 修改：从1改为5
-        step=1,
-        help="时时彩/PK10/赛车：只分析平均每号金额大于等于5的账户"  # 更新帮助文本
-    )
+    # ========== 快三参数设置 ==========
+    st.sidebar.subheader("🎲 快三参数设置")
+    # 快三和值玩法
+    fast_three_sum_min_number_count = st.sidebar.slider("快三和值-号码数量阈值", min_value=1, max_value=16, value=4)
+    fast_three_sum_min_avg_amount = st.sidebar.slider("快三和值-平均金额阈值", min_value=0, max_value=20, value=5, step=1)
     
-    ten_number_sum_min_number_count = st.sidebar.slider(
-        "冠亚和-号码数量阈值", 
-        min_value=1, max_value=17, value=5,
-        help="冠亚和玩法：只分析投注号码数量大于等于此值的账户"
-    )
-    ten_number_sum_min_avg_amount = st.sidebar.slider(
-        "冠亚和-平均金额阈值", 
-        min_value=0, max_value=20, value=5, step=1,
-        help="冠亚和玩法：只分析平均每号金额大于等于此值的账户"
-    )
-
-    # 快三专用阈值设置
-    fast_three_min_number_count = st.sidebar.slider(
-        "快三-号码数量阈值", 
-        min_value=1, 
-        max_value=16, 
-        value=4,
-        help="快三和值玩法：只分析投注号码数量大于等于此值的账户"
-    )
+    # 🆕 新增：快三基础玩法专用阈值设置
+    st.sidebar.subheader("🎯 快三基础玩法参数设置")
+    fast_three_base_min_number_count = st.sidebar.slider("快三基础-号码数量阈值", min_value=1, max_value=6, value=2)
+    fast_three_base_min_avg_amount = st.sidebar.slider("快三基础-平均金额阈值", min_value=0, max_value=20, value=5, step=1)
     
-    fast_three_min_avg_amount = st.sidebar.slider(
-        "快三-平均金额阈值", 
-        min_value=0, 
-        max_value=20,  # 调高最大值
-        value=5,       # 修改：从1改为5
-        step=1,
-        help="快三和值玩法：只分析平均每号金额大于等于5的账户"  # 更新帮助文本
-    )
-
-    fast_three_base_min_number_count = st.sidebar.slider(
-        "快三基础-号码数量阈值", 
-        min_value=1, max_value=6, value=2,
-        help="快三基础玩法（三军、独胆等）：只分析投注号码数量大于等于此值的账户"
-    )
-    fast_three_base_min_avg_amount = st.sidebar.slider(
-        "快三基础-平均金额阈值", 
-        min_value=0, max_value=20, value=5, step=1,
-        help="快三基础玩法（三军、独胆等）：只分析平均每号金额大于等于此值的账户"
-    )
+    # ========== 时时彩/3D参数设置 ==========
+    st.sidebar.subheader("🎰 时时彩/3D参数设置")
+    ssc_3d_min_number_count = st.sidebar.slider("时时彩/3D-号码数量阈值", min_value=1, max_value=10, value=3)
+    ssc_3d_min_avg_amount = st.sidebar.slider("时时彩/3D-平均金额阈值", min_value=0, max_value=20, value=5, step=1)
     
     if uploaded_file is not None:
         try:
@@ -2238,28 +2185,27 @@ def main():
             elif analysis_mode == "仅分析时时彩/PK10/赛车":
                 st.info(f"📊 当前分析模式: {analysis_mode}")
                 threshold_config = analyzer.get_lottery_thresholds('10_number', ten_number_min_avg_amount)
-                st.info(f"🏎️ 赛车类基础参数: 号码数量阈值 ≥ {ten_number_min_number_count}, 平均金额阈值 ≥ {threshold_config['min_avg_amount']}")
+                st.info(f"🏎️ 赛车类参数: 号码数量阈值 ≥ {ten_number_min_number_count}, 平均金额阈值 ≥ {threshold_config['min_avg_amount']}")
                 st.info(f"🥇 冠亚和参数: 号码数量阈值 ≥ {ten_number_sum_min_number_count}, 平均金额阈值 ≥ {ten_number_sum_min_avg_amount}")
                 
             elif analysis_mode == "仅分析快三":
                 st.info(f"📊 当前分析模式: {analysis_mode}")
-                threshold_config = analyzer.get_lottery_thresholds('fast_three', fast_three_sum_min_avg_amount)
-                st.info(f"🎲 快三和值参数: 号码数量阈值 ≥ {fast_three_sum_min_number_count}, 平均金额阈值 ≥ {threshold_config['min_avg_amount']}")
+                threshold_config = analyzer.get_lottery_thresholds('fast_three', fast_three_min_avg_amount)
+                st.info(f"🎲 快三参数: 号码数量阈值 ≥ {fast_three_min_number_count}, 平均金额阈值 ≥ {threshold_config['min_avg_amount']}")
                 st.info(f"🎯 快三基础参数: 号码数量阈值 ≥ {fast_three_base_min_number_count}, 平均金额阈值 ≥ {fast_three_base_min_avg_amount}")
                 
             else:
                 st.info(f"📊 当前分析模式: {analysis_mode}")
                 six_mark_config = analyzer.get_lottery_thresholds('six_mark', six_mark_min_avg_amount)
                 ten_number_config = analyzer.get_lottery_thresholds('10_number', ten_number_min_avg_amount)
-                fast_three_config = analyzer.get_lottery_thresholds('fast_three', fast_three_sum_min_avg_amount)
+                fast_three_config = analyzer.get_lottery_thresholds('fast_three', fast_three_min_avg_amount)
                 
-                st.info(f"🎯 六合彩基础参数: 号码数量 ≥ {six_mark_min_number_count}, 平均金额 ≥ {six_mark_config['min_avg_amount']}")
+                st.info(f"🎯 六合彩参数: 号码数量 ≥ {six_mark_min_number_count}, 平均金额 ≥ {six_mark_config['min_avg_amount']}")
                 st.info(f"🔢 六合彩尾数参数: 号码数量 ≥ {six_mark_tail_min_number_count}, 平均金额 ≥ {six_mark_tail_min_avg_amount}")
-                st.info(f"🏎️ 赛车类基础参数: 号码数量 ≥ {ten_number_min_number_count}, 平均金额 ≥ {ten_number_config['min_avg_amount']}")
+                st.info(f"🏎️ 赛车类参数: 号码数量 ≥ {ten_number_min_number_count}, 平均金额 ≥ {ten_number_config['min_avg_amount']}")
                 st.info(f"🥇 冠亚和参数: 号码数量 ≥ {ten_number_sum_min_number_count}, 平均金额 ≥ {ten_number_sum_min_avg_amount}")
-                st.info(f"🎲 快三和值参数: 号码数量 ≥ {fast_three_sum_min_number_count}, 平均金额 ≥ {fast_three_config['min_avg_amount']}")
+                st.info(f"🎲 快三参数: 号码数量 ≥ {fast_three_min_number_count}, 平均金额 ≥ {fast_three_config['min_avg_amount']}")
                 st.info(f"🎯 快三基础参数: 号码数量 ≥ {fast_three_base_min_number_count}, 平均金额 ≥ {fast_three_base_min_avg_amount}")
-                st.info(f"🎰 时时彩/3D参数: 号码数量 ≥ {ssc_3d_min_number_count}, 平均金额 ≥ {ssc_3d_min_avg_amount}")
             
             # 将列名识别和数据质量检查放入折叠框
             with st.expander("🔧 数据预处理过程", expanded=False):
@@ -2425,26 +2371,28 @@ def main():
                     six_mark_params = {
                         'min_number_count': six_mark_min_number_count,
                         'min_avg_amount': six_mark_min_avg_amount,
-                        'tail_min_number_count': six_mark_tail_min_number_count,  # 新增
-                        'tail_min_avg_amount': six_mark_tail_min_avg_amount       # 新增
+                        'tail_min_number_count': six_mark_tail_min_number_count,
+                        'tail_min_avg_amount': six_mark_tail_min_avg_amount
                     }
                     ten_number_params = {
                         'min_number_count': ten_number_min_number_count,
                         'min_avg_amount': ten_number_min_avg_amount,
-                        'sum_min_number_count': ten_number_sum_min_number_count,  # 新增
-                        'sum_min_avg_amount': ten_number_sum_min_avg_amount       # 新增
+                        'sum_min_number_count': ten_number_sum_min_number_count,
+                        'sum_min_avg_amount': ten_number_sum_min_avg_amount
                     }
                     fast_three_params = {
-                        'min_number_count': fast_three_min_number_count,
-                        'min_avg_amount': fast_three_min_avg_amount,
-                        'sum_min_number_count': fast_three_sum_min_number_count,  # 新增
-                        'sum_min_avg_amount': fast_three_sum_min_avg_amount,      # 新增
-                        'base_min_number_count': fast_three_base_min_number_count, # 新增
-                        'base_min_avg_amount': fast_three_base_min_avg_amount      # 新增
+                        'min_number_count': fast_three_min_number_count,  # 使用统一的快三阈值
+                        'min_avg_amount': fast_three_min_avg_amount,      # 使用统一的快三阈值
+                        'base_min_number_count': fast_three_base_min_number_count,
+                        'base_min_avg_amount': fast_three_base_min_avg_amount
                     }
                     
                     all_period_results = analyzer.analyze_with_progress(
-                        df_target, six_mark_params, ten_number_params, fast_three_params, analysis_mode
+                        df_target, 
+                        six_mark_params, 
+                        ten_number_params, 
+                        fast_three_params, 
+                        analysis_mode
                     )
 
                 # 显示结果 - 使用增强版展示
