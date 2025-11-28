@@ -626,7 +626,13 @@ class MultiLotteryCoverageAnalyzer:
         df_clean = self.filter_number_bets_only(df_clean)
         non_number_play_count = initial_count - no_number_count - len(df_clean)
         
-        return df_clean, no_number_count, non_number_play_count
+        # 🆕 新增：严格过滤，确保每个记录都有有效的彩种类型
+        df_clean = df_clean[df_clean['彩种类型'].notna()]
+        invalid_lottery_count = initial_count - no_number_count - non_number_play_count - len(df_clean)
+        
+        logger.info(f"📊 预处理统计: 初始{initial_count}, 无号码{no_number_count}, 非号码玩法{non_number_play_count}, 无效彩种{invalid_lottery_count}, 最终{len(df_clean)}")
+        
+        return df_clean, no_number_count, non_number_play_count + invalid_lottery_count
 
     def get_lottery_thresholds(self, lottery_category, user_min_avg_amount=None):
         """根据彩种类型获取阈值配置 - 使用配置中的默认阈值"""
@@ -1495,26 +1501,44 @@ class MultiLotteryCoverageAnalyzer:
         else: 
             return "🔴"
     
-    def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers):
-        """寻找完美组合 - 修复版本：确保并集完美覆盖所有号码，但移除单个账户号码数量之和的限制"""
-    
+    def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers, min_number_count):
+        """寻找完美组合 - 修复版本：严格的阈值过滤"""
+        
         all_results = {2: [], 3: [], 4: []}
         all_accounts = list(account_numbers.keys())
         
         account_sets = {account: set(numbers) for account, numbers in account_numbers.items()}
         
+        # 🆕 严格过滤：确保单个账户符合所有阈值要求
+        valid_accounts = []
+        for account in all_accounts:
+            number_count = len(account_numbers[account])
+            avg_amount = account_amount_stats[account]['avg_amount_per_number']
+            
+            # 🆕 必须同时满足号码数量和平均金额阈值
+            if number_count >= min_number_count and avg_amount >= float(min_avg_amount):
+                valid_accounts.append(account)
+            else:
+                logger.info(f"❌ 过滤账户 {account}: 号码数={number_count}, 平均金额={avg_amount:.2f}")
+        
+        logger.info(f"✅ 有效账户数: {len(valid_accounts)}/{len(all_accounts)}")
+        
+        if len(valid_accounts) < 2:
+            logger.info("❌ 有效账户不足2个，无法形成组合")
+            return all_results
+        
         # 搜索2账户组合
-        for i, acc1 in enumerate(all_accounts):
+        combo_count_2 = 0
+        for i, acc1 in enumerate(valid_accounts):
             count1 = len(account_numbers[acc1])
-            for j in range(i+1, len(all_accounts)):
-                acc2 = all_accounts[j]
+            for j in range(i+1, len(valid_accounts)):
+                acc2 = valid_accounts[j]
                 count2 = len(account_numbers[acc2])
                 
-                # 🆕 修复：移除 count1 + count2 != total_numbers 的严格限制
-                # 但仍然检查并集是否完美覆盖
+                # 🆕 严格检查：确保并集完美覆盖
                 combined_set = account_sets[acc1] | account_sets[acc2]
-    
-                if len(combined_set) != total_numbers:  # 确保完美覆盖
+                
+                if len(combined_set) != total_numbers:
                     continue
                 
                 total_amount = account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount']
@@ -1522,8 +1546,13 @@ class MultiLotteryCoverageAnalyzer:
                     account_amount_stats[acc1]['avg_amount_per_number'],
                     account_amount_stats[acc2]['avg_amount_per_number']
                 ]
-          
+                
+                # 🆕 双重保险：再次确认阈值
                 if min(avg_amounts) < float(min_avg_amount):
+                    continue
+                
+                # 🆕 双重保险：再次确认号码数量阈值
+                if count1 < min_number_count or count2 < min_number_count:
                     continue
                 
                 similarity = self.calculate_similarity(avg_amounts)
@@ -1549,21 +1578,24 @@ class MultiLotteryCoverageAnalyzer:
                     }
                 }
                 all_results[2].append(result_data)
+                combo_count_2 += 1
+        
+        logger.info(f"🔍 找到2账户组合: {combo_count_2}个")
         
         # 搜索3账户组合
-        for i, acc1 in enumerate(all_accounts):
+        combo_count_3 = 0
+        for i, acc1 in enumerate(valid_accounts):
             count1 = len(account_numbers[acc1])
-            for j in range(i+1, len(all_accounts)):
-                acc2 = all_accounts[j]
+            for j in range(i+1, len(valid_accounts)):
+                acc2 = valid_accounts[j]
                 count2 = len(account_numbers[acc2])
-                for k in range(j+1, len(all_accounts)):
-                    acc3 = all_accounts[k]
+                for k in range(j+1, len(valid_accounts)):
+                    acc3 = valid_accounts[k]
                     count3 = len(account_numbers[acc3])
                     
-                    # 🆕 修复：移除 count1 + count2 + count3 != total_numbers 的严格限制
-                    # 但仍然检查并集是否完美覆盖
+                    # 🆕 严格检查：确保并集完美覆盖
                     combined_set = account_sets[acc1] | account_sets[acc2] | account_sets[acc3]
-                    if len(combined_set) != total_numbers:  # 确保完美覆盖
+                    if len(combined_set) != total_numbers:
                         continue
                     
                     total_amount = (account_amount_stats[acc1]['total_amount'] + 
@@ -1575,7 +1607,12 @@ class MultiLotteryCoverageAnalyzer:
                         account_amount_stats[acc3]['avg_amount_per_number']
                     ]
                     
+                    # 🆕 双重保险：再次确认阈值
                     if min(avg_amounts) < float(min_avg_amount):
+                        continue
+                    
+                    # 🆕 双重保险：再次确认号码数量阈值
+                    if count1 < min_number_count or count2 < min_number_count or count3 < min_number_count:
                         continue
                     
                     similarity = self.calculate_similarity(avg_amounts)
@@ -1604,24 +1641,27 @@ class MultiLotteryCoverageAnalyzer:
                         }
                     }
                     all_results[3].append(result_data)
+                    combo_count_3 += 1
         
-        # 🆕 新增：搜索4账户组合
-        for i, acc1 in enumerate(all_accounts):
+        logger.info(f"🔍 找到3账户组合: {combo_count_3}个")
+        
+        # 🆕 搜索4账户组合
+        combo_count_4 = 0
+        for i, acc1 in enumerate(valid_accounts):
             count1 = len(account_numbers[acc1])
-            for j in range(i+1, len(all_accounts)):
-                acc2 = all_accounts[j]
+            for j in range(i+1, len(valid_accounts)):
+                acc2 = valid_accounts[j]
                 count2 = len(account_numbers[acc2])
-                for k in range(j+1, len(all_accounts)):
-                    acc3 = all_accounts[k]
+                for k in range(j+1, len(valid_accounts)):
+                    acc3 = valid_accounts[k]
                     count3 = len(account_numbers[acc3])
-                    for l in range(k+1, len(all_accounts)):
-                        acc4 = all_accounts[l]
+                    for l in range(k+1, len(valid_accounts)):
+                        acc4 = valid_accounts[l]
                         count4 = len(account_numbers[acc4])
                         
-                        # 🆕 修复：移除 count1 + count2 + count3 + count4 != total_numbers 的严格限制
-                        # 但仍然检查并集是否完美覆盖
+                        # 🆕 严格检查：确保并集完美覆盖
                         combined_set = account_sets[acc1] | account_sets[acc2] | account_sets[acc3] | account_sets[acc4]
-                        if len(combined_set) != total_numbers:  # 确保完美覆盖
+                        if len(combined_set) != total_numbers:
                             continue
                         
                         total_amount = (account_amount_stats[acc1]['total_amount'] + 
@@ -1635,8 +1675,12 @@ class MultiLotteryCoverageAnalyzer:
                             account_amount_stats[acc4]['avg_amount_per_number']
                         ]
                         
-                        # 检查平均金额是否达到阈值
+                        # 🆕 双重保险：再次确认阈值
                         if min(avg_amounts) < float(min_avg_amount):
+                            continue
+                        
+                        # 🆕 双重保险：再次确认号码数量阈值
+                        if count1 < min_number_count or count2 < min_number_count or count3 < min_number_count or count4 < min_number_count:
                             continue
                         
                         similarity = self.calculate_similarity(avg_amounts)
@@ -1668,12 +1712,16 @@ class MultiLotteryCoverageAnalyzer:
                             }
                         }
                         all_results[4].append(result_data)
+                        combo_count_4 += 1
+        
+        logger.info(f"🔍 找到4账户组合: {combo_count_4}个")
+        logger.info(f"📊 总计组合: 2账户={combo_count_2}, 3账户={combo_count_3}, 4账户={combo_count_4}")
         
         return all_results
 
     def analyze_period_lottery_position(self, group, period, lottery, position, user_min_number_count, user_min_avg_amount):
         """分析特定期数、彩种和位置 - 使用动态阈值"""
-    
+        
         lottery_category = self.identify_lottery_category(lottery)
         if not lottery_category:
             return None
@@ -1689,11 +1737,15 @@ class MultiLotteryCoverageAnalyzer:
         # 如果用户提供了阈值，则使用用户的，否则使用默认值
         min_number_count = int(user_min_number_count) if user_min_number_count is not None else default_min_number_count
         min_avg_amount = float(user_min_avg_amount) if user_min_avg_amount is not None else default_min_avg_amount
-       
+        
         has_amount_column = '投注金额' in group.columns
         account_numbers = {}
         account_amount_stats = {}
         account_bet_contents = {}
+        
+        # 🆕 严格过滤：在提取数据时就应用阈值
+        valid_accounts_count = 0
+        filtered_accounts_count = 0
         
         for account in group['会员账号'].unique():
             account_data = group[group['会员账号'] == account]
@@ -1713,38 +1765,36 @@ class MultiLotteryCoverageAnalyzer:
                     amount = row['投注金额']
                     total_amount += amount
             
-            account_numbers[account] = sorted(all_numbers)
-            account_bet_contents[account] = ", ".join([f"{num:02d}" for num in sorted(all_numbers)])
             number_count = len(all_numbers)
             avg_amount_per_number = total_amount / number_count if number_count > 0 else 0
             
-            account_amount_stats[account] = {
-                'number_count': number_count,
-                'total_amount': total_amount,
-                'avg_amount_per_number': avg_amount_per_number
-            }
-       
-        # 筛选有效账户
-        filtered_account_numbers = {}
-        filtered_account_amount_stats = {}
-        filtered_account_bet_contents = {}
+            # 🆕 严格过滤：只有满足阈值的账户才被记录
+            if number_count >= min_number_count and avg_amount_per_number >= min_avg_amount:
+                account_numbers[account] = sorted(all_numbers)
+                account_bet_contents[account] = ", ".join([f"{num:02d}" for num in sorted(all_numbers)])
+                
+                account_amount_stats[account] = {
+                    'number_count': number_count,
+                    'total_amount': total_amount,
+                    'avg_amount_per_number': avg_amount_per_number
+                }
+                valid_accounts_count += 1
+            else:
+                filtered_accounts_count += 1
         
-        for account, numbers in account_numbers.items():
-            stats = account_amount_stats[account]
-            if len(numbers) >= min_number_count and stats['avg_amount_per_number'] >= min_avg_amount:
-                filtered_account_numbers[account] = numbers
-                filtered_account_amount_stats[account] = account_amount_stats[account]
-                filtered_account_bet_contents[account] = account_bet_contents[account]
+        logger.info(f"🎯 位置 {position}: 有效账户 {valid_accounts_count}个, 过滤账户 {filtered_accounts_count}个")
         
-        if len(filtered_account_numbers) < 2:
+        if len(account_numbers) < 2:
+            logger.info(f"❌ 位置 {position}: 有效账户不足2个，跳过分析")
             return None
         
         all_results = self.find_perfect_combinations(
-            filtered_account_numbers, 
-            filtered_account_amount_stats, 
-            filtered_account_bet_contents,
+            account_numbers, 
+            account_amount_stats, 
+            account_bet_contents,
             min_avg_amount,
-            total_numbers
+            total_numbers,
+            min_number_count  # 🆕 新增参数
         )
         
         total_combinations = sum(len(results) for results in all_results.values())
@@ -1763,7 +1813,7 @@ class MultiLotteryCoverageAnalyzer:
                 'lottery_category': lottery_category,
                 'total_combinations': total_combinations,
                 'all_combinations': all_combinations,
-                'filtered_accounts': len(filtered_account_numbers),
+                'filtered_accounts': len(account_numbers),
                 'total_numbers': total_numbers
             }
         
