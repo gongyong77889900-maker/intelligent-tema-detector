@@ -1501,49 +1501,62 @@ class MultiLotteryCoverageAnalyzer:
         else: 
             return "🔴"
     
-    def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers):
-        """寻找完美组合 - 严格遵循完美覆盖数学原理"""
+    def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers, min_number_count):
+        """寻找完美组合 - 通用版本，适用于所有彩种"""
         
         all_results = {2: [], 3: [], 4: []}
         all_accounts = list(account_numbers.keys())
+        
+        if len(all_accounts) < 2:
+            return all_results
         
         # 统计账户号码数量分布
         number_counts = [len(numbers) for numbers in account_numbers.values()]
         min_count = min(number_counts) if number_counts else 0
         max_count = max(number_counts) if number_counts else 0
         
-        logger.info(f"📊 账户号码数量范围: {min_count} - {max_count}")
+        logger.info(f"📊 彩种号码总数: {total_numbers}, 账户号码数量范围: {min_count} - {max_count}")
         
         account_sets = {account: set(numbers) for account, numbers in account_numbers.items()}
         
-        # 🆕 关键修复：预先计算所有可能的号码数量配对
-        # 2账户组合的可能号码数量配对
+        # 🆕 通用修复：根据彩种类型动态计算有效配对
+        # 计算2账户组合的可能号码数量配对
         valid_2account_pairs = []
-        for a in range(12, 25):  # a从12到24
-            b = 49 - a
-            if b >= 12 and b <= 49:  # b必须在有效范围内
+        min_pair_sum = 2 * min_number_count
+        max_pair_sum = total_numbers
+        
+        for a in range(min_number_count, total_numbers + 1):
+            b = total_numbers - a
+            if b >= min_number_count and b <= total_numbers:
                 valid_2account_pairs.append((a, b))
         
         logger.info(f"🔢 2账户有效号码数量配对: {valid_2account_pairs}")
         
-        # 3账户组合的可能号码数量配对
+        # 计算3账户组合的可能号码数量配对
         valid_3account_triples = []
-        for a in range(12, 26):  # a从12到25
-            for b in range(12, 26):  # b从12到25
-                c = 49 - a - b
-                if c >= 12 and c <= 49 and a + b + c == 49:
-                    valid_3account_triples.append((a, b, c))
+        min_triple_sum = 3 * min_number_count
+        
+        if total_numbers >= min_triple_sum:
+            for a in range(min_number_count, total_numbers + 1):
+                for b in range(min_number_count, total_numbers + 1):
+                    c = total_numbers - a - b
+                    if c >= min_number_count and c <= total_numbers and a + b + c == total_numbers:
+                        valid_3account_triples.append((a, b, c))
         
         logger.info(f"🔢 3账户有效号码数量配对: {valid_3account_triples}")
         
-        # 4账户组合的可能号码数量配对
+        # 计算4账户组合的可能号码数量配对
         valid_4account_quads = []
-        for a in range(12, 14):  # a从12到13
-            for b in range(12, 14):  # b从12到13
-                for c in range(12, 14):  # c从12到13
-                    d = 49 - a - b - c
-                    if d >= 12 and d <= 49 and a + b + c + d == 49:
-                        valid_4account_quads.append((a, b, c, d))
+        min_quad_sum = 4 * min_number_count
+        
+        if total_numbers >= min_quad_sum:
+            for a in range(min_number_count, min_number_count + 3):  # 限制范围避免组合爆炸
+                for b in range(min_number_count, min_number_count + 3):
+                    for c in range(min_number_count, min_number_count + 3):
+                        d = total_numbers - a - b - c
+                        if (d >= min_number_count and d <= total_numbers and 
+                            a + b + c + d == total_numbers):
+                            valid_4account_quads.append((a, b, c, d))
         
         logger.info(f"🔢 4账户有效号码数量配对: {valid_4account_quads}")
         
@@ -1573,7 +1586,7 @@ class MultiLotteryCoverageAnalyzer:
                     set1 = account_sets[acc1]
                     set2 = account_sets[acc2]
                     
-                    if len(set1 | set2) == 49:  # 完美覆盖
+                    if len(set1 | set2) == total_numbers:  # 完美覆盖
                         total_amount = account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount']
                         avg_amounts = [
                             account_amount_stats[acc1]['avg_amount_per_number'],
@@ -1587,7 +1600,7 @@ class MultiLotteryCoverageAnalyzer:
                                 'accounts': [acc1, acc2],
                                 'account_count': 2,
                                 'total_amount': total_amount,
-                                'avg_amount_per_number': total_amount / 49,
+                                'avg_amount_per_number': total_amount / total_numbers,
                                 'similarity': similarity,
                                 'similarity_indicator': self.get_similarity_indicator(similarity),
                                 'individual_amounts': {
@@ -1629,7 +1642,7 @@ class MultiLotteryCoverageAnalyzer:
                         # 检查号码完全不重复
                         combined_set = account_sets[acc1] | account_sets[acc2] | account_sets[acc3]
                         
-                        if len(combined_set) == 49:  # 完美覆盖
+                        if len(combined_set) == total_numbers:  # 完美覆盖
                             total_amount = (account_amount_stats[acc1]['total_amount'] + 
                                           account_amount_stats[acc2]['total_amount'] + 
                                           account_amount_stats[acc3]['total_amount'])
@@ -1646,7 +1659,7 @@ class MultiLotteryCoverageAnalyzer:
                                     'accounts': [acc1, acc2, acc3],
                                     'account_count': 3,
                                     'total_amount': total_amount,
-                                    'avg_amount_per_number': total_amount / 49,
+                                    'avg_amount_per_number': total_amount / total_numbers,
                                     'similarity': similarity,
                                     'similarity_indicator': self.get_similarity_indicator(similarity),
                                     'individual_amounts': {
@@ -1697,7 +1710,7 @@ class MultiLotteryCoverageAnalyzer:
                             combined_set = (account_sets[acc1] | account_sets[acc2] | 
                                           account_sets[acc3] | account_sets[acc4])
                             
-                            if len(combined_set) == 49:  # 完美覆盖
+                            if len(combined_set) == total_numbers:  # 完美覆盖
                                 total_amount = (account_amount_stats[acc1]['total_amount'] + 
                                               account_amount_stats[acc2]['total_amount'] + 
                                               account_amount_stats[acc3]['total_amount'] +
@@ -1716,7 +1729,7 @@ class MultiLotteryCoverageAnalyzer:
                                         'accounts': [acc1, acc2, acc3, acc4],
                                         'account_count': 4,
                                         'total_amount': total_amount,
-                                        'avg_amount_per_number': total_amount / 49,
+                                        'avg_amount_per_number': total_amount / total_numbers,
                                         'similarity': similarity,
                                         'similarity_indicator': self.get_similarity_indicator(similarity),
                                         'individual_amounts': {
@@ -1816,13 +1829,14 @@ class MultiLotteryCoverageAnalyzer:
         if len(filtered_account_numbers) < 2:
             return None
         
-        # 🆕 修复：只传递5个参数
+        # 🆕 修复：传递6个参数，包括min_number_count
         all_results = self.find_perfect_combinations(
             filtered_account_numbers, 
             filtered_account_amount_stats, 
             filtered_account_bet_contents,
             effective_min_avg_amount,
-            total_numbers
+            total_numbers,
+            min_number_count  # 🆕 新增参数
         )
         
         total_combinations = sum(len(results) for results in all_results.values())
