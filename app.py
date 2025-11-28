@@ -1509,8 +1509,8 @@ class MultiLotteryCoverageAnalyzer:
         
         # 统计账户号码数量分布
         number_counts = [len(numbers) for numbers in account_numbers.values()]
-        min_count = min(number_counts)
-        max_count = max(number_counts)
+        min_count = min(number_counts) if number_counts else 0
+        max_count = max(number_counts) if number_counts else 0
         
         logger.info(f"📊 账户号码数量范围: {min_count} - {max_count}")
         
@@ -1746,33 +1746,26 @@ class MultiLotteryCoverageAnalyzer:
         
         return all_results
 
-    def analyze_period_lottery_position(self, group, period, lottery, position, user_min_number_count, user_min_avg_amount):
-        """分析特定期数、彩种和位置 - 使用动态阈值"""
+    def analyze_period_lottery_position(self, group, period, lottery, position, min_number_count, min_avg_amount):
+        """分析特定期数、彩种和位置 - 简化版本（假设数据已经过滤）"""
+        min_number_count = int(min_number_count)
+        min_avg_amount = float(min_avg_amount)
         
         lottery_category = self.identify_lottery_category(lottery)
         if not lottery_category:
             return None
         
-        # 🆕 修正：根据玩法获取正确的配置
-        config = self.get_play_specific_config(lottery_category, position)
+        # 获取有效的金额阈值
+        threshold_config = self.get_lottery_thresholds(lottery_category, min_avg_amount)
+        effective_min_avg_amount = threshold_config['min_avg_amount']
+        
+        has_amount_column = '投注金额' in group.columns  # 注意：现在使用'投注金额'列
+        config = self.get_lottery_config(lottery_category)
         total_numbers = config['total_numbers']
         
-        # 🆕 使用动态阈值
-        default_min_number_count = config.get('default_min_number_count', 3)
-        default_min_avg_amount = config.get('default_min_avg_amount', 5)
-        
-        # 如果用户提供了阈值，则使用用户的，否则使用默认值
-        min_number_count = int(user_min_number_count) if user_min_number_count is not None else default_min_number_count
-        min_avg_amount = float(user_min_avg_amount) if user_min_avg_amount is not None else default_min_avg_amount
-        
-        has_amount_column = '投注金额' in group.columns
         account_numbers = {}
         account_amount_stats = {}
         account_bet_contents = {}
-        
-        # 🆕 严格过滤：在提取数据时就应用阈值
-        valid_accounts_count = 0
-        filtered_accounts_count = 0
         
         for account in group['会员账号'].unique():
             account_data = group[group['会员账号'] == account]
@@ -1781,47 +1774,55 @@ class MultiLotteryCoverageAnalyzer:
             total_amount = 0
             
             for _, row in account_data.iterrows():
+                # 🆕 简化：直接使用已经提取的号码
                 if '提取号码' in row:
                     numbers = row['提取号码']
                 else:
-                    numbers = self.cached_extract_numbers(row['内容'], lottery_category, position)
-    
+                    # 备用方案：重新提取号码
+                    numbers = self.cached_extract_numbers(row['内容'], lottery_category)
+                
                 all_numbers.update(numbers)
                 
                 if has_amount_column:
+                    # 🆕 简化：直接使用已经提取的金额
                     amount = row['投注金额']
                     total_amount += amount
             
+            # 所有记录都已经包含号码，所以直接记录
+            account_numbers[account] = sorted(all_numbers)
+            account_bet_contents[account] = ", ".join([f"{num:02d}" for num in sorted(all_numbers)])
             number_count = len(all_numbers)
             avg_amount_per_number = total_amount / number_count if number_count > 0 else 0
             
-            # 🆕 严格过滤：只有满足阈值的账户才被记录
-            if number_count >= min_number_count and avg_amount_per_number >= min_avg_amount:
-                account_numbers[account] = sorted(all_numbers)
-                account_bet_contents[account] = ", ".join([f"{num:02d}" for num in sorted(all_numbers)])
-                
-                account_amount_stats[account] = {
-                    'number_count': number_count,
-                    'total_amount': total_amount,
-                    'avg_amount_per_number': avg_amount_per_number
-                }
-                valid_accounts_count += 1
-            else:
-                filtered_accounts_count += 1
+            account_amount_stats[account] = {
+                'number_count': number_count,
+                'total_amount': total_amount,
+                'avg_amount_per_number': avg_amount_per_number
+            }
         
-        logger.info(f"🎯 位置 {position}: 有效账户 {valid_accounts_count}个, 过滤账户 {filtered_accounts_count}个")
+        # 筛选有效账户 - 使用增强的金额阈值
+        filtered_account_numbers = {}
+        filtered_account_amount_stats = {}
+        filtered_account_bet_contents = {}
         
-        if len(account_numbers) < 2:
-            logger.info(f"❌ 位置 {position}: 有效账户不足2个，跳过分析")
+        for account, numbers in account_numbers.items():
+            stats = account_amount_stats[account]
+            # 使用有效的金额阈值
+            if len(numbers) >= min_number_count and stats['avg_amount_per_number'] >= effective_min_avg_amount:
+                filtered_account_numbers[account] = numbers
+                filtered_account_amount_stats[account] = account_amount_stats[account]
+                filtered_account_bet_contents[account] = account_bet_contents[account]
+        
+        if len(filtered_account_numbers) < 2:
             return None
         
+        # 🆕 修复：只传递5个参数
         all_results = self.find_perfect_combinations(
-            account_numbers, 
-            account_amount_stats, 
-            account_bet_contents,
-            min_avg_amount,
-            total_numbers,
-            min_number_count  # 🆕 新增参数
+            filtered_account_numbers, 
+            filtered_account_amount_stats, 
+            filtered_account_bet_contents,
+            effective_min_avg_amount,
+            total_numbers
         )
         
         total_combinations = sum(len(results) for results in all_results.values())
@@ -1840,7 +1841,7 @@ class MultiLotteryCoverageAnalyzer:
                 'lottery_category': lottery_category,
                 'total_combinations': total_combinations,
                 'all_combinations': all_combinations,
-                'filtered_accounts': len(account_numbers),
+                'filtered_accounts': len(filtered_account_numbers),
                 'total_numbers': total_numbers
             }
         
