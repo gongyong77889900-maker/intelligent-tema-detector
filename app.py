@@ -2417,13 +2417,14 @@ class MultiLotteryCoverageAnalyzer:
             'combo_types': set()  # 新增：记录参与的组合类型
         })
         
-        for result in all_period_results.values():
+        # 修复：确保正确遍历 all_period_results
+        for result_key, result in all_period_results.items():
             for combo in result['all_combinations']:
                 for account in combo['accounts']:
                     account_info = account_participation[account]
                     account_info['periods'].add(result['period'])
                     account_info['lotteries'].add(result['lottery'])
-                    if 'position' in result:
+                    if 'position' in result and result['position']:
                         account_info['positions'].add(result['position'])
                     account_info['total_combinations'] += 1
                     account_info['total_bet_amount'] += combo['individual_amounts'][account]
@@ -2435,7 +2436,7 @@ class MultiLotteryCoverageAnalyzer:
                 '参与组合数': info['total_combinations'],
                 '涉及期数': len(info['periods']),
                 '涉及彩种': len(info['lotteries']),
-                '组合类型': ', '.join([f"{t}账户" for t in sorted(info['combo_types'])]),  # 新增组合类型信息
+                '组合类型': ', '.join([f"{t}账户" for t in sorted(info['combo_types'])]),
                 '总投注金额': info['total_bet_amount'],
                 '平均每期金额': info['total_bet_amount'] / len(info['periods']) if info['periods'] else 0
             }
@@ -2527,7 +2528,8 @@ class MultiLotteryCoverageAnalyzer:
             'fast_three': '快三'
         }
         
-        for group_key, result in all_period_results.values():
+        # 修复：确保正确遍历 all_period_results
+        for result_key, result in all_period_results.items():
             lottery_category = result['lottery_category']
             total_numbers = result['total_numbers']
             
@@ -2538,7 +2540,7 @@ class MultiLotteryCoverageAnalyzer:
                     '彩种': result['lottery'],
                     '彩种类型': category_display.get(lottery_category, lottery_category),
                     '号码总数': total_numbers,
-                    '组合类型': f"{combo['account_count']}账户组合",  # 现在支持2,3,4账户
+                    '组合类型': f"{combo['account_count']}账户组合",
                     '账户组合': ' ↔ '.join(combo['accounts']),
                     '总投注金额': combo['total_amount'],
                     '平均每号金额': combo['avg_amount_per_number'],
