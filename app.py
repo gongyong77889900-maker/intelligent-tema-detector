@@ -1672,6 +1672,15 @@ class MultiLotteryCoverageAnalyzer:
         available_counts = sorted(accounts_by_count.keys())
         
         # ==================== 2账户组合 ====================
+        # 计算所有可能的2账户号码数量配对
+        possible_pairs_2 = set()
+        for count1 in available_counts:
+            for count2 in available_counts:
+                if count1 + count2 == total_numbers:
+                    # 检查是否满足最小号码数量要求
+                    if count1 >= min_number_count and count2 >= min_number_count:
+                        possible_pairs_2.add(tuple(sorted([count1, count2])))
+        
         logger.info(f"🎯 {lottery_category} 2账户可能的号码数量配对: {len(possible_pairs_2)} 种")
         
         # 用于跟踪已经找到的组合，避免重复
@@ -1730,6 +1739,19 @@ class MultiLotteryCoverageAnalyzer:
                             all_results[2].append(result_data)
         
         # ==================== 3账户组合 ====================
+        # 计算所有可能的3账户号码数量配对
+        possible_triples_3 = set()
+        
+        for count1 in available_counts:
+            for count2 in available_counts:
+                for count3 in available_counts:
+                    if count1 + count2 + count3 == total_numbers:
+                        # 检查是否满足最小号码数量要求
+                        if (count1 >= min_number_count and 
+                            count2 >= min_number_count and 
+                            count3 >= min_number_count):
+                            possible_triples_3.add(tuple(sorted([count1, count2, count3])))
+        
         logger.info(f"🎯 {lottery_category} 3账户可能的号码数量配对: {len(possible_triples_3)} 种")
         
         # 用于跟踪已经找到的组合，避免重复
@@ -1803,7 +1825,22 @@ class MultiLotteryCoverageAnalyzer:
                                 }
                                 all_results[3].append(result_data)
         
-        # ==================== 4账户组合 ====================     
+        # ==================== 4账户组合 ====================
+        # 计算所有可能的4账户号码数量配对
+        possible_quads_4 = set()
+        
+        for count1 in available_counts:
+            for count2 in available_counts:
+                for count3 in available_counts:
+                    for count4 in available_counts:
+                        if count1 + count2 + count3 + count4 == total_numbers:
+                            # 检查是否满足最小号码数量要求
+                            if (count1 >= min_number_count and 
+                                count2 >= min_number_count and 
+                                count3 >= min_number_count and 
+                                count4 >= min_number_count):
+                                possible_quads_4.add(tuple(sorted([count1, count2, count3, count4])))
+        
         logger.info(f"🎯 {lottery_category} 4账户可能的号码数量配对: {len(possible_quads_4)} 种")
         
         # 用于跟踪已经找到的组合，避免重复
