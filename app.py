@@ -1685,6 +1685,9 @@ class MultiLotteryCoverageAnalyzer:
         
         logger.info(f"🎯 {lottery_category} 2账户可能的号码数量配对: {len(possible_pairs_2)} 种")
         
+        # 用于跟踪已经找到的组合，避免重复
+        found_combinations_2 = set()
+        
         for count1, count2 in possible_pairs_2:
             if count1 not in accounts_by_count or count2 not in accounts_by_count:
                 continue
@@ -1692,6 +1695,11 @@ class MultiLotteryCoverageAnalyzer:
             for acc1 in accounts_by_count[count1]:
                 for acc2 in accounts_by_count[count2]:
                     if acc1 == acc2:
+                        continue
+                        
+                    # 创建组合键，确保顺序一致
+                    combo_key = tuple(sorted([acc1, acc2]))
+                    if combo_key in found_combinations_2:
                         continue
                         
                     # 检查并集是否完美覆盖
@@ -1704,11 +1712,14 @@ class MultiLotteryCoverageAnalyzer:
                         ]
                         
                         if min(avg_amounts) >= float(min_avg_amount):
+                            # 标记这个组合已经找到
+                            found_combinations_2.add(combo_key)
+                            
                             similarity = self.calculate_similarity(avg_amounts)
                             total_amount = account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount']
                             
                             result_data = {
-                                'accounts': [acc1, acc2],
+                                'accounts': sorted([acc1, acc2]),  # 确保账户顺序一致
                                 'account_count': 2,
                                 'total_amount': total_amount,
                                 'avg_amount_per_number': total_amount / total_numbers,
@@ -1747,6 +1758,9 @@ class MultiLotteryCoverageAnalyzer:
         
         logger.info(f"🎯 {lottery_category} 3账户可能的号码数量配对: {len(possible_triples_3)} 种")
         
+        # 用于跟踪已经找到的组合，避免重复
+        found_combinations_3 = set()
+        
         for count1, count2, count3 in possible_triples_3:
             if (count1 not in accounts_by_count or 
                 count2 not in accounts_by_count or 
@@ -1769,6 +1783,11 @@ class MultiLotteryCoverageAnalyzer:
                             
                         combined_set = set1_2 | account_sets[acc3]
                         if len(combined_set) == total_numbers:
+                            # 创建组合键，确保顺序一致
+                            combo_key = tuple(sorted([acc1, acc2, acc3]))
+                            if combo_key in found_combinations_3:
+                                continue
+                                
                             # 金额检查
                             avg_amounts = [
                                 account_amount_stats[acc1]['avg_amount_per_number'],
@@ -1777,13 +1796,16 @@ class MultiLotteryCoverageAnalyzer:
                             ]
                             
                             if min(avg_amounts) >= float(min_avg_amount):
+                                # 标记这个组合已经找到
+                                found_combinations_3.add(combo_key)
+                                
                                 similarity = self.calculate_similarity(avg_amounts)
                                 total_amount = (account_amount_stats[acc1]['total_amount'] + 
                                               account_amount_stats[acc2]['total_amount'] + 
                                               account_amount_stats[acc3]['total_amount'])
                                 
                                 result_data = {
-                                    'accounts': [acc1, acc2, acc3],
+                                    'accounts': sorted([acc1, acc2, acc3]),  # 确保账户顺序一致
                                     'account_count': 3,
                                     'total_amount': total_amount,
                                     'avg_amount_per_number': total_amount / total_numbers,
@@ -1827,6 +1849,9 @@ class MultiLotteryCoverageAnalyzer:
         
         logger.info(f"🎯 {lottery_category} 4账户可能的号码数量配对: {len(possible_quads_4)} 种")
         
+        # 用于跟踪已经找到的组合，避免重复
+        found_combinations_4 = set()
+        
         for count1, count2, count3, count4 in possible_quads_4:
             if (count1 not in accounts_by_count or 
                 count2 not in accounts_by_count or 
@@ -1857,6 +1882,11 @@ class MultiLotteryCoverageAnalyzer:
                                 
                             combined_set = set1_2_3 | account_sets[acc4]
                             if len(combined_set) == total_numbers:
+                                # 创建组合键，确保顺序一致
+                                combo_key = tuple(sorted([acc1, acc2, acc3, acc4]))
+                                if combo_key in found_combinations_4:
+                                    continue
+                                    
                                 # 金额检查
                                 avg_amounts = [
                                     account_amount_stats[acc1]['avg_amount_per_number'],
@@ -1866,6 +1896,9 @@ class MultiLotteryCoverageAnalyzer:
                                 ]
                                 
                                 if min(avg_amounts) >= float(min_avg_amount):
+                                    # 标记这个组合已经找到
+                                    found_combinations_4.add(combo_key)
+                                    
                                     similarity = self.calculate_similarity(avg_amounts)
                                     total_amount = (account_amount_stats[acc1]['total_amount'] + 
                                                   account_amount_stats[acc2]['total_amount'] + 
@@ -1873,7 +1906,7 @@ class MultiLotteryCoverageAnalyzer:
                                                   account_amount_stats[acc4]['total_amount'])
                                     
                                     result_data = {
-                                        'accounts': [acc1, acc2, acc3, acc4],
+                                        'accounts': sorted([acc1, acc2, acc3, acc4]),  # 确保账户顺序一致
                                         'account_count': 4,
                                         'total_amount': total_amount,
                                         'avg_amount_per_number': total_amount / total_numbers,
