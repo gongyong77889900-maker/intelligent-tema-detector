@@ -594,11 +594,11 @@ class MultiLotteryCoverageAnalyzer:
         return self.cached_extract_amount(str(amount_str))
 
     def enhanced_data_preprocessing(self, df_clean):
-        """增强数据预处理流程 - 修复彩种类型识别"""
+        """增强数据预处理流程"""
         # 1. 首先识别彩种类型
         df_clean['彩种类型'] = df_clean['彩种'].apply(self.identify_lottery_category)
         
-        # 2. 统一玩法分类
+        # 2. 统一玩法分类 - 确保尾数玩法被正确识别
         df_clean['玩法'] = df_clean.apply(
             lambda row: self.normalize_play_category(
                 row['玩法'], 
@@ -607,11 +607,12 @@ class MultiLotteryCoverageAnalyzer:
             axis=1
         )
         
-        # 3. 提取号码
+        # 3. 提取号码 - 使用正确的玩法和彩种类型
         df_clean['提取号码'] = df_clean.apply(
             lambda row: self.cached_extract_numbers(
                 row['内容'], 
-                row['彩种类型'] if not pd.isna(row['彩种类型']) else 'six_mark'
+                row['彩种类型'] if not pd.isna(row['彩种类型']) else 'six_mark',
+                row['玩法']  # 🆕 传递玩法信息用于尾数识别
             ), 
             axis=1
         )
@@ -624,11 +625,6 @@ class MultiLotteryCoverageAnalyzer:
         # 5. 过滤非号码投注玩法
         df_clean = self.filter_number_bets_only(df_clean)
         non_number_play_count = initial_count - no_number_count - len(df_clean)
-        
-        # 🆕 修复：显示彩种类型分布
-        if '彩种类型' in df_clean.columns:
-            lottery_type_dist = df_clean['彩种类型'].value_counts()
-            logger.info(f"📊 彩种类型分布: {dict(lottery_type_dist)}")
         
         return df_clean, no_number_count, non_number_play_count
 
@@ -649,6 +645,108 @@ class MultiLotteryCoverageAnalyzer:
             'min_avg_amount': min_avg_amount,
             'description': config['type_name']
         }
+
+    def analyze_period_lottery_position(self, group, period, lottery, position, user_min_number_count, user_min_avg_amount):
+        """分析特定期数、彩种和位置 - 使用动态阈值和优化算法"""
+        
+        lottery_category = self.identify_lottery_category(lottery)
+        if not lottery_category:
+            return None
+        
+        # 获取正确的配置
+        config = self.get_play_specific_config(lottery_category, position)
+        total_numbers = config['total_numbers']
+        
+        # 使用动态阈值
+        default_min_number_count = config.get('default_min_number_count', 3)
+        default_min_avg_amount = config.get('default_min_avg_amount', 5)
+        
+        # 如果用户提供了阈值，则使用用户的，否则使用默认值
+        min_number_count = int(user_min_number_count) if user_min_number_count is not None else default_min_number_count
+        min_avg_amount = float(user_min_avg_amount) if user_min_avg_amount is not None else default_min_avg_amount
+        
+        has_amount_column = '投注金额' in group.columns
+        account_numbers = {}
+        account_amount_stats = {}
+        account_bet_contents = {}
+        
+        for account in group['会员账号'].unique():
+            account_data = group[group['会员账号'] == account]
+            
+            all_numbers = set()
+            total_amount = 0
+            
+            for _, row in account_data.iterrows():
+                if '提取号码' in row:
+                    numbers = row['提取号码']
+                else:
+                    numbers = self.cached_extract_numbers(row['内容'], lottery_category, position)
+                
+                all_numbers.update(numbers)
+                
+                if has_amount_column:
+                    amount = row['投注金额']
+                    total_amount += amount
+            
+            account_numbers[account] = sorted(all_numbers)
+            account_bet_contents[account] = ", ".join([f"{num:02d}" for num in sorted(all_numbers)])
+            number_count = len(all_numbers)
+            avg_amount_per_number = total_amount / number_count if number_count > 0 else 0
+            
+            account_amount_stats[account] = {
+                'number_count': number_count,
+                'total_amount': total_amount,
+                'avg_amount_per_number': avg_amount_per_number
+            }
+        
+        # 筛选有效账户 - 使用动态最小号码数量
+        dynamic_min_number_count = self.get_dynamic_min_number_count(lottery_category, position)
+        filtered_account_numbers = {}
+        filtered_account_amount_stats = {}
+        filtered_account_bet_contents = {}
+        
+        for account, numbers in account_numbers.items():
+            stats = account_amount_stats[account]
+            if len(numbers) >= dynamic_min_number_count and stats['avg_amount_per_number'] >= min_avg_amount:
+                filtered_account_numbers[account] = numbers
+                filtered_account_amount_stats[account] = account_amount_stats[account]
+                filtered_account_bet_contents[account] = account_bet_contents[account]
+        
+        if len(filtered_account_numbers) < 2:
+            return None
+        
+        # 使用优化后的组合查找 - 新增 lottery_category 和 position 参数
+        all_results = self.find_perfect_combinations(
+            filtered_account_numbers, 
+            filtered_account_amount_stats, 
+            filtered_account_bet_contents,
+            min_avg_amount,
+            total_numbers,
+            lottery_category,  # 新增参数
+            position           # 新增参数
+        )
+        
+        total_combinations = sum(len(results) for results in all_results.values())
+        
+        if total_combinations > 0:
+            all_combinations = []
+            for results in all_results.values():
+                all_combinations.extend(results)
+            
+            all_combinations.sort(key=lambda x: (x['account_count'], -x['similarity']))
+            
+            return {
+                'period': period,
+                'lottery': lottery,
+                'position': position,
+                'lottery_category': lottery_category,
+                'total_combinations': total_combinations,
+                'all_combinations': all_combinations,
+                'filtered_accounts': len(filtered_account_numbers),
+                'total_numbers': total_numbers
+            }
+        
+        return None
     
     def identify_lottery_category(self, lottery_name):
         """识别彩种类型 - 增强六合彩识别"""
@@ -1499,93 +1597,72 @@ class MultiLotteryCoverageAnalyzer:
         else: 
             return "🔴"
     
-    def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers, min_number_count):
-        """寻找完美组合 - 通用版本，适用于所有彩种"""
+    def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers, lottery_category, play_method=None):
+        """寻找完美组合 - 优化版本：基于数学配对的通用优化，支持所有彩种"""
         
         all_results = {2: [], 3: [], 4: []}
-        all_accounts = list(account_numbers.keys())
         
-        if len(all_accounts) < 2:
-            return all_results
-        
-        # 统计账户号码数量分布
-        number_counts = [len(numbers) for numbers in account_numbers.values()]
-        min_count = min(number_counts) if number_counts else 0
-        max_count = max(number_counts) if number_counts else 0
-        
-        logger.info(f"📊 彩种号码总数: {total_numbers}, 账户号码数量范围: {min_count} - {max_count}")
-        
+        # 转换账户数据为集合
         account_sets = {account: set(numbers) for account, numbers in account_numbers.items()}
         
-        # 🆕 通用修复：根据彩种类型动态计算有效配对
-        # 计算2账户组合的可能号码数量配对
-        valid_2account_pairs = []
-        min_pair_sum = 2 * min_number_count
-        max_pair_sum = total_numbers
+        # 预计算：只保留满足金额阈值的账户
+        valid_accounts = []
+        for account in account_numbers.keys():
+            avg_amount = account_amount_stats[account]['avg_amount_per_number']
+            if avg_amount >= float(min_avg_amount):
+                valid_accounts.append(account)
         
-        for a in range(min_number_count, total_numbers + 1):
-            b = total_numbers - a
-            if b >= min_number_count and b <= total_numbers:
-                valid_2account_pairs.append((a, b))
+        logger.info(f"📊 {lottery_category}-{play_method}: 优化前 {len(account_numbers)} 账户, 优化后 {len(valid_accounts)} 有效账户")
         
-        logger.info(f"🔢 2账户有效号码数量配对: {valid_2account_pairs}")
+        if len(valid_accounts) < 2:
+            return all_results
         
-        # 计算3账户组合的可能号码数量配对
-        valid_3account_triples = []
-        min_triple_sum = 3 * min_number_count
+        # 根据彩种类型获取动态最小号码数量
+        min_number_count = self.get_dynamic_min_number_count(lottery_category, play_method)
+        logger.info(f"🎯 {lottery_category}-{play_method}: 总号码数={total_numbers}, 最小号码数={min_number_count}")
         
-        if total_numbers >= min_triple_sum:
-            for a in range(min_number_count, total_numbers + 1):
-                for b in range(min_number_count, total_numbers + 1):
-                    c = total_numbers - a - b
-                    if c >= min_number_count and c <= total_numbers and a + b + c == total_numbers:
-                        valid_3account_triples.append((a, b, c))
-        
-        logger.info(f"🔢 3账户有效号码数量配对: {valid_3account_triples}")
-        
-        # 计算4账户组合的可能号码数量配对
-        valid_4account_quads = []
-        min_quad_sum = 4 * min_number_count
-        
-        if total_numbers >= min_quad_sum:
-            for a in range(min_number_count, min_number_count + 3):  # 限制范围避免组合爆炸
-                for b in range(min_number_count, min_number_count + 3):
-                    for c in range(min_number_count, min_number_count + 3):
-                        d = total_numbers - a - b - c
-                        if (d >= min_number_count and d <= total_numbers and 
-                            a + b + c + d == total_numbers):
-                            valid_4account_quads.append((a, b, c, d))
-        
-        logger.info(f"🔢 4账户有效号码数量配对: {valid_4account_quads}")
-        
-        # 🆕 按号码数量分组账户
+        # 按号码数量分组
         accounts_by_count = {}
-        for account in all_accounts:
-            count = len(account_numbers[account])
-            if count not in accounts_by_count:
-                accounts_by_count[count] = []
-            accounts_by_count[count].append(account)
+        for account in valid_accounts:
+            count = len(account_sets[account])
+            if count >= min_number_count:  # 只保留满足最小号码数量的账户
+                if count not in accounts_by_count:
+                    accounts_by_count[count] = []
+                accounts_by_count[count].append(account)
         
-        # 搜索2账户组合 - 只搜索有效的号码数量配对
-        combo_count_2 = 0
-        for a, b in valid_2account_pairs:
-            if a not in accounts_by_count or b not in accounts_by_count:
+        if not accounts_by_count:
+            return all_results
+        
+        # 获取所有可能的号码数量
+        available_counts = sorted(accounts_by_count.keys())
+        
+        # ==================== 2账户组合 ====================
+        st.info(f"🔍 正在分析2账户组合... ({lottery_category})")
+        
+        # 计算所有可能的2账户号码数量配对
+        possible_pairs_2 = set()
+        for count1 in available_counts:
+            for count2 in available_counts:
+                if count1 + count2 == total_numbers:
+                    # 检查是否满足最小号码数量要求
+                    if count1 >= min_number_count and count2 >= min_number_count:
+                        possible_pairs_2.add(tuple(sorted([count1, count2])))
+        
+        logger.info(f"🎯 {lottery_category} 2账户可能的号码数量配对: {len(possible_pairs_2)} 种")
+        
+        for count1, count2 in possible_pairs_2:
+            if count1 not in accounts_by_count or count2 not in accounts_by_count:
                 continue
                 
-            accounts_a = accounts_by_count[a]
-            accounts_b = accounts_by_count[b]
-            
-            for acc1 in accounts_a:
-                for acc2 in accounts_b:
+            for acc1 in accounts_by_count[count1]:
+                for acc2 in accounts_by_count[count2]:
                     if acc1 == acc2:
                         continue
-                    
-                    # 检查号码完全不重复
-                    set1 = account_sets[acc1]
-                    set2 = account_sets[acc2]
-                    
-                    if len(set1 | set2) == total_numbers:  # 完美覆盖
-                        total_amount = account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount']
+                        
+                    # 检查并集是否完美覆盖
+                    combined_set = account_sets[acc1] | account_sets[acc2]
+                    if len(combined_set) == total_numbers:
+                        # 金额检查
                         avg_amounts = [
                             account_amount_stats[acc1]['avg_amount_per_number'],
                             account_amount_stats[acc2]['avg_amount_per_number']
@@ -1593,6 +1670,7 @@ class MultiLotteryCoverageAnalyzer:
                         
                         if min(avg_amounts) >= float(min_avg_amount):
                             similarity = self.calculate_similarity(avg_amounts)
+                            total_amount = account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount']
                             
                             result_data = {
                                 'accounts': [acc1, acc2],
@@ -1615,35 +1693,48 @@ class MultiLotteryCoverageAnalyzer:
                                 }
                             }
                             all_results[2].append(result_data)
-                            combo_count_2 += 1
         
-        logger.info(f"🔍 找到2账户组合: {combo_count_2}个")
+        # ==================== 3账户组合 ====================
+        st.info(f"🔍 正在分析3账户组合... ({lottery_category})")
         
-        # 搜索3账户组合 - 只搜索有效的号码数量配对
-        combo_count_3 = 0
-        for a, b, c in valid_3account_triples:
-            if a not in accounts_by_count or b not in accounts_by_count or c not in accounts_by_count:
+        # 计算所有可能的3账户号码数量配对
+        possible_triples_3 = set()
+        
+        for count1 in available_counts:
+            for count2 in available_counts:
+                for count3 in available_counts:
+                    if count1 + count2 + count3 == total_numbers:
+                        # 检查是否满足最小号码数量要求
+                        if (count1 >= min_number_count and 
+                            count2 >= min_number_count and 
+                            count3 >= min_number_count):
+                            possible_triples_3.add(tuple(sorted([count1, count2, count3])))
+        
+        logger.info(f"🎯 {lottery_category} 3账户可能的号码数量配对: {len(possible_triples_3)} 种")
+        
+        for count1, count2, count3 in possible_triples_3:
+            if (count1 not in accounts_by_count or 
+                count2 not in accounts_by_count or 
+                count3 not in accounts_by_count):
                 continue
                 
-            accounts_a = accounts_by_count[a]
-            accounts_b = accounts_by_count[b]
-            accounts_c = accounts_by_count[c]
-            
-            for acc1 in accounts_a:
-                for acc2 in accounts_b:
+            for acc1 in accounts_by_count[count1]:
+                for acc2 in accounts_by_count[count2]:
                     if acc1 == acc2:
                         continue
-                    for acc3 in accounts_c:
-                        if acc1 == acc3 or acc2 == acc3:
+                        
+                    set1_2 = account_sets[acc1] | account_sets[acc2]
+                    # 如果前两个账户已经有重复，跳过
+                    if len(set1_2) < count1 + count2:
+                        continue
+                        
+                    for acc3 in accounts_by_count[count3]:
+                        if acc3 in [acc1, acc2]:
                             continue
-                        
-                        # 检查号码完全不重复
-                        combined_set = account_sets[acc1] | account_sets[acc2] | account_sets[acc3]
-                        
-                        if len(combined_set) == total_numbers:  # 完美覆盖
-                            total_amount = (account_amount_stats[acc1]['total_amount'] + 
-                                          account_amount_stats[acc2]['total_amount'] + 
-                                          account_amount_stats[acc3]['total_amount'])
+                            
+                        combined_set = set1_2 | account_sets[acc3]
+                        if len(combined_set) == total_numbers:
+                            # 金额检查
                             avg_amounts = [
                                 account_amount_stats[acc1]['avg_amount_per_number'],
                                 account_amount_stats[acc2]['avg_amount_per_number'],
@@ -1652,6 +1743,9 @@ class MultiLotteryCoverageAnalyzer:
                             
                             if min(avg_amounts) >= float(min_avg_amount):
                                 similarity = self.calculate_similarity(avg_amounts)
+                                total_amount = (account_amount_stats[acc1]['total_amount'] + 
+                                              account_amount_stats[acc2]['total_amount'] + 
+                                              account_amount_stats[acc3]['total_amount'])
                                 
                                 result_data = {
                                     'accounts': [acc1, acc2, acc3],
@@ -1677,42 +1771,58 @@ class MultiLotteryCoverageAnalyzer:
                                     }
                                 }
                                 all_results[3].append(result_data)
-                                combo_count_3 += 1
         
-        logger.info(f"🔍 找到3账户组合: {combo_count_3}个")
+        # ==================== 4账户组合 ====================
+        st.info(f"🔍 正在分析4账户组合... ({lottery_category})")
         
-        # 搜索4账户组合 - 只搜索有效的号码数量配对
-        combo_count_4 = 0
-        for a, b, c, d in valid_4account_quads:
-            if (a not in accounts_by_count or b not in accounts_by_count or 
-                c not in accounts_by_count or d not in accounts_by_count):
+        # 计算所有可能的4账户号码数量配对
+        possible_quads_4 = set()
+        
+        for count1 in available_counts:
+            for count2 in available_counts:
+                for count3 in available_counts:
+                    for count4 in available_counts:
+                        if count1 + count2 + count3 + count4 == total_numbers:
+                            # 检查是否满足最小号码数量要求
+                            if (count1 >= min_number_count and 
+                                count2 >= min_number_count and 
+                                count3 >= min_number_count and 
+                                count4 >= min_number_count):
+                                possible_quads_4.add(tuple(sorted([count1, count2, count3, count4])))
+        
+        logger.info(f"🎯 {lottery_category} 4账户可能的号码数量配对: {len(possible_quads_4)} 种")
+        
+        for count1, count2, count3, count4 in possible_quads_4:
+            if (count1 not in accounts_by_count or 
+                count2 not in accounts_by_count or 
+                count3 not in accounts_by_count or 
+                count4 not in accounts_by_count):
                 continue
                 
-            accounts_a = accounts_by_count[a]
-            accounts_b = accounts_by_count[b]
-            accounts_c = accounts_by_count[c]
-            accounts_d = accounts_by_count[d]
-            
-            for acc1 in accounts_a:
-                for acc2 in accounts_b:
+            for acc1 in accounts_by_count[count1]:
+                for acc2 in accounts_by_count[count2]:
                     if acc1 == acc2:
                         continue
-                    for acc3 in accounts_c:
-                        if acc1 == acc3 or acc2 == acc3:
+                        
+                    set1_2 = account_sets[acc1] | account_sets[acc2]
+                    if len(set1_2) < count1 + count2:
+                        continue
+                        
+                    for acc3 in accounts_by_count[count3]:
+                        if acc3 in [acc1, acc2]:
                             continue
-                        for acc4 in accounts_d:
-                            if acc1 == acc4 or acc2 == acc4 or acc3 == acc4:
+                            
+                        set1_2_3 = set1_2 | account_sets[acc3]
+                        if len(set1_2_3) < count1 + count2 + count3:
+                            continue
+                            
+                        for acc4 in accounts_by_count[count4]:
+                            if acc4 in [acc1, acc2, acc3]:
                                 continue
-                            
-                            # 检查号码完全不重复
-                            combined_set = (account_sets[acc1] | account_sets[acc2] | 
-                                          account_sets[acc3] | account_sets[acc4])
-                            
-                            if len(combined_set) == total_numbers:  # 完美覆盖
-                                total_amount = (account_amount_stats[acc1]['total_amount'] + 
-                                              account_amount_stats[acc2]['total_amount'] + 
-                                              account_amount_stats[acc3]['total_amount'] +
-                                              account_amount_stats[acc4]['total_amount'])
+                                
+                            combined_set = set1_2_3 | account_sets[acc4]
+                            if len(combined_set) == total_numbers:
+                                # 金额检查
                                 avg_amounts = [
                                     account_amount_stats[acc1]['avg_amount_per_number'],
                                     account_amount_stats[acc2]['avg_amount_per_number'],
@@ -1722,6 +1832,10 @@ class MultiLotteryCoverageAnalyzer:
                                 
                                 if min(avg_amounts) >= float(min_avg_amount):
                                     similarity = self.calculate_similarity(avg_amounts)
+                                    total_amount = (account_amount_stats[acc1]['total_amount'] + 
+                                                  account_amount_stats[acc2]['total_amount'] + 
+                                                  account_amount_stats[acc3]['total_amount'] +
+                                                  account_amount_stats[acc4]['total_amount'])
                                     
                                     result_data = {
                                         'accounts': [acc1, acc2, acc3, acc4],
@@ -1750,37 +1864,33 @@ class MultiLotteryCoverageAnalyzer:
                                         }
                                     }
                                     all_results[4].append(result_data)
-                                    combo_count_4 += 1
         
-        logger.info(f"🔍 找到4账户组合: {combo_count_4}个")
-        logger.info(f"📊 最终组合统计: 2账户={combo_count_2}, 3账户={combo_count_3}, 4账户={combo_count_4}")
+        # 统计结果
+        total_found = sum(len(results) for results in all_results.values())
+        logger.info(f"✅ {lottery_category}-{play_method}: 找到 {total_found} 个完美组合")
         
         return all_results
 
-    def analyze_period_lottery_position(self, group, period, lottery, position, min_number_count, min_avg_amount):
-        """分析特定期数、彩种和位置 - 添加调试信息"""
-        min_number_count = int(min_number_count)
-        min_avg_amount = float(min_avg_amount)
+    def analyze_period_lottery_position(self, group, period, lottery, position, user_min_number_count, user_min_avg_amount):
+        """分析特定期数、彩种和位置 - 使用动态阈值和优化算法"""
         
         lottery_category = self.identify_lottery_category(lottery)
         if not lottery_category:
-            logger.warning(f"❌ 无法识别彩种类型: {lottery}")
             return None
         
-        # 🆕 添加调试信息
-        logger.info(f"🔍 分析组: 期号={period}, 彩种={lottery}, 位置={position}, 彩种类型={lottery_category}, 记录数={len(group)}")
-        
-        # 获取有效的金额阈值
-        threshold_config = self.get_lottery_thresholds(lottery_category, min_avg_amount)
-        effective_min_avg_amount = threshold_config['min_avg_amount']
-        
-        has_amount_column = '投注金额' in group.columns
-        config = self.get_lottery_config(lottery_category)
+        # 获取正确的配置
+        config = self.get_play_specific_config(lottery_category, position)
         total_numbers = config['total_numbers']
         
-        # 🆕 添加更多调试信息
-        logger.info(f"📊 配置: 总号码数={total_numbers}, 最小号码数={min_number_count}, 最小平均金额={effective_min_avg_amount}")
+        # 使用动态阈值
+        default_min_number_count = config.get('default_min_number_count', 3)
+        default_min_avg_amount = config.get('default_min_avg_amount', 5)
         
+        # 如果用户提供了阈值，则使用用户的，否则使用默认值
+        min_number_count = int(user_min_number_count) if user_min_number_count is not None else default_min_number_count
+        min_avg_amount = float(user_min_avg_amount) if user_min_avg_amount is not None else default_min_avg_amount
+        
+        has_amount_column = '投注金额' in group.columns
         account_numbers = {}
         account_amount_stats = {}
         account_bet_contents = {}
@@ -1792,21 +1902,17 @@ class MultiLotteryCoverageAnalyzer:
             total_amount = 0
             
             for _, row in account_data.iterrows():
-                # 🆕 简化：直接使用已经提取的号码
                 if '提取号码' in row:
                     numbers = row['提取号码']
                 else:
-                    # 备用方案：重新提取号码
-                    numbers = self.cached_extract_numbers(row['内容'], lottery_category)
+                    numbers = self.cached_extract_numbers(row['内容'], lottery_category, position)
                 
                 all_numbers.update(numbers)
                 
                 if has_amount_column:
-                    # 🆕 简化：直接使用已经提取的金额
                     amount = row['投注金额']
                     total_amount += amount
             
-            # 所有记录都已经包含号码，所以直接记录
             account_numbers[account] = sorted(all_numbers)
             account_bet_contents[account] = ", ".join([f"{num:02d}" for num in sorted(all_numbers)])
             number_count = len(all_numbers)
@@ -1818,15 +1924,15 @@ class MultiLotteryCoverageAnalyzer:
                 'avg_amount_per_number': avg_amount_per_number
             }
         
-        # 筛选有效账户 - 使用增强的金额阈值
+        # 筛选有效账户 - 使用动态最小号码数量
+        dynamic_min_number_count = self.get_dynamic_min_number_count(lottery_category, position)
         filtered_account_numbers = {}
         filtered_account_amount_stats = {}
         filtered_account_bet_contents = {}
         
         for account, numbers in account_numbers.items():
             stats = account_amount_stats[account]
-            # 使用有效的金额阈值
-            if len(numbers) >= min_number_count and stats['avg_amount_per_number'] >= effective_min_avg_amount:
+            if len(numbers) >= dynamic_min_number_count and stats['avg_amount_per_number'] >= min_avg_amount:
                 filtered_account_numbers[account] = numbers
                 filtered_account_amount_stats[account] = account_amount_stats[account]
                 filtered_account_bet_contents[account] = account_bet_contents[account]
@@ -1834,14 +1940,15 @@ class MultiLotteryCoverageAnalyzer:
         if len(filtered_account_numbers) < 2:
             return None
         
-        # 🆕 修复：传递6个参数，包括min_number_count
+        # 使用优化后的组合查找 - 新增 lottery_category 和 position 参数
         all_results = self.find_perfect_combinations(
             filtered_account_numbers, 
             filtered_account_amount_stats, 
             filtered_account_bet_contents,
-            effective_min_avg_amount,
+            min_avg_amount,
             total_numbers,
-            min_number_count  # 🆕 新增参数
+            lottery_category,  # 新增参数
+            position           # 新增参数
         )
         
         total_combinations = sum(len(results) for results in all_results.values())
@@ -1951,84 +2058,134 @@ class MultiLotteryCoverageAnalyzer:
         with col3:
             st.metric("平均期数", f"{df_stats['投注期数'].mean():.1f}")
 
-    def analyze_with_progress(self, df_target, six_mark_params, ten_number_params, fast_three_params, analysis_mode):
-        """带进度显示的分析 - 修复重复分组问题"""
+    def analyze_with_progress(self, df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode):
+        """带进度显示的分析 - 使用增强阈值管理"""
         
         # 根据分析模式决定分组方式
         if analysis_mode == "仅分析六合彩":
-            # 🆕 修复：确保只分析六合彩数据
-            df_target = df_target[df_target['彩种类型'] == 'six_mark']
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
             user_min_number_count = six_mark_params['min_number_count']
             user_min_avg_amount = six_mark_params['min_avg_amount']
         
         elif analysis_mode == "仅分析时时彩/PK10/赛车":
-            # 🆕 修复：确保只分析10_number数据
-            df_target = df_target[df_target['彩种类型'] == '10_number']
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
             user_min_number_count = ten_number_params['min_number_count']
             user_min_avg_amount = ten_number_params['min_avg_amount']
         
         elif analysis_mode == "仅分析快三":
-            # 🆕 修复：确保只分析快三数据
-            df_target = df_target[df_target['彩种类型'] == 'fast_three']
             grouped = df_target.groupby(['期号', '彩种', '玩法'])
-            user_min_number_count = fast_three_params['min_number_count']
-            user_min_avg_amount = fast_three_params['min_avg_amount']
+            user_min_number_count = fast_three_params['sum_min_number_count']  # 默认使用和值阈值
+            user_min_avg_amount = fast_three_params['sum_min_avg_amount']
           
         else:  # 自动识别所有彩种
-            # 🆕 修复：分别处理不同彩种，避免重复
+            # 分别处理不同彩种，使用各自的增强阈值
             df_six_mark = df_target[df_target['彩种类型'] == 'six_mark']
             df_10_number = df_target[df_target['彩种类型'] == '10_number']
             df_fast_three = df_target[df_target['彩种类型'] == 'fast_three']
+            df_ssc_3d = df_target[df_target['彩种类型'] == '3d_series']  # 🆕 新增3D系列
             
             all_period_results = {}
             
-            # 分析六合彩
+            # 分析六合彩 - 使用增强阈值
             if len(df_six_mark) > 0:
                 st.info("🔍 正在分析六合彩数据...")
                 grouped_six = df_six_mark.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_six:
                     if len(group) >= 2:
+                        # 🆕 根据玩法类型使用不同的阈值
+                        play_str = str(position).strip().lower()
+                        if any(keyword in play_str for keyword in ['尾数', '全尾', '特尾']):
+                            # 使用尾数专用阈值
+                            user_min_number_count = six_mark_params.get('tail_min_number_count', 3)
+                            user_min_avg_amount = six_mark_params.get('tail_min_avg_amount', 5)
+                        else:
+                            # 使用普通六合彩阈值
+                            user_min_number_count = six_mark_params['min_number_count']
+                            user_min_avg_amount = six_mark_params['min_avg_amount']
+                        
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position, 
-                            six_mark_params['min_number_count'], 
-                            six_mark_params['min_avg_amount']
+                            user_min_number_count, 
+                            user_min_avg_amount
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
             
-            # 分析时时彩/PK10/赛车
+            # 分析时时彩/PK10/赛车 - 使用增强阈值
             if len(df_10_number) > 0:
                 st.info("🔍 正在分析时时彩/PK10/赛车数据...")
                 grouped_10 = df_10_number.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_10:
                     if len(group) >= 2:
+                        # 🆕 根据玩法类型使用不同的阈值
+                        play_str = str(position).strip().lower()
+                        if any(keyword in play_str for keyword in ['冠亚和', '冠亚和值']):
+                            # 使用冠亚和专用阈值
+                            user_min_number_count = ten_number_params.get('sum_min_number_count', 5)
+                            user_min_avg_amount = ten_number_params.get('sum_min_avg_amount', 5)
+                        else:
+                            # 使用普通时时彩阈值
+                            user_min_number_count = ten_number_params['min_number_count']
+                            user_min_avg_amount = ten_number_params['min_avg_amount']
+                        
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position,
-                            ten_number_params['min_number_count'],
-                            ten_number_params['min_avg_amount']
+                            user_min_number_count,
+                            user_min_avg_amount
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
             
-            # 分析快三
+            # 分析快三 - 使用增强阈值
             if len(df_fast_three) > 0:
                 st.info("🎲 正在分析快三数据...")
                 grouped_fast_three = df_fast_three.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_fast_three:
                     if len(group) >= 2:
+                        # 🆕 根据玩法类型使用不同的阈值
+                        play_str = str(position).strip().lower()
+                        if any(keyword in play_str for keyword in ['和值', '点数']):
+                            # 使用快三和值专用阈值
+                            user_min_number_count = fast_three_params.get('sum_min_number_count', 4)
+                            user_min_avg_amount = fast_three_params.get('sum_min_avg_amount', 5)
+                        elif any(keyword in play_str for keyword in ['三军', '独胆', '单码', '二不同号', '三不同号']):
+                            # 使用快三基础专用阈值
+                            user_min_number_count = fast_three_params.get('base_min_number_count', 2)
+                            user_min_avg_amount = fast_three_params.get('base_min_avg_amount', 5)
+                        else:
+                            # 使用默认快三阈值（和值）
+                            user_min_number_count = fast_three_params.get('sum_min_number_count', 4)
+                            user_min_avg_amount = fast_three_params.get('sum_min_avg_amount', 5)
+                        
                         result = self.analyze_period_lottery_position(
                             group, period, lottery, position,
-                            fast_three_params['min_number_count'],
-                            fast_three_params['min_avg_amount']
+                            user_min_number_count,
+                            user_min_avg_amount
+                        )
+                        if result:
+                            all_period_results[(period, lottery, position)] = result
+            
+            # 🆕 新增：分析3D系列
+            if len(df_ssc_3d) > 0:
+                st.info("🎰 正在分析3D系列数据...")
+                grouped_ssc_3d = df_ssc_3d.groupby(['期号', '彩种', '玩法'])
+                for (period, lottery, position), group in grouped_ssc_3d:
+                    if len(group) >= 2:
+                        # 使用时时彩/3D专用阈值
+                        user_min_number_count = ssc_3d_params.get('min_number_count', 3)
+                        user_min_avg_amount = ssc_3d_params.get('min_avg_amount', 5)
+                        
+                        result = self.analyze_period_lottery_position(
+                            group, period, lottery, position,
+                            user_min_number_count,
+                            user_min_avg_amount
                         )
                         if result:
                             all_period_results[(period, lottery, position)] = result
             
             return all_period_results
         
-        # 🆕 修复：非自动识别模式的进度显示
+        # 非自动识别模式的进度显示
         all_period_results = {}
         total_groups = len(grouped)
         
@@ -2046,11 +2203,49 @@ class MultiLotteryCoverageAnalyzer:
             status_text.text(f"分析进度: {idx+1}/{total_groups} - {period} ({lottery} - {position})")
             
             if len(group) >= 2:
+                # 🆕 在非自动模式下也要根据玩法类型选择阈值
+                play_str = str(position).strip().lower()
+                
+                if analysis_mode == "仅分析六合彩":
+                    if any(keyword in play_str for keyword in ['尾数', '全尾', '特尾']):
+                        # 使用尾数专用阈值
+                        user_min_number_count = six_mark_params.get('tail_min_number_count', 3)
+                        user_min_avg_amount = six_mark_params.get('tail_min_avg_amount', 5)
+                    else:
+                        # 使用普通六合彩阈值
+                        user_min_number_count = six_mark_params['min_number_count']
+                        user_min_avg_amount = six_mark_params['min_avg_amount']
+                
+                elif analysis_mode == "仅分析时时彩/PK10/赛车":
+                    if any(keyword in play_str for keyword in ['冠亚和', '冠亚和值']):
+                        # 使用冠亚和专用阈值
+                        user_min_number_count = ten_number_params.get('sum_min_number_count', 5)
+                        user_min_avg_amount = ten_number_params.get('sum_min_avg_amount', 5)
+                    else:
+                        # 使用普通时时彩阈值
+                        user_min_number_count = ten_number_params['min_number_count']
+                        user_min_avg_amount = ten_number_params['min_avg_amount']
+                
+                elif analysis_mode == "仅分析快三":
+                    if any(keyword in play_str for keyword in ['和值', '点数']):
+                        # 使用快三和值专用阈值
+                        user_min_number_count = fast_three_params.get('sum_min_number_count', 4)
+                        user_min_avg_amount = fast_three_params.get('sum_min_avg_amount', 5)
+                    elif any(keyword in play_str for keyword in ['三军', '独胆', '单码', '二不同号', '三不同号']):
+                        # 使用快三基础专用阈值
+                        user_min_number_count = fast_three_params.get('base_min_number_count', 2)
+                        user_min_avg_amount = fast_three_params.get('base_min_avg_amount', 5)
+                    else:
+                        # 使用默认快三阈值（和值）
+                        user_min_number_count = fast_three_params.get('sum_min_number_count', 4)
+                        user_min_avg_amount = fast_three_params.get('sum_min_avg_amount', 5)
+             
                 result = self.analyze_period_lottery_position(
                     group, period, lottery, position, 
                     user_min_number_count, 
                     user_min_avg_amount
                 )
+                
                 if result:
                     all_period_results[(period, lottery, position)] = result
         
@@ -2616,13 +2811,12 @@ def main():
                             'fast_three': '快三'
                         })
                         st.dataframe(display_dist.reset_index().rename(columns={'index': '彩种类型', '彩种类型': '数量'}))
-                        
-                        # 🆕 添加：显示每个彩种类型的玩法分布
-                        for lottery_type in df_clean['彩种类型'].unique():
-                            st.write(f"🎯 {lottery_type} 的玩法分布:")
-                            type_data = df_clean[df_clean['彩种类型'] == lottery_type]
-                            play_dist = type_data['玩法'].value_counts()
-                            st.dataframe(play_dist.reset_index().rename(columns={'index': '玩法', '玩法': '数量'}))
+                    
+                    # 显示玩法分布
+                    if '玩法' in df_clean.columns:
+                        st.write("🎯 玩法分布:")
+                        play_dist = df_clean['玩法'].value_counts()
+                        st.dataframe(play_dist.reset_index().rename(columns={'index': '玩法', '玩法': '数量'}))
                     
                     # 显示金额分布
                     if has_amount_column:
