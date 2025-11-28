@@ -645,6 +645,41 @@ class MultiLotteryCoverageAnalyzer:
             'min_avg_amount': min_avg_amount,
             'description': config['type_name']
         }
+    
+    def get_dynamic_min_number_count(self, lottery_category, play_method=None):
+        """根据彩种和玩法动态获取最小号码数量 - 通用版本"""
+        play_str = str(play_method).strip().lower() if play_method else ""
+        
+        # 获取彩种配置
+        config = self.get_play_specific_config(lottery_category, play_method)
+        
+        # 根据彩种类型和玩法设置动态最小号码数量
+        if lottery_category == 'six_mark':
+            if any(keyword in play_str for keyword in ['尾数', '全尾', '特尾']):
+                return 3  # 六合彩尾数：0-9共10个号码，最小3个
+            else:
+                return 11  # 六合彩基础：1-49共49个号码，最小11个
+        
+        elif lottery_category == '10_number':
+            if any(keyword in play_str for keyword in ['冠亚和', '冠亚和值']):
+                return 5  # 冠亚和：3-19共17个号码，最小5个
+            else:
+                return 3  # 时时彩/PK10基础：1-10共10个号码，最小3个
+        
+        elif lottery_category == 'fast_three':
+            if any(keyword in play_str for keyword in ['和值', '点数']):
+                return 4  # 快三和值：3-18共16个号码，最小4个
+            elif any(keyword in play_str for keyword in ['三军', '独胆', '单码']):
+                return 2  # 快三基础：1-6共6个号码，最小2个
+            else:
+                return 4  # 默认使用和值阈值
+        
+        elif lottery_category == 'ssc_3d':
+            return 3  # 时时彩/3D：0-9共10个号码，最小3个
+        
+        else:
+            # 默认配置
+            return config.get('default_min_number_count', 3)
 
     def analyze_period_lottery_position(self, group, period, lottery, position, user_min_number_count, user_min_avg_amount):
         """分析特定期数、彩种和位置 - 使用动态阈值和优化算法"""
