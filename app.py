@@ -2755,13 +2755,11 @@ def main():
             else:
                 df = pd.read_excel(uploaded_file)
             
-            st.success(f"✅ 成功读取文件，共 {len(df):,} 条记录")
-            
             # 简化的参数显示
             st.info(f"📊 当前分析模式: {analysis_mode}")
             
-            # 简化的数据预处理过程
-            with st.spinner("正在进行数据预处理..."):
+            # 使用一个容器来隐藏所有中间过程
+            with st.spinner("正在处理数据..."):
                 # 增强版列名映射
                 column_mapping = analyzer.enhanced_column_mapping(df)
                 
@@ -2779,8 +2777,6 @@ def main():
             available_columns = [col for col in required_columns if col in df.columns]
             
             has_amount_column = '金额' in df.columns
-            if has_amount_column:
-                available_columns.append('金额')
 
             if len(available_columns) >= 5:
                 df_clean = df[available_columns].copy()
@@ -2790,17 +2786,13 @@ def main():
                     df_clean[col] = df_clean[col].astype(str).str.strip()
 
                 # 统一的数据预处理
-                with st.spinner("正在进行数据预处理..."):
+                with st.spinner("正在处理数据..."):
                     df_clean, no_number_count, non_number_play_count = analyzer.enhanced_data_preprocessing(df_clean)
-                    st.success(f"✅ 数据预处理完成: 保留 {len(df_clean)} 条有效记录")
                 
                 # 应用金额提取
                 if has_amount_column:
-                    with st.spinner("正在提取金额数据..."):
+                    with st.spinner("正在处理数据..."):
                         df_clean['投注金额'] = df_clean['金额'].apply(analyzer.extract_bet_amount)
-                    
-                    total_bet_amount = df_clean['投注金额'].sum()
-                    st.success(f"💰 金额提取完成")
 
                 # 筛选有效玩法数据
                 if analysis_mode == "仅分析六合彩":
@@ -2829,15 +2821,13 @@ def main():
                 else:
                     # 自动识别模式，保留所有支持的彩种
                     df_target = df_target[df_target['彩种类型'].notna()]
-                
-                st.info(f"🔍 有效数据: {len(df_target):,} 条记录")
 
                 if len(df_target) == 0:
                     st.error("❌ 未找到符合条件的有效玩法数据")
                     return
 
                 # 分析数据 - 使用增强版分析
-                with st.spinner("正在进行完美覆盖分析..."):
+                with st.spinner("正在分析数据..."):
                     six_mark_params = {
                         'min_number_count': six_mark_min_number_count,
                         'min_avg_amount': six_mark_min_avg_amount,
@@ -2889,8 +2879,6 @@ def main():
                             file_name=f"完美组合分析报告_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
-                        
-                        st.success("✅ 数据导出准备完成！")
                 
             else:
                 st.error(f"❌ 缺少必要数据列")
