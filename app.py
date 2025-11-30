@@ -2758,14 +2758,7 @@ def main():
             st.success(f"✅ 成功读取文件，共 {len(df):,} 条记录")
             
             # 简化的参数显示
-            if analysis_mode == "仅分析六合彩":
-                st.info(f"📊 当前分析模式: {analysis_mode}")
-            elif analysis_mode == "仅分析时时彩/PK10/赛车":
-                st.info(f"📊 当前分析模式: {analysis_mode}")
-            elif analysis_mode == "仅分析快三":
-                st.info(f"📊 当前分析模式: {analysis_mode}")
-            else:
-                st.info(f"📊 当前分析模式: {analysis_mode}")
+            st.info(f"📊 当前分析模式: {analysis_mode}")
             
             # 简化的数据预处理过程
             with st.spinner("正在进行数据预处理..."):
@@ -2788,9 +2781,6 @@ def main():
             has_amount_column = '金额' in df.columns
             if has_amount_column:
                 available_columns.append('金额')
-                st.success("💰 检测到金额列，将进行金额分析")
-            else:
-                st.warning("⚠️ 未检测到金额列，将只分析号码覆盖")
 
             if len(available_columns) >= 5:
                 df_clean = df[available_columns].copy()
@@ -2799,34 +2789,10 @@ def main():
                 for col in available_columns:
                     df_clean[col] = df_clean[col].astype(str).str.strip()
 
-                # 简化的账户行为分析
-                with st.spinner("📊 正在进行账户行为分析..."):
-                    account_behavior_stats = analyzer.analyze_account_behavior(df_clean)
-                    analyzer.display_account_behavior_analysis(account_behavior_stats)
-                
                 # 统一的数据预处理
                 with st.spinner("正在进行数据预处理..."):
                     df_clean, no_number_count, non_number_play_count = analyzer.enhanced_data_preprocessing(df_clean)
                     st.success(f"✅ 数据预处理完成: 保留 {len(df_clean)} 条有效记录")
-                
-                # 从投注内容中提取具体位置信息
-                with st.spinner("正在从投注内容中提取具体位置信息..."):
-                    # 创建临时列来存储从内容中提取的位置
-                    df_clean['提取位置'] = df_clean.apply(
-                        lambda row: analyzer.enhanced_extract_position_from_content(
-                            row['玩法'], row['内容'], row['彩种类型'] if '彩种类型' in df_clean.columns else 'six_mark'
-                        ), 
-                        axis=1
-                    )
-                    
-                    # 对于成功提取到具体位置的记录，更新玩法列为提取的位置
-                    mask = df_clean['提取位置'] != df_clean['玩法']
-                    if mask.sum() > 0:
-                        st.success(f"✅ 从内容中提取到 {mask.sum()} 条记录的具体位置信息")
-                        df_clean.loc[mask, '玩法'] = df_clean.loc[mask, '提取位置']
-                    
-                    # 删除临时列
-                    df_clean = df_clean.drop('提取位置', axis=1)
                 
                 # 应用金额提取
                 if has_amount_column:
@@ -2834,31 +2800,13 @@ def main():
                         df_clean['投注金额'] = df_clean['金额'].apply(analyzer.extract_bet_amount)
                     
                     total_bet_amount = df_clean['投注金额'].sum()
-                    valid_amount_count = (df_clean['投注金额'] > 0).sum()
-                    
-                    st.success(f"💰 金额提取完成: 总投注额 {total_bet_amount:,.2f} 元")
-
-                # 简化的数据预览
-                with st.expander("📊 数据预览", expanded=False):
-                    st.dataframe(df_clean.head(10))
-                    st.write(f"数据形状: {df_clean.shape}")
-                    
-                    # 显示彩种类型分布
-                    if '彩种类型' in df_clean.columns:
-                        st.write("🎲 彩种类型分布:")
-                        lottery_type_dist = df_clean['彩种类型'].value_counts()
-                        display_dist = lottery_type_dist.rename({
-                            'six_mark': '六合彩',
-                            '10_number': '时时彩/PK10/赛车',
-                            'fast_three': '快三'
-                        })
-                        st.dataframe(display_dist.reset_index().rename(columns={'index': '彩种类型', '彩种类型': '数量'}))
+                    st.success(f"💰 金额提取完成")
 
                 # 筛选有效玩法数据
                 if analysis_mode == "仅分析六合彩":
                     valid_plays = ['特码', '正码一', '正码二', '正码三', '正码四', '正码五', '正码六', 
                                  '正一特', '正二特', '正三特', '正四特', '正五特', '正六特', '平码', '平特',
-                                 '尾数', '全尾', '特尾']  # 🆕 新增尾数相关玩法
+                                 '尾数', '全尾', '特尾']
                 elif analysis_mode == "仅分析时时彩/PK10/赛车":
                     valid_plays = ['冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆', '前一']
                 elif analysis_mode == "仅分析快三":
@@ -2866,7 +2814,7 @@ def main():
                 else:
                     valid_plays = ['特码', '正码一', '正码二', '正码三', '正码四', '正码五', '正码六', 
                                  '正一特', '正二特', '正三特', '正四特', '正五特', '正六特', '平码', '平特',
-                                 '尾数', '全尾', '特尾',  # 🆕 新增尾数相关玩法
+                                 '尾数', '全尾', '特尾',
                                  '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆', '前一', '和值']
                 
                 df_target = df_clean[df_clean['玩法'].isin(valid_plays)]
@@ -2874,22 +2822,15 @@ def main():
                 # 根据分析模式筛选彩种
                 if analysis_mode == "仅分析六合彩":
                     df_target = df_target[df_target['彩种类型'] == 'six_mark']
-                    st.info(f"🔍 已筛选六合彩数据: {len(df_target):,} 条记录")
                 elif analysis_mode == "仅分析时时彩/PK10/赛车":
                     df_target = df_target[df_target['彩种类型'] == '10_number']
-                    st.info(f"🔍 已筛选时时彩/PK10/赛车数据: {len(df_target):,} 条记录")
                 elif analysis_mode == "仅分析快三":
                     df_target = df_target[df_target['彩种类型'] == 'fast_three']
-                    st.info(f"🔍 已筛选快三数据: {len(df_target):,} 条记录")
                 else:
                     # 自动识别模式，保留所有支持的彩种
                     df_target = df_target[df_target['彩种类型'].notna()]
-                    six_mark_count = len(df_target[df_target['彩种类型'] == 'six_mark'])
-                    ten_number_count = len(df_target[df_target['彩种类型'] == '10_number'])
-                    fast_three_count = len(df_target[df_target['彩种类型'] == 'fast_three'])
-                    st.info(f"🔍 自动识别模式: 六合彩 {six_mark_count:,} 条，赛车类 {ten_number_count:,} 条，快三 {fast_three_count:,} 条")
                 
-                st.write(f"✅ 有效玩法数据行数: {len(df_target):,}")
+                st.info(f"🔍 有效数据: {len(df_target):,} 条记录")
 
                 if len(df_target) == 0:
                     st.error("❌ 未找到符合条件的有效玩法数据")
@@ -2906,18 +2847,18 @@ def main():
                     ten_number_params = {
                         'min_number_count': ten_number_min_number_count,
                         'min_avg_amount': ten_number_min_avg_amount,
-                        'sum_min_number_count': ten_number_sum_min_number_count,  # 🆕 新增冠亚和阈值
-                        'sum_min_avg_amount': ten_number_sum_min_avg_amount       # 🆕 新增冠亚和阈值
+                        'sum_min_number_count': ten_number_sum_min_number_count,
+                        'sum_min_avg_amount': ten_number_sum_min_avg_amount
                     }
                     fast_three_params = {
-                        'sum_min_number_count': fast_three_sum_min_number_count,  # 🆕 新增快三和值阈值
-                        'sum_min_avg_amount': fast_three_sum_min_avg_amount,      # 🆕 新增快三和值阈值
-                        'base_min_number_count': fast_three_base_min_number_count, # 🆕 新增快三基础阈值
-                        'base_min_avg_amount': fast_three_base_min_avg_amount      # 🆕 新增快三基础阈值
+                        'sum_min_number_count': fast_three_sum_min_number_count,
+                        'sum_min_avg_amount': fast_three_sum_min_avg_amount,
+                        'base_min_number_count': fast_three_base_min_number_count,
+                        'base_min_avg_amount': fast_three_base_min_avg_amount
                     }
                     ssc_3d_params = {
-                        'min_number_count': ssc_3d_min_number_count,              # 🆕 新增时时彩/3D阈值
-                        'min_avg_amount': ssc_3d_min_avg_amount                   # 🆕 新增时时彩/3D阈值
+                        'min_number_count': ssc_3d_min_number_count,
+                        'min_avg_amount': ssc_3d_min_avg_amount
                     }
                     
                     all_period_results = analyzer.analyze_with_progress(
@@ -2940,25 +2881,19 @@ def main():
                         output = BytesIO()
                         with pd.ExcelWriter(output, engine='openpyxl') as writer:
                             download_df.to_excel(writer, index=False, sheet_name='完美组合数据')
-                            
-                            # 添加统计工作表
-                            account_stats = analyzer._calculate_detailed_account_stats(all_period_results)
-                            if account_stats:
-                                df_account_stats = pd.DataFrame(account_stats)
-                                df_account_stats.to_excel(writer, index=False, sheet_name='账户参与统计')
                         
                         # 提供下载
                         st.download_button(
-                            label="📥 下载完整分析报告",
+                            label="📥 下载分析报告",
                             data=output.getvalue(),
-                            file_name=f"全彩种完美组合分析报告_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                            file_name=f"完美组合分析报告_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
                         
                         st.success("✅ 数据导出准备完成！")
                 
             else:
-                st.error(f"❌ 缺少必要数据列，可用列: {available_columns}")
+                st.error(f"❌ 缺少必要数据列")
         
         except Exception as e:
             st.error(f"❌ 处理文件时出错: {str(e)}")
@@ -2969,33 +2904,13 @@ def main():
         ### 🚀 系统特色功能:
 
         **🎲 全彩种支持**
-        - ✅ **六合彩**: 1-49个号码，支持特码、正码、正特、平码等多种玩法
-        - ✅ **时时彩/PK10/赛车**: 1-10共10个号码，**按位置精准分析**  
-        - ✅ **快三**: 3-18共16个号码，和值玩法
+        - ✅ **六合彩**: 特码、正码、正特、平码、尾数等多种玩法
+        - ✅ **时时彩/PK10/赛车**: 按位置精准分析  
+        - ✅ **快三**: 和值玩法
         - 🔄 **自动识别**: 智能识别彩种类型
 
-        **📍 位置精准分析**
-        - ✅ **六合彩位置**: 特码、正码一至正码六、正一特至正六特、平码、平特
-        - ✅ **PK10/赛车位置**: 冠军、亚军、季军、第四名到第十名、前一
-        - ✅ **快三位置**: 和值
-
-        **🔍 智能数据识别**
-        - ✅ 增强列名识别：支持多种列名变体
-        - 📊 数据质量验证：完整的数据检查流程
-        - 🎯 玩法分类统一：智能识别各彩种玩法
-        - 💰 金额提取优化：支持多种金额格式
-
-        **📝 支持的列名格式:**
-        """)
-        
-        for standard_col, possible_names in analyzer.column_mappings.items():
-            st.write(f"- **{standard_col}**: {', '.join(possible_names[:3])}{'...' if len(possible_names) > 3 else ''}")
-        
-        st.markdown("""
-        ### 🎯 数据要求:
+        **📝 数据要求:**
         - ✅ 必须包含: 会员账号, 彩种, 期号, 玩法, 内容
-        - ✅ 玩法必须为支持的类型
-        - ✅ 彩种必须是支持的彩票类型
         - 💰 可选包含金额列进行深度分析
         """)
 
