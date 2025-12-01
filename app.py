@@ -594,7 +594,7 @@ class MultiLotteryCoverageAnalyzer:
         return self.cached_extract_amount(str(amount_str))
 
     def enhanced_data_preprocessing(self, df_clean):
-        """增强数据预处理流程"""
+        """增强数据预处理流程 - 隐藏过滤统计信息版本"""
         # 1. 首先识别彩种类型
         df_clean['彩种类型'] = df_clean['彩种'].apply(self.identify_lottery_category)
         
@@ -626,6 +626,7 @@ class MultiLotteryCoverageAnalyzer:
         df_clean = self.filter_number_bets_only(df_clean)
         non_number_play_count = initial_count - no_number_count - len(df_clean)
         
+        # 隐藏过滤统计信息
         return df_clean, no_number_count, non_number_play_count
 
     def get_lottery_thresholds(self, lottery_category, user_min_avg_amount=None):
@@ -2121,7 +2122,7 @@ class MultiLotteryCoverageAnalyzer:
             st.metric("平均期数", f"{df_stats['投注期数'].mean():.1f}")
 
     def analyze_with_progress(self, df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode):
-        """带进度显示的分析 - 使用增强阈值管理"""
+        """带进度显示的分析 - 隐藏进度信息版本"""
         
         # 根据分析模式决定分组方式
         if analysis_mode == "仅分析六合彩":
@@ -2150,7 +2151,7 @@ class MultiLotteryCoverageAnalyzer:
             
             # 分析六合彩 - 使用增强阈值
             if len(df_six_mark) > 0:
-                st.info("🔍 正在分析六合彩数据...")
+                # 隐藏进度信息
                 grouped_six = df_six_mark.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_six:
                     if len(group) >= 2:
@@ -2175,7 +2176,7 @@ class MultiLotteryCoverageAnalyzer:
             
             # 分析时时彩/PK10/赛车 - 使用增强阈值
             if len(df_10_number) > 0:
-                st.info("🔍 正在分析时时彩/PK10/赛车数据...")
+                # 隐藏进度信息
                 grouped_10 = df_10_number.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_10:
                     if len(group) >= 2:
@@ -2200,7 +2201,7 @@ class MultiLotteryCoverageAnalyzer:
             
             # 分析快三 - 使用增强阈值
             if len(df_fast_three) > 0:
-                st.info("🎲 正在分析快三数据...")
+                # 隐藏进度信息
                 grouped_fast_three = df_fast_three.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_fast_three:
                     if len(group) >= 2:
@@ -2229,7 +2230,7 @@ class MultiLotteryCoverageAnalyzer:
             
             # 🆕 新增：分析3D系列
             if len(df_ssc_3d) > 0:
-                st.info("🎰 正在分析3D系列数据...")
+                # 隐藏进度信息
                 grouped_ssc_3d = df_ssc_3d.groupby(['期号', '彩种', '玩法'])
                 for (period, lottery, position), group in grouped_ssc_3d:
                     if len(group) >= 2:
@@ -2254,15 +2255,9 @@ class MultiLotteryCoverageAnalyzer:
         if total_groups == 0:
             return all_period_results
         
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
+        # 隐藏进度条和状态文本
         for idx, (group_key, group) in enumerate(grouped):
-            progress = (idx + 1) / total_groups
-            progress_bar.progress(progress)
-            
             period, lottery, position = group_key
-            status_text.text(f"分析进度: {idx+1}/{total_groups} - {period} ({lottery} - {position})")
             
             if len(group) >= 2:
                 # 🆕 在非自动模式下也要根据玩法类型选择阈值
@@ -2311,17 +2306,19 @@ class MultiLotteryCoverageAnalyzer:
                 if result:
                     all_period_results[(period, lottery, position)] = result
         
+        return all_period_results
+        
         progress_bar.empty()
         status_text.text("分析完成!")
         
         return all_period_results
 
     def display_enhanced_results(self, all_period_results, analysis_mode):
-        """增强结果展示 - 支持4账户组合"""
+        """增强结果展示 - 隐藏统计信息版本"""
         if not all_period_results:
             st.info("🎉 未发现完美覆盖组合")
             return
-
+    
         # 按账户组合和彩种分组
         account_pair_groups = defaultdict(lambda: defaultdict(list))
         
@@ -2349,59 +2346,9 @@ class MultiLotteryCoverageAnalyzer:
                 }
                 
                 account_pair_groups[account_pair][lottery_key].append(combo_info)
-
-        # 显示彩种类型统计 - 更新为显示各种组合类型的数量
-        st.subheader("🎲 组合类型统计")
-        col1, col2, col3, col4 = st.columns(4)
-        
-        # 计算各类型组合数量
-        combo_type_stats = {2: 0, 3: 0, 4: 0}
-        for result in all_period_results.values():
-            for combo in result['all_combinations']:
-                combo_type_stats[combo['account_count']] += 1
-        
-        with col1:
-            st.metric("2账户组合", f"{combo_type_stats[2]}组")
-        with col2:
-            st.metric("3账户组合", f"{combo_type_stats[3]}组")
-        with col3:
-            st.metric("4账户组合", f"{combo_type_stats[4]}组")
-        with col4:
-            total_combinations = sum(combo_type_stats.values())
-            st.metric("总组合数", f"{total_combinations}组")
-        
-        # 显示汇总统计
-        st.subheader("📊 检测汇总")
-        total_combinations = sum(result['total_combinations'] for result in all_period_results.values())
-        total_filtered_accounts = sum(result['filtered_accounts'] for result in all_period_results.values())
-        total_periods = len(set(result['period'] for result in all_period_results.values()))
-        total_lotteries = len(set(result['lottery'] for result in all_period_results.values()))
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("总完美组合数", total_combinations)
-        with col2:
-            st.metric("分析期数", total_periods)
-        with col3:
-            st.metric("有效账户数", total_filtered_accounts)
-        with col4:
-            st.metric("涉及彩种", total_lotteries)
-        
-        # 参与账户详细统计
-        st.subheader("👥 参与账户详细统计")
-        account_stats = self._calculate_detailed_account_stats(all_period_results)
-        
-        if account_stats:
-            df_stats = pd.DataFrame(account_stats)
-            
-            st.dataframe(
-                df_stats,
-                use_container_width=True,
-                hide_index=True,
-                height=min(400, len(df_stats) * 35 + 38)
-            )
-        
-        # 显示详细组合分析
+    
+        # 隐藏彩种类型统计和汇总统计部分
+        # 直接显示详细组合分析
         st.subheader("📈 详细组合分析")
         self._display_by_account_pair_lottery(account_pair_groups, analysis_mode)
 
