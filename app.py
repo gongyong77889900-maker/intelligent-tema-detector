@@ -930,7 +930,7 @@ class MultiLotteryCoverageAnalyzer:
                 for issue in issues:
                     st.warning(f"  - {issue}")
         else:
-            st.success("✅ 数据质量检查通过")
+            # st.success("✅ 数据质量检查通过")
         
         return issues
 
@@ -2722,7 +2722,7 @@ def main():
             else:
                 df = pd.read_excel(uploaded_file)
             
-            st.success(f"✅ 成功读取文件，共 {len(df):,} 条记录")
+            # st.success(f"✅ 成功读取文件，共 {len(df):,} 条记录")
             
             # 隐藏分析模式和参数设置显示
             pass
