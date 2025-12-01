@@ -2473,7 +2473,7 @@ class MultiLotteryCoverageAnalyzer:
                 combo_count = len(combos)
                 title = f"**{account_pair}** - {lottery_key}（{combo_count}个组合）"
                 
-                with st.expander(title, expanded=True):
+                with st.expander(title, expanded=False):  # 默认折叠
                     # 显示每个组合
                     for idx, combo_info in enumerate(combos, 1):
                         combo = combo_info['combo']
@@ -2785,7 +2785,7 @@ def main():
                 st.info(f"🎲 快三参数: 号码数量 ≥ {fast_three_sum_min_number_count}, 平均金额 ≥ {fast_three_config['min_avg_amount']}")
             
             # 将列名识别和数据质量检查放入折叠框
-            with st.expander("🔧 数据预处理过程", expanded=False):
+            with st.expander("🔧 数据预处理过程", expanded=False):  # 默认折叠
                 # 增强版列名映射
                 with st.spinner("正在进行列名识别..."):
                     column_mapping = analyzer.enhanced_column_mapping(df)
@@ -2819,9 +2819,11 @@ def main():
                 for col in available_columns:
                     df_clean[col] = df_clean[col].astype(str).str.strip()
 
-                with st.spinner("📊 正在进行账户行为分析..."):
-                    account_behavior_stats = analyzer.analyze_account_behavior(df_clean)
-                    analyzer.display_account_behavior_analysis(account_behavior_stats)
+                # 隐藏账户行为分析
+                with st.expander("👤 账户行为分析", expanded=False):
+                    with st.spinner("📊 正在进行账户行为分析..."):
+                        account_behavior_stats = analyzer.analyze_account_behavior(df_clean)
+                        analyzer.display_account_behavior_analysis(account_behavior_stats)
                 
                 # 统一的数据预处理
                 with st.spinner("正在进行数据预处理..."):
@@ -2860,7 +2862,7 @@ def main():
                     st.success(f"💰 金额提取完成: 总投注额 {total_bet_amount:,.2f} 元")
                     st.info(f"📊 有效金额记录: {valid_amount_count:,} / {len(df_clean):,}")
 
-                # 显示数据预览
+                # 显示数据预览 - 默认折叠
                 with st.expander("📊 数据预览", expanded=False):
                     st.dataframe(df_clean.head(10))
                     st.write(f"数据形状: {df_clean.shape}")
@@ -3033,66 +3035,47 @@ def main():
                 """)
     
     else:
+        # 简化欢迎页面
         st.info("💡 **彩票完美覆盖分析系统**")
         st.markdown("""
         ### 🚀 系统特色功能:
 
         **🎲 全彩种支持**
-        - ✅ **六合彩**: 1-49个号码，支持特码、正码、正特、平码等多种玩法
+        - ✅ **六合彩**: 1-49个号码，支持特码、正码、正特、平码、尾数等多种玩法
         - ✅ **时时彩/PK10/赛车**: 1-10共10个号码，**按位置精准分析**  
         - ✅ **快三**: 3-18共16个号码，和值玩法
         - 🔄 **自动识别**: 智能识别彩种类型
 
         **📍 位置精准分析**
-        - ✅ **六合彩位置**: 特码、正码一至正码六、正一特至正六特、平码、平特
+        - ✅ **六合彩位置**: 特码、正码一至正码六、正一特至正六特、平码、平特、尾数
         - ✅ **PK10/赛车位置**: 冠军、亚军、季军、第四名到第十名、前一
-        - ✅ **快三位置**: 和值
+        - ✅ **快三位置**: 和值、三军、独胆等
         - ✅ **位置统计**: 按位置统计完美组合数量
-
-        **🔍 智能数据识别**
-        - ✅ 增强列名识别：支持多种列名变体
-        - 📊 数据质量验证：完整的数据检查流程
-        - 🎯 玩法分类统一：智能识别各彩种玩法
-        - 💰 金额提取优化：支持多种金额格式
 
         **⚡ 性能优化**
         - 🔄 缓存机制：号码和金额提取缓存
         - 📈 进度显示：实时分析进度
-        - 🎨 界面优化：现代化Streamlit界面
+        - 🎨 界面优化：简洁易用的操作界面
 
-        **📊 分析增强**
-        - 👥 账户聚合视图：按账户统计参与情况和总投注金额
-        - 📋 详细组合分析：完整的组合信息展示
-        - 📊 汇总统计：多维度数据统计
+        ### 📝 使用步骤:
+        1. 在左侧上传投注数据文件（CSV或Excel格式）
+        2. 选择分析模式和设置参数
+        3. 系统自动分析并显示完美覆盖组合
+        4. 导出分析报告
 
         ### 🎯 各彩种分析原理:
 
         **六合彩 (49个号码)**
         - 检测同一期号、同一位置内不同账户的投注号码是否形成完美覆盖（1-49全部覆盖）
         - 分析各账户的投注金额匹配度，识别可疑的协同投注行为
-        - 支持特码、正码、正特、平码等多种玩法
 
         **时时彩/PK10/赛车 (10个号码)**  
         - **按位置精准分析**: 冠军、亚军、季军等每个位置独立分析
         - 检测同一位置内，不同账户是否覆盖全部10个号码（1-10）
-        - 识别对刷行为：多个账户在同一位置合作覆盖所有号码
 
         **快三 (16个号码)**
         - **和值玩法**: 检测同一期号内不同账户是否覆盖全部16个和值（3-18）
         - 分析各账户的投注金额匹配度，识别可疑的协同投注行为
-
-        ### 📝 支持的列名格式:
-        """)
-        
-        for standard_col, possible_names in analyzer.column_mappings.items():
-            st.write(f"- **{standard_col}**: {', '.join(possible_names[:3])}{'...' if len(possible_names) > 3 else ''}")
-        
-        st.markdown("""
-        ### 🎯 数据要求:
-        - ✅ 必须包含: 会员账号, 彩种, 期号, 玩法, 内容
-        - ✅ 玩法必须为支持的类型
-        - ✅ 彩种必须是支持的彩票类型
-        - 💰 可选包含金额列进行深度分析
         """)
 
 if __name__ == "__main__":
