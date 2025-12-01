@@ -2843,7 +2843,7 @@ def main():
                 # 隐藏账户行为分析
                 pass
                 
-                st.write(f"✅ 有效玩法数据行数: {len(df_target):,}")
+                # st.write(f"✅ 有效玩法数据行数: {len(df_target):,}")
 
                 if len(df_target) == 0:
                     st.error("❌ 未找到符合条件的有效玩法数据")
