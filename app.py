@@ -929,7 +929,7 @@ class MultiLotteryCoverageAnalyzer:
             with st.expander("⚠️ 数据质量问题", expanded=True):
                 for issue in issues:
                     st.warning(f"  - {issue}")
-        else:
+        # else:
             # st.success("✅ 数据质量检查通过")
         
         return issues
