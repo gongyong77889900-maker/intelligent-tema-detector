@@ -2384,7 +2384,7 @@ class MultiLotteryCoverageAnalyzer:
         self._display_by_account_pair_lottery(account_pair_groups, analysis_mode, account_stats)
 
     def _calculate_detailed_account_stats(self, all_period_results, df_target):
-        """详细账户统计 - 只统计违规彩种的总期数，修改列名为彩种期数并调整顺序"""
+        """详细账户统计 - 改进彩种名称匹配逻辑"""
         account_stats = []
         account_participation = defaultdict(lambda: {
             'periods': set(),
@@ -2393,7 +2393,7 @@ class MultiLotteryCoverageAnalyzer:
             'total_combinations': 0,
             'total_bet_amount': 0,
             'combo_types': set(),
-            'violation_lottery_periods': defaultdict(set)  # 每个违规彩种的期数
+            'violation_lottery_periods': defaultdict(set)
         })
         
         # 首先计算每个账户在各彩种的总投注期数（从原始数据df_target）
@@ -2407,11 +2407,13 @@ class MultiLotteryCoverageAnalyzer:
                 period = row['期号']
                 
                 if account and lottery and period:
-                    account_lottery_periods[account][lottery].add(period)
+                    # 统一彩种名称：去除前后空格，保留完整名称
+                    lottery_clean = lottery.strip()
+                    account_lottery_periods[account][lottery_clean].add(period)
         
         # 统计违规信息
         for result_key, result in all_period_results.items():
-            lottery = result['lottery']
+            lottery = result['lottery'].strip()  # 清理彩种名称
             
             for combo in result['all_combinations']:
                 for account in combo['accounts']:
@@ -2437,8 +2439,19 @@ class MultiLotteryCoverageAnalyzer:
             for lottery in info['lotteries']:
                 # 获取该彩种的总投注期数
                 total_periods = 0
-                if account in account_lottery_periods and lottery in account_lottery_periods[account]:
-                    total_periods = len(account_lottery_periods[account][lottery])
+                if account in account_lottery_periods:
+                    # 尝试多种匹配方式
+                    matched_lottery = None
+                    for stored_lottery in account_lottery_periods[account].keys():
+                        # 精确匹配或包含匹配
+                        if (stored_lottery == lottery or 
+                            lottery in stored_lottery or 
+                            stored_lottery in lottery):
+                            matched_lottery = stored_lottery
+                            break
+                    
+                    if matched_lottery:
+                        total_periods = len(account_lottery_periods[account][matched_lottery])
                 
                 violation_lottery_periods_summary.append(f"{lottery}:{total_periods}期")
             
@@ -2449,7 +2462,7 @@ class MultiLotteryCoverageAnalyzer:
                 '账户': account,
                 '参与组合数': info['total_combinations'],
                 '彩种期数': ' | '.join(violation_lottery_periods_summary) if violation_lottery_periods_summary else '无数据',
-                '涉及期数': total_violation_periods,  # 这里我们改为违规期数
+                '涉及期数': total_violation_periods,
                 '涉及彩种': len(info['lotteries']),
                 '组合类型': ', '.join([f"{t}账户" for t in sorted(info['combo_types'])]),
                 '总投注金额': info['total_bet_amount'],
@@ -2464,7 +2477,7 @@ class MultiLotteryCoverageAnalyzer:
         return sorted(account_stats, key=lambda x: x['参与组合数'], reverse=True)
 
     def _display_by_account_pair_lottery(self, account_pair_groups, analysis_mode, account_stats):
-        """按账户组合和彩种展示 - 简化投注统计显示，放在彩种类型下面"""
+        """按账户组合和彩种展示 - 优化投注统计显示格式"""
         category_display = {
             'six_mark': '六合彩',
             'six_mark_tail': '六合彩尾数',
@@ -2506,15 +2519,15 @@ class MultiLotteryCoverageAnalyzer:
                         # 组合标题
                         st.markdown(f"**完美组合 {idx}:** {account_pair}")
                         
-                        # 组合信息 - 使用与"账户数量: 2个"相同的布局
-                        cols = st.columns(4)
-                        with cols[0]:
+                        # 组合信息 - 使用4列布局
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
                             st.write(f"**账户数量:** {combo['account_count']}个")
-                        with cols[1]:
+                        with col2:
                             st.write(f"**期号:** {period}")
-                        with cols[2]:
+                        with col3:
                             st.write(f"**总金额:** ¥{combo['total_amount']:,.2f}")
-                        with cols[3]:
+                        with col4:
                             similarity = combo['similarity']
                             indicator = combo['similarity_indicator']
                             st.write(f"**金额匹配度:** {similarity:.1f}% {indicator}")
@@ -2523,7 +2536,13 @@ class MultiLotteryCoverageAnalyzer:
                         category_name = category_display.get(lottery_category, lottery_category)
                         st.write(f"**彩种类型:** {category_name}")
                         
-                        # 各账户投注统计 - 使用水平布局，与"账户数量: 2个"行类似
+                        # 获取当前彩种的基本名称（去掉位置信息）
+                        current_lottery = lottery_key.split(' - ')[0].strip() if ' - ' in lottery_key else lottery_key
+                        
+                        # 各账户投注统计 - 改进显示格式
+                        st.write("**投注统计:**")
+                        
+                        # 为每个账户构建投注统计信息
                         accounts_info_lines = []
                         
                         for account in combo['accounts']:
@@ -2535,27 +2554,38 @@ class MultiLotteryCoverageAnalyzer:
                                 stat_info = account_stats_dict[account]
                                 # 从彩种期数中提取当前彩种的期数
                                 lottery_periods_info = stat_info.get('彩种期数', '')
-                                if '|' in lottery_periods_info:
-                                    for item in lottery_periods_info.split(' | '):
+                                
+                                # 改进：更精确地匹配彩种名称
+                                if lottery_periods_info and lottery_periods_info != '无数据':
+                                    # 分割多个彩种信息
+                                    items = lottery_periods_info.split('|')
+                                    for item in items:
+                                        item = item.strip()
                                         if ':' in item:
                                             lottery_name, periods = item.split(':', 1)
                                             lottery_name = lottery_name.strip()
-                                            if lottery_key.startswith(lottery_name):
+                                            periods = periods.strip()
+                                            
+                                            # 改进匹配逻辑：检查彩种名称是否匹配
+                                            if (lottery_name == current_lottery or 
+                                                current_lottery in lottery_name or 
+                                                lottery_name in current_lottery):
                                                 account_periods = periods.replace('期', '').strip()
                                                 break
                                 
                                 # 计算该账户在当前彩种的违规期数
-                                violation_count = 0
+                                violation_periods = []
                                 for c_info in combos:
-                                    if account in c_info['combo']['accounts'] and c_info['period'] == period:
-                                        violation_count += 1
+                                    if account in c_info['combo']['accounts']:
+                                        violation_periods.append(c_info['period'])
+                                violation_count = len(set(violation_periods))
                             
-                            # 格式化账户信息
-                            account_info = f"{account}:   投注期数:{account_periods}           违规期数:{violation_count}"
+                            # 使用Markdown格式创建加粗效果
+                            account_info = f"**{account}:**   **投注期数:**{account_periods}   **违规期数:**{violation_count}"
                             accounts_info_lines.append(account_info)
                         
-                        # 将所有账户信息放在一行显示，用适当的间距分隔
-                        st.write(f"**投注统计:** {'   '.join(accounts_info_lines)}")
+                        # 用" ↔ "分隔各账户信息
+                        st.markdown(" ↔ ".join(accounts_info_lines))
                         
                         # 各账户详情
                         st.write("**各账户详情:**")
