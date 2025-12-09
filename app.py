@@ -2384,7 +2384,7 @@ class MultiLotteryCoverageAnalyzer:
         self._display_by_account_pair_lottery(account_pair_groups, analysis_mode, account_stats)
 
     def _calculate_detailed_account_stats(self, all_period_results, df_target):
-        """详细账户统计 - 支持4账户组合和尾数玩法，新增彩种总投注期数"""
+        """详细账户统计 - 只统计违规彩种的总期数"""
         account_stats = []
         account_participation = defaultdict(lambda: {
             'periods': set(),
@@ -2392,7 +2392,8 @@ class MultiLotteryCoverageAnalyzer:
             'positions': set(),
             'total_combinations': 0,
             'total_bet_amount': 0,
-            'combo_types': set()  # 记录参与的组合类型
+            'combo_types': set(),
+            'violation_lottery_periods': defaultdict(set)  # 每个违规彩种的期数
         })
         
         # 首先计算每个账户在各彩种的总投注期数（从原始数据df_target）
@@ -2408,49 +2409,54 @@ class MultiLotteryCoverageAnalyzer:
                 if account and lottery and period:
                     account_lottery_periods[account][lottery].add(period)
         
-        # 修复：确保正确遍历 all_period_results
+        # 统计违规信息
         for result_key, result in all_period_results.items():
+            lottery = result['lottery']
+            
             for combo in result['all_combinations']:
                 for account in combo['accounts']:
                     account_info = account_participation[account]
                     account_info['periods'].add(result['period'])
-                    account_info['lotteries'].add(result['lottery'])
+                    account_info['lotteries'].add(lottery)
+                    
+                    # 记录该彩种的违规期数
+                    account_info['violation_lottery_periods'][lottery].add(result['period'])
+                    
                     if 'position' in result and result['position']:
                         account_info['positions'].add(result['position'])
+                        
                     account_info['total_combinations'] += 1
                     account_info['total_bet_amount'] += combo['individual_amounts'][account]
                     account_info['combo_types'].add(combo['account_count'])
         
         # 生成统计记录
         for account, info in account_participation.items():
-            # 计算该账户在所有彩种中的总投注期数（去重）
-            total_periods_all_lottery = set()
-            # 计算该账户在每个彩种的总投注期数
-            lottery_period_counts = {}
+            # 计算违规彩种的总投注期数
+            violation_lottery_periods_summary = []
             
-            if account in account_lottery_periods:
-                for lottery, periods in account_lottery_periods[account].items():
-                    total_periods_all_lottery.update(periods)
-                    lottery_period_counts[lottery] = len(periods)
+            for lottery in info['lotteries']:
+                # 获取该彩种的总投注期数
+                total_periods = 0
+                if account in account_lottery_periods and lottery in account_lottery_periods[account]:
+                    total_periods = len(account_lottery_periods[account][lottery])
+                
+                # 获取该彩种的违规期数
+                violation_periods = len(info['violation_lottery_periods'][lottery])
+                
+                violation_lottery_periods_summary.append(f"{lottery}:{total_periods}期")
             
-            # 计算违规期数（即参与完美组合的期数）
-            violation_period_count = len(info['periods'])
-            
-            # 格式化彩种总投注期数字符串
-            lottery_periods_str = []
-            for lottery, count in lottery_period_counts.items():
-                lottery_periods_str.append(f"{lottery}:{count}期")
+            # 计算总违规期数（所有彩种去重）
+            total_violation_periods = len(info['periods'])
             
             stat_record = {
                 '账户': account,
                 '参与组合数': info['total_combinations'],
-                '涉及期数': len(info['periods']),
-                '会员当前彩种总投注期数': ' | '.join(lottery_periods_str) if lottery_periods_str else '无数据',
-                '违规期数记录': len(info['periods']),
+                '涉及期数': total_violation_periods,
+                '违规彩种总投注期数': ' | '.join(violation_lottery_periods_summary) if violation_lottery_periods_summary else '无数据',
                 '涉及彩种': len(info['lotteries']),
                 '组合类型': ', '.join([f"{t}账户" for t in sorted(info['combo_types'])]),
                 '总投注金额': info['total_bet_amount'],
-                '平均每期金额': info['total_bet_amount'] / violation_period_count if violation_period_count > 0 else 0
+                '平均每期金额': info['total_bet_amount'] / total_violation_periods if total_violation_periods > 0 else 0
             }
             
             if info['positions']:
@@ -2461,7 +2467,7 @@ class MultiLotteryCoverageAnalyzer:
         return sorted(account_stats, key=lambda x: x['参与组合数'], reverse=True)
 
     def _display_by_account_pair_lottery(self, account_pair_groups, analysis_mode, account_stats):
-        """按账户组合和彩种展示 - 新增会员当前彩种投注期数和违规期数记录"""
+        """按账户组合和彩种展示 - 简化的投注期数显示"""
         category_display = {
             'six_mark': '六合彩',
             'six_mark_tail': '六合彩尾数',
@@ -2494,49 +2500,7 @@ class MultiLotteryCoverageAnalyzer:
                 title = f"**{account_pair}** - {lottery_key}（{combo_count}个组合）"
                 
                 with st.expander(title, expanded=True):
-                    # 显示每个账户的彩种总投注期数和违规期数记录
-                    st.write("**📊 会员当前彩种投注统计:**")
-                    for account in accounts:
-                        # 获取该账户的统计信息
-                        if account in account_stats_dict:
-                            stat_info = account_stats_dict[account]
-                            
-                            # 获取该账户在该彩种的总投注期数
-                            lottery_total_periods = "未知"
-                            lottery_periods_info = stat_info.get('会员当前彩种总投注期数', '')
-                            if '|' in lottery_periods_info:
-                                # 查找当前彩种的信息
-                                for item in lottery_periods_info.split(' | '):
-                                    if ':' in item:
-                                        lottery_name, total_periods = item.split(':', 1)
-                                        # 移除"期"字，只保留数字
-                                        total_periods = total_periods.replace('期', '').strip()
-                                        if lottery_key.startswith(lottery_name.strip()):
-                                            lottery_total_periods = total_periods
-                                            break
-                            
-                            # 计算该账户在当前彩种的违规期数
-                            violation_count = 0
-                            violation_periods = []
-                            for combo_info in combos:
-                                if account in combo_info['combo']['accounts']:
-                                    violation_count += 1
-                                    violation_periods.append(combo_info['period'])
-                            
-                            st.write(f"- **{account}**:")
-                            st.write(f"  - 该彩种总投注期数: {lottery_total_periods}")
-                            st.write(f"  - 违规期数记录: {violation_count}期")
-                            if violation_periods:
-                                # 去重并排序
-                                unique_violation_periods = sorted(set(violation_periods))
-                                display_periods = ', '.join(unique_violation_periods[:10])
-                                if len(unique_violation_periods) > 10:
-                                    display_periods += f" ...等{len(unique_violation_periods)}期"
-                                st.write(f"  - 违规期号: {display_periods}")
-                    
-                    st.markdown("---")
-                    
-                    # 显示每个组合（原有内容保持不变）
+                    # 显示每个组合
                     for idx, combo_info in enumerate(combos, 1):
                         combo = combo_info['combo']
                         period = combo_info['period']
@@ -2561,6 +2525,43 @@ class MultiLotteryCoverageAnalyzer:
                         # 彩种类型信息
                         category_name = category_display.get(lottery_category, lottery_category)
                         st.write(f"**彩种类型:** {category_name}")
+                        
+                        # 各账户投注统计（简化的两列格式）
+                        st.write("**投注统计:**")
+                        
+                        # 使用两列布局
+                        for account in combo['accounts']:
+                            # 获取该账户的统计信息
+                            account_periods = "未知"
+                            violation_count = 0
+                            
+                            if account in account_stats_dict:
+                                stat_info = account_stats_dict[account]
+                                # 从违规彩种总投注期数中提取当前彩种的期数
+                                lottery_periods_info = stat_info.get('违规彩种总投注期数', '')
+                                if '|' in lottery_periods_info:
+                                    for item in lottery_periods_info.split(' | '):
+                                        if ':' in item:
+                                            lottery_name, periods = item.split(':', 1)
+                                            lottery_name = lottery_name.strip()
+                                            if lottery_key.startswith(lottery_name):
+                                                account_periods = periods.replace('期', '').strip()
+                                                break
+                                
+                                # 计算该账户在当前彩种的违规期数
+                                violation_count = 0
+                                violation_periods = []
+                                for c_info in combos:
+                                    if account in c_info['combo']['accounts']:
+                                        violation_count += 1
+                                        violation_periods.append(c_info['period'])
+                            
+                            # 显示简化的两列格式
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.write(f"**{account}:**")
+                            with col2:
+                                st.write(f"投注期数:{account_periods} 违规期数:{violation_count}")
                         
                         # 各账户详情
                         st.write("**各账户详情:**")
