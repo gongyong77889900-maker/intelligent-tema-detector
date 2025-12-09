@@ -2361,9 +2361,9 @@ class MultiLotteryCoverageAnalyzer:
         if account_stats:
             df_stats = pd.DataFrame(account_stats)
             
-            # 重新排序列顺序，将新列放在前面
-            columns_order = ['账户', '会员当前彩种总投注期数', '违规期数记录', '参与组合数', '涉及期数', 
-                            '涉及彩种', '组合类型', '总投注金额', '平均每期金额']
+            # 重新排序列顺序，将彩种期数放在涉及期数前面
+            columns_order = ['账户', '参与组合数', '彩种期数', '涉及期数', 
+                            '涉及彩种', '组合类型', '总投注金额', '平均每期金额', '涉及位置']
             # 只保留存在的列
             existing_columns = [col for col in columns_order if col in df_stats.columns]
             # 添加其他列
@@ -2384,7 +2384,7 @@ class MultiLotteryCoverageAnalyzer:
         self._display_by_account_pair_lottery(account_pair_groups, analysis_mode, account_stats)
 
     def _calculate_detailed_account_stats(self, all_period_results, df_target):
-        """详细账户统计 - 只统计违规彩种的总期数"""
+        """详细账户统计 - 只统计违规彩种的总期数，修改列名为彩种期数并调整顺序"""
         account_stats = []
         account_participation = defaultdict(lambda: {
             'periods': set(),
@@ -2440,9 +2440,6 @@ class MultiLotteryCoverageAnalyzer:
                 if account in account_lottery_periods and lottery in account_lottery_periods[account]:
                     total_periods = len(account_lottery_periods[account][lottery])
                 
-                # 获取该彩种的违规期数
-                violation_periods = len(info['violation_lottery_periods'][lottery])
-                
                 violation_lottery_periods_summary.append(f"{lottery}:{total_periods}期")
             
             # 计算总违规期数（所有彩种去重）
@@ -2451,8 +2448,8 @@ class MultiLotteryCoverageAnalyzer:
             stat_record = {
                 '账户': account,
                 '参与组合数': info['total_combinations'],
-                '涉及期数': total_violation_periods,
-                '违规彩种总投注期数': ' | '.join(violation_lottery_periods_summary) if violation_lottery_periods_summary else '无数据',
+                '彩种期数': ' | '.join(violation_lottery_periods_summary) if violation_lottery_periods_summary else '无数据',
+                '涉及期数': total_violation_periods,  # 这里我们改为违规期数
                 '涉及彩种': len(info['lotteries']),
                 '组合类型': ', '.join([f"{t}账户" for t in sorted(info['combo_types'])]),
                 '总投注金额': info['total_bet_amount'],
@@ -2467,7 +2464,7 @@ class MultiLotteryCoverageAnalyzer:
         return sorted(account_stats, key=lambda x: x['参与组合数'], reverse=True)
 
     def _display_by_account_pair_lottery(self, account_pair_groups, analysis_mode, account_stats):
-        """按账户组合和彩种展示 - 简化的投注期数显示"""
+        """按账户组合和彩种展示 - 简化投注统计显示，放在彩种类型下面"""
         category_display = {
             'six_mark': '六合彩',
             'six_mark_tail': '六合彩尾数',
@@ -2509,15 +2506,15 @@ class MultiLotteryCoverageAnalyzer:
                         # 组合标题
                         st.markdown(f"**完美组合 {idx}:** {account_pair}")
                         
-                        # 组合信息
-                        col1, col2, col3, col4 = st.columns(4)
-                        with col1:
+                        # 组合信息 - 使用与"账户数量: 2个"相同的布局
+                        cols = st.columns(4)
+                        with cols[0]:
                             st.write(f"**账户数量:** {combo['account_count']}个")
-                        with col2:
+                        with cols[1]:
                             st.write(f"**期号:** {period}")
-                        with col3:
+                        with cols[2]:
                             st.write(f"**总金额:** ¥{combo['total_amount']:,.2f}")
-                        with col4:
+                        with cols[3]:
                             similarity = combo['similarity']
                             indicator = combo['similarity_indicator']
                             st.write(f"**金额匹配度:** {similarity:.1f}% {indicator}")
@@ -2526,10 +2523,9 @@ class MultiLotteryCoverageAnalyzer:
                         category_name = category_display.get(lottery_category, lottery_category)
                         st.write(f"**彩种类型:** {category_name}")
                         
-                        # 各账户投注统计（简化的两列格式）
-                        st.write("**投注统计:**")
+                        # 各账户投注统计 - 使用水平布局，与"账户数量: 2个"行类似
+                        accounts_info_lines = []
                         
-                        # 使用两列布局
                         for account in combo['accounts']:
                             # 获取该账户的统计信息
                             account_periods = "未知"
@@ -2537,8 +2533,8 @@ class MultiLotteryCoverageAnalyzer:
                             
                             if account in account_stats_dict:
                                 stat_info = account_stats_dict[account]
-                                # 从违规彩种总投注期数中提取当前彩种的期数
-                                lottery_periods_info = stat_info.get('违规彩种总投注期数', '')
+                                # 从彩种期数中提取当前彩种的期数
+                                lottery_periods_info = stat_info.get('彩种期数', '')
                                 if '|' in lottery_periods_info:
                                     for item in lottery_periods_info.split(' | '):
                                         if ':' in item:
@@ -2550,18 +2546,16 @@ class MultiLotteryCoverageAnalyzer:
                                 
                                 # 计算该账户在当前彩种的违规期数
                                 violation_count = 0
-                                violation_periods = []
                                 for c_info in combos:
-                                    if account in c_info['combo']['accounts']:
+                                    if account in c_info['combo']['accounts'] and c_info['period'] == period:
                                         violation_count += 1
-                                        violation_periods.append(c_info['period'])
                             
-                            # 显示简化的两列格式
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.write(f"**{account}:**")
-                            with col2:
-                                st.write(f"投注期数:{account_periods} 违规期数:{violation_count}")
+                            # 格式化账户信息
+                            account_info = f"{account}:   投注期数:{account_periods}           违规期数:{violation_count}"
+                            accounts_info_lines.append(account_info)
+                        
+                        # 将所有账户信息放在一行显示，用适当的间距分隔
+                        st.write(f"**投注统计:** {'   '.join(accounts_info_lines)}")
                         
                         # 各账户详情
                         st.write("**各账户详情:**")
