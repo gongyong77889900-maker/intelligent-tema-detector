@@ -1170,7 +1170,7 @@ class MultiLotteryCoverageAnalyzer:
         # 🆕 新增：优先处理分组玩法（1-5名、6-10名）
         if any(keyword in play_normalized for keyword in ['1-5名', '1~5名', '1至5名', '1到5名', '前五名']):
             return '1-5名'
-        elif any(keyword in play_normalized for keyword in ['6-10名', '6~10名', '6至10名', '6到5名', '后五名']):
+        elif any(keyword in play_normalized for keyword in ['6-10名', '6~10名', '6至10名', '6到10名', '后五名']):
             return '6-10名'
         
         # ========== 最高优先级：正玛特独立映射 ==========
@@ -3138,6 +3138,37 @@ class MultiLotteryCoverageAnalyzer:
         
         return pd.DataFrame(export_data)
 
+    def test_group_play_recognition(self, df_sample):
+        """测试分组玩法识别"""
+        st.subheader("🧪 分组玩法识别测试")
+        
+        if df_sample is None or df_sample.empty:
+            st.warning("没有数据可用于测试")
+            return
+        
+        # 测试玩法标准化
+        test_plays = ['1-5名', '6-10名', '1~5名', '6~10名', '前五名', '后五名']
+        
+        st.write("**玩法标准化测试:**")
+        for play in test_plays:
+            normalized = self.normalize_play_category(play, '10_number')
+            st.write(f"- {play} → {normalized}")
+        
+        # 测试数据中的玩法
+        st.write("**数据中的玩法分布:**")
+        play_counts = df_sample['玩法'].value_counts()
+        st.dataframe(play_counts.reset_index().rename(columns={'index': '玩法', '玩法': '数量'}))
+        
+        # 测试玩法是否在有效列表中
+        st.write("**玩法匹配检查:**")
+        valid_plays = ['1-5名', '6-10名', '冠军', '亚军', '季军', '第四名', '第五名', 
+                      '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆', '前一']
+        
+        for play in play_counts.index[:10]:  # 检查前10个玩法
+            is_valid = play in valid_plays
+            status = "✅" if is_valid else "❌"
+            st.write(f"{status} {play}")
+
 # ==================== Streamlit界面 ====================
 def main():
     st.title("🎯 彩票完美覆盖分析系统")
@@ -3380,6 +3411,11 @@ def main():
                     df_clean, no_number_count, non_number_play_count = analyzer.enhanced_data_preprocessing(df_clean)
                 # 隐藏账户行为分析
                 pass
+
+                # 在数据预处理后，添加测试调用
+                if len(df_clean) > 0:
+                    with st.expander("🧪 玩法识别测试", expanded=False):
+                        analyzer.test_group_play_recognition(df_clean)
                 
                 # 从投注内容中提取具体位置信息
                 with st.spinner("正在从投注内容中提取具体位置信息..."):
@@ -3420,14 +3456,23 @@ def main():
                                  '正一特', '正二特', '正三特', '正四特', '正五特', '正六特', '平码', '平特',
                                  '尾数', '全尾', '特尾']  # 🆕 新增尾数相关玩法
                 elif analysis_mode == "仅分析时时彩/PK10/赛车":
-                    valid_plays = ['冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆', '前一']
+                    # 🆕 修改：添加分组玩法和所有位置玩法
+                    valid_plays = ['冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', 
+                                 '定位胆', '前一', '第1球', '第2球', '第3球', '第4球', '第5球',
+                                 '万位', '千位', '百位', '十位', '个位',
+                                 '1-5名', '6-10名', '冠亚和']  # 🆕 新增分组玩法和冠亚和
                 elif analysis_mode == "仅分析快三":
-                    valid_plays = ['和值']
+                    valid_plays = ['和值', '点数', '三军', '独胆', '单码', '二不同号', '三不同号']
                 else:
+                    # 🆕 修改：自动识别模式下包含所有玩法
                     valid_plays = ['特码', '正码一', '正码二', '正码三', '正码四', '正码五', '正码六', 
                                  '正一特', '正二特', '正三特', '正四特', '正五特', '正六特', '平码', '平特',
                                  '尾数', '全尾', '特尾',  # 🆕 新增尾数相关玩法
-                                 '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆', '前一', '和值']
+                                 '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', 
+                                 '定位胆', '前一', '第1球', '第2球', '第3球', '第4球', '第5球',
+                                 '万位', '千位', '百位', '十位', '个位',
+                                 '1-5名', '6-10名', '冠亚和',  # 🆕 新增分组玩法
+                                 '和值', '点数', '三军', '独胆', '单码', '二不同号', '三不同号']  # 🆕 新增快三玩法
                 
                 df_target = df_clean[df_clean['玩法'].isin(valid_plays)]
                 
@@ -3454,6 +3499,29 @@ def main():
 
                 if len(df_target) == 0:
                     st.error("❌ 未找到符合条件的有效玩法数据")
+                    
+                    # 🆕 新增：显示数据预览，帮助诊断问题
+                    st.subheader("🔍 数据诊断信息")
+                    
+                    # 显示原始数据的玩法分布
+                    if len(df_clean) > 0:
+                        st.write("**原始数据玩法分布:**")
+                        play_dist = df_clean['玩法'].value_counts().head(20)
+                        st.dataframe(play_dist.reset_index().rename(columns={'index': '玩法', '玩法': '数量'}))
+                        
+                        st.write("**有效玩法列表:**")
+                        st.code(', '.join(valid_plays))
+                        
+                        # 检查哪些玩法不在有效列表中
+                        all_plays = df_clean['玩法'].unique()
+                        unmatched_plays = [play for play in all_plays if play not in valid_plays]
+                        if unmatched_plays:
+                            st.write(f"**未匹配的玩法 ({len(unmatched_plays)}个):**")
+                            for play in unmatched_plays[:10]:  # 显示前10个
+                                st.write(f"- {play}")
+                            if len(unmatched_plays) > 10:
+                                st.write(f"... 还有 {len(unmatched_plays) - 10} 个未显示")
+                    
                     st.info("""
                     **可能原因:**
                     1. 彩种名称不匹配 - 当前支持的彩种类型:
@@ -3463,10 +3531,14 @@ def main():
                     
                     2. 玩法名称不匹配 - 当前支持的玩法:
                        - **六合彩**: 特码, 正码一至正码六, 正一特至正六特, 平码, 平特
-                       - **时时彩/PK10/赛车**: 冠军、亚军、季军、第四名到第十名、定位胆、前一
+                       - **时时彩/PK10/赛车**: 冠军、亚军、季军、第四名到第十名、定位胆、前一、1-5名、6-10名
                        - **快三**: 和值
                     
                     3. 数据格式问题
+                    
+                    **建议:**
+                    1. 检查上方显示的"未匹配的玩法"，看看您的玩法是否在其中
+                    2. 如果需要添加新的玩法支持，请更新 valid_plays 列表
                     """)
                     return
 
