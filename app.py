@@ -1345,7 +1345,7 @@ class MultiLotteryCoverageAnalyzer:
         content_str = str(content) if content else ""
         return self.enhanced_extract_numbers(content_str, lottery_category, play_method)
     
-     def enhanced_extract_numbers(self, content, lottery_category='six_mark', play_method=None):
+    def enhanced_extract_numbers(self, content, lottery_category='six_mark', play_method=None):
         """增强号码提取 - 专门处理定位胆格式和尾数格式"""
         content_str = str(content).strip()
         numbers = []
