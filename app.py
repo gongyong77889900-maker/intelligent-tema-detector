@@ -741,14 +741,28 @@ class MultiLotteryCoverageAnalyzer:
             axis=1
         )
         
-        # 🆕 新增：拆分分组玩法为具体位置
-        if '彩种类型' in df_clean.columns:
-            logger.info("🔄 开始拆分分组玩法...")
-            initial_count = len(df_clean)
-            df_clean = self.split_group_plays(df_clean)
-            logger.info(f"✅ 分组玩法拆分完成: {initial_count} → {len(df_clean)} 条记录")
+        # 3. 🆕 增强：从内容中提取具体位置信息
+        df_clean['提取位置'] = df_clean.apply(
+            lambda row: self.enhanced_extract_position_from_content(
+                row['玩法'], 
+                row['内容'], 
+                row['彩种类型'] if not pd.isna(row['彩种类型']) else 'six_mark'
+            ), 
+            axis=1
+        )
         
-        # 3. 提取号码 - 使用正确的玩法和彩种类型
+        # 4. 🆕 如果提取到了具体位置，更新玩法列
+        mask = df_clean['提取位置'] != df_clean['玩法']
+        extracted_count = mask.sum()
+        
+        if extracted_count > 0:
+            logger.info(f"✅ 从内容中提取到 {extracted_count} 条记录的具体位置信息")
+            df_clean.loc[mask, '玩法'] = df_clean.loc[mask, '提取位置']
+        
+        # 删除临时列
+        df_clean = df_clean.drop('提取位置', axis=1)
+        
+        # 5. 提取号码 - 使用正确的玩法和彩种类型
         df_clean['提取号码'] = df_clean.apply(
             lambda row: self.cached_extract_numbers(
                 row['内容'], 
@@ -758,14 +772,19 @@ class MultiLotteryCoverageAnalyzer:
             axis=1
         )
         
-        # 4. 过滤无号码记录
+        # 6. 过滤无号码记录
         initial_count = len(df_clean)
         df_clean = df_clean[df_clean['提取号码'].apply(lambda x: len(x) > 0)]
         no_number_count = initial_count - len(df_clean)
         
-        # 5. 过滤非号码投注玩法
+        # 7. 过滤非号码投注玩法
         df_clean = self.filter_number_bets_only(df_clean)
         non_number_play_count = initial_count - no_number_count - len(df_clean)
+        
+        # 8. 🆕 输出预处理统计信息
+        logger.info(f"📊 预处理统计: 初始 {initial_count} 条记录")
+        logger.info(f"📊 提取号码后: {len(df_clean)} 条记录")
+        logger.info(f"📊 提取到具体位置: {extracted_count} 条记录")
         
         return df_clean, no_number_count, non_number_play_count
 
@@ -1255,26 +1274,54 @@ class MultiLotteryCoverageAnalyzer:
                 normalized_position = position_mapping.get(position, position)
                 return normalized_position
         
+        # 🆕 新增：处理"位置-号码"格式（如"冠军-01"、"亚军-05"）
+        if play_str in ['1-5名', '6-10名', '1~5名', '6~10名']:
+            # 检查内容中是否包含连字符格式的位置-号码对
+            if '-' in content_str or ',' in content_str:
+                # 尝试提取第一个位置名称
+                patterns = [
+                    r'^([^-]+)-',  # "冠军-01"
+                    r'([^,]+)-',   # 在逗号分隔的项目中找位置
+                ]
+                
+                for pattern in patterns:
+                    matches = re.findall(pattern, content_str)
+                    if matches:
+                        # 取第一个匹配的位置
+                        position = matches[0].strip()
+                        
+                        # 映射到标准位置
+                        position_mapping = {
+                            '冠军': '冠军', '亚军': '亚军', '季军': '季军',
+                            '第三名': '季军',  # 特殊映射
+                            '第四名': '第四名', '第五名': '第五名', '第六名': '第六名',
+                            '第七名': '第七名', '第八名': '第八名', '第九名': '第九名', '第十名': '第十名'
+                        }
+                        
+                        normalized_position = position_mapping.get(position, position)
+                        if normalized_position in ['冠军', '亚军', '季军', '第四名', '第五名', 
+                                                   '第六名', '第七名', '第八名', '第九名', '第十名']:
+                            return normalized_position
+        
         # 🆕 新增：处理没有冒号但内容明确包含位置名称的情况
-        if play_str == '定位胆':
-            content_lower = content_str.lower()
-            position_keywords = {
-                '冠军': ['冠军', '第一名', '第1名', '1st', '前一'],
-                '亚军': ['亚军', '第二名', '第2名', '2nd'],
-                '季军': ['季军', '第三名', '第3名', '3rd'],
-                '第四名': ['第四名', '第4名', '4th'],
-                '第五名': ['第五名', '第5名', '5th'],
-                '第六名': ['第六名', '第6名', '6th'],
-                '第七名': ['第七名', '第7名', '7th'],
-                '第八名': ['第八名', '第8名', '8th'],
-                '第九名': ['第九名', '第9名', '9th'],
-                '第十名': ['第十名', '第10名', '10th']
-            }
-            
-            for position, keywords in position_keywords.items():
-                for keyword in keywords:
-                    if keyword in content_lower:
-                        return position
+        content_lower = content_str.lower()
+        position_keywords = {
+            '冠军': ['冠军', '第一名', '第1名', '1st', '前一'],
+            '亚军': ['亚军', '第二名', '第2名', '2nd'],
+            '季军': ['季军', '第三名', '第3名', '3rd'],
+            '第四名': ['第四名', '第4名', '4th'],
+            '第五名': ['第五名', '第5名', '5th'],
+            '第六名': ['第六名', '第6名', '6th'],
+            '第七名': ['第七名', '第7名', '7th'],
+            '第八名': ['第八名', '第8名', '8th'],
+            '第九名': ['第九名', '第9名', '9th'],
+            '第十名': ['第十名', '第10名', '10th']
+        }
+        
+        for position, keywords in position_keywords.items():
+            for keyword in keywords:
+                if keyword in content_lower:
+                    return position
         
         return play_str
     
@@ -2549,7 +2596,7 @@ class MultiLotteryCoverageAnalyzer:
         return all_period_results
 
     def detect_cross_position_betting(self, df_target, min_avg_amount=5):
-        """检测跨位置对刷模式 - 新增方法
+        """检测跨位置对刷模式 - 改进版本
         
         针对PK10系列，检测不同账户在不同位置上合作覆盖所有号码的情况
         例如：账户A投注1-5名，账户B投注6-10名，合并后覆盖1-10
@@ -2562,8 +2609,13 @@ class MultiLotteryCoverageAnalyzer:
         if df_pk10.empty:
             return cross_position_results
         
+        logger.info(f"🔍 开始跨位置对刷检测: {len(df_pk10)} 条记录")
+        
         # 按期号分组分析
-        for period in df_pk10['期号'].unique():
+        periods = df_pk10['期号'].unique()
+        logger.info(f"📅 分析期数: {len(periods)}")
+        
+        for period in periods:
             period_data = df_pk10[df_pk10['期号'] == period]
             
             # 按账户和位置分组
@@ -2574,6 +2626,7 @@ class MultiLotteryCoverageAnalyzer:
                 account = row['会员账号']
                 position = row['玩法']
                 
+                # 使用提取号码或重新提取
                 if '提取号码' in row and row['提取号码']:
                     numbers = row['提取号码']
                 else:
@@ -2582,6 +2635,10 @@ class MultiLotteryCoverageAnalyzer:
                         '10_number', 
                         position
                     )
+                
+                # 如果没有提取到号码，跳过
+                if not numbers:
+                    continue
                 
                 # 初始化账户数据结构
                 if account not in account_positions:
@@ -2603,6 +2660,8 @@ class MultiLotteryCoverageAnalyzer:
             if len(accounts) < 2:
                 continue
             
+            logger.info(f"📊 期号 {period}: 有 {len(accounts)} 个账户投注")
+            
             # 检查所有2账户组合
             for i in range(len(accounts)):
                 for j in range(i+1, len(accounts)):
@@ -2623,10 +2682,10 @@ class MultiLotteryCoverageAnalyzer:
                     # 检查是否覆盖了1-10
                     if combined_numbers == set(range(1, 11)):
                         # 计算总金额
-                        total_amount = account_amounts[acc1] + account_amounts[acc2]
+                        total_amount = account_amounts.get(acc1, 0) + account_amounts.get(acc2, 0)
                         
                         # 计算每个号码的平均金额
-                        avg_per_number = total_amount / 10
+                        avg_per_number = total_amount / 10 if total_amount > 0 else 0
                         
                         # 检查是否满足金额阈值
                         if avg_per_number >= min_avg_amount:
@@ -2634,7 +2693,7 @@ class MultiLotteryCoverageAnalyzer:
                             result = {
                                 '期号': period,
                                 '账户组合': f"{acc1} ↔ {acc2}",
-                                '彩种': period_data['彩种'].iloc[0],
+                                '彩种': period_data['彩种'].iloc[0] if len(period_data) > 0 else '未知',
                                 '总投注金额': total_amount,
                                 '平均每号金额': avg_per_number,
                                 '覆盖情况': '1-10全覆盖',
@@ -2651,8 +2710,10 @@ class MultiLotteryCoverageAnalyzer:
                                 '类型': '跨位置对刷'
                             }
                             
+                            logger.info(f"✅ 发现跨位置对刷: {acc1} ↔ {acc2}, 期号: {period}")
                             cross_position_results.append(result)
         
+        logger.info(f"📊 跨位置对刷检测完成: 发现 {len(cross_position_results)} 个组合")
         return cross_position_results
     
     # ==================== 在 detect_cross_position_betting 方法后添加其他辅助方法 ====================
@@ -3365,11 +3426,25 @@ def main():
                 # 隐藏账户行为分析
                 pass
                 
-                # 统一的数据预处理
+                # 在数据预处理部分，替换为以下代码：
                 with st.spinner("正在进行数据预处理..."):
                     df_clean, no_number_count, non_number_play_count = analyzer.enhanced_data_preprocessing(df_clean)
-                # 隐藏账户行为分析
-                pass
+                    
+                    # 🆕 添加调试信息
+                    st.info(f"📊 数据预处理完成")
+                    st.info(f"- 初始记录数: {len(df_clean)}")
+                    st.info(f"- 提取到号码的记录数: {len(df_clean)}")
+                    
+                    # 显示预处理后的玩法分布
+                    play_distribution = df_clean['玩法'].value_counts().head(10)
+                    if not play_distribution.empty:
+                        st.info("🎯 预处理后的玩法分布（前10位）:")
+                        st.dataframe(play_distribution)
+                    
+                    # 显示样本数据
+                    with st.expander("🔍 查看预处理后的样本数据", expanded=False):
+                        sample_data = df_clean[['会员账号', '彩种', '玩法', '内容', '提取号码']].head(10)
+                        st.dataframe(sample_data)
                 
                 # 从投注内容中提取具体位置信息
                 with st.spinner("正在从投注内容中提取具体位置信息..."):
