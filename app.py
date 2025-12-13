@@ -742,8 +742,8 @@ class MultiLotteryCoverageAnalyzer:
                 new_rows.append(row_dict)
                 continue
             
-            # 检查是否为复合投注格式
-            if re.search(r'[^\d,\s-]+-\d+', content):
+            # 检查是否为复合投注格式（如"冠军-01,亚军-02"或"冠军:01,亚军:02"）
+            if re.search(r'[^\d,\s-]+[-:：]\d+', content):
                 # 解析所有位置-号码对
                 position_number_pairs = self.parse_complex_bet_content(content, play)
                 
@@ -896,6 +896,10 @@ class MultiLotteryCoverageAnalyzer:
             ), 
             axis=1
         )
+        
+        # 🆕 先保存原始金额列（如果存在）
+        if '投注金额' in df_clean.columns:
+            df_clean['原始金额'] = df_clean['投注金额']
         
         # 🆕 记录拆分前的原始金额
         logger.info("💰 原始金额统计:")
@@ -2733,10 +2737,12 @@ class MultiLotteryCoverageAnalyzer:
                 # 添加号码
                 account_positions[account][position].update(numbers)
                 
-                # 更新账户投注的号码总数
-                account_total_numbers[account] += len(numbers)
+                # 🆕 修正：计算实际投注的号码数量（考虑组合投注）
+                # 对于每个位置，号码数量就是该位置投注的号码数
+                position_number_count = len(numbers)
+                account_total_numbers[account] += position_number_count
                 
-                # 累加金额
+                # 累加金额 - 🆕 使用原始金额而不是拆分后的金额
                 if '投注金额' in row:
                     try:
                         bet_amount = float(row['投注金额'])
