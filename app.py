@@ -2661,7 +2661,7 @@ class MultiLotteryCoverageAnalyzer:
         return all_period_results
 
     def detect_cross_position_betting(self, df_target, min_avg_amount=5):
-        """检测跨位置对刷模式 - 修正平均金额计算逻辑"""
+        """检测跨位置对刷模式 - 返回完整信息"""
         cross_position_results = []
         
         # 只分析10个号码的彩种
@@ -2681,7 +2681,7 @@ class MultiLotteryCoverageAnalyzer:
             # 按账户和位置分组
             account_positions = {}
             account_amounts = {}
-            account_total_numbers = {}  # 🆕 新增：记录每个账户投注的号码总数
+            account_total_numbers = {}
             
             for _, row in period_data.iterrows():
                 account = row['会员账号']
@@ -2701,7 +2701,7 @@ class MultiLotteryCoverageAnalyzer:
                 if account not in account_positions:
                     account_positions[account] = {}
                     account_amounts[account] = 0
-                    account_total_numbers[account] = 0  # 🆕 初始化号码总数
+                    account_total_numbers[account] = 0
                 
                 if position not in account_positions[account]:
                     account_positions[account][position] = set()
@@ -2709,7 +2709,7 @@ class MultiLotteryCoverageAnalyzer:
                 # 添加号码
                 account_positions[account][position].update(numbers)
                 
-                # 🆕 更新账户投注的号码总数
+                # 更新账户投注的号码总数
                 account_total_numbers[account] += len(numbers)
                 
                 # 累加金额
@@ -2744,7 +2744,7 @@ class MultiLotteryCoverageAnalyzer:
                     
                     # 检查是否覆盖了1-10
                     if combined_numbers == set(range(1, 11)):
-                        # 🆕 分别计算每个账户的平均每号金额
+                        # 分别计算每个账户的平均每号金额
                         acc1_total_numbers = account_total_numbers.get(acc1, 0)
                         acc2_total_numbers = account_total_numbers.get(acc2, 0)
                         
@@ -2762,10 +2762,12 @@ class MultiLotteryCoverageAnalyzer:
                             # 计算组合总金额
                             total_amount = acc1_amount + acc2_amount
                             
-                            # 构建结果
+                            # 构建结果 - 包含所有需要的信息
                             result = {
                                 '期号': period,
                                 '账户组合': f"{acc1} ↔ {acc2}",
+                                '账户1': acc1,
+                                '账户2': acc2,
                                 '彩种': period_data['彩种'].iloc[0] if len(period_data) > 0 else '未知',
                                 '账户1总金额': round(acc1_amount, 2),
                                 '账户2总金额': round(acc2_amount, 2),
@@ -2789,8 +2791,6 @@ class MultiLotteryCoverageAnalyzer:
                             }
                             
                             logger.info(f"✅ 发现跨位置对刷: {acc1} ↔ {acc2}, 期号: {period}")
-                            logger.info(f"  账户1: 总金额¥{acc1_amount:.2f}, 号码数{acc1_total_numbers}, 平均每号¥{acc1_avg_per_number:.2f}")
-                            logger.info(f"  账户2: 总金额¥{acc2_amount:.2f}, 号码数{acc2_total_numbers}, 平均每号¥{acc2_avg_per_number:.2f}")
                             cross_position_results.append(result)
         
         logger.info(f"📊 跨位置对刷检测完成: 发现 {len(cross_position_results)} 个组合")
@@ -2799,7 +2799,7 @@ class MultiLotteryCoverageAnalyzer:
     # ==================== 在 detect_cross_position_betting 方法后添加其他辅助方法 ====================
     
     def enhanced_display_results(self, all_period_results, cross_position_results, analysis_mode, df_target=None):
-        """增强结果展示 - 修正平均金额显示逻辑"""
+        """增强结果展示 - 按照账户组合分组显示"""
         
         # 先显示传统的完美覆盖组合
         if all_period_results:
@@ -2810,127 +2810,263 @@ class MultiLotteryCoverageAnalyzer:
         if cross_position_results:
             st.subheader("🔄 跨位置对刷检测")
             
+            # 按账户组合分组整理结果
+            account_pair_groups = {}
+            for result in cross_position_results:
+                account_pair = result['账户组合']
+                if account_pair not in account_pair_groups:
+                    account_pair_groups[account_pair] = []
+                account_pair_groups[account_pair].append(result)
+            
             # 统计信息
             total_cross = len(cross_position_results)
-            st.metric("发现跨位置对刷组合", f"{total_cross}组")
+            unique_pairs = len(account_pair_groups)
+            st.metric("发现对刷组合", f"{unique_pairs}组")
+            st.metric("对刷期数", f"{total_cross}期")
             
-            # 显示详细结果
-            for idx, result in enumerate(cross_position_results, 1):
-                with st.expander(f"组合{idx}: {result['账户组合']} - {result['期号']}", expanded=True):
-                    # 获取账户名称
-                    account1, account2 = result['账户组合'].split(' ↔ ')
+            # 对每个账户组合分组显示
+            for account_pair, pair_results in account_pair_groups.items():
+                # 按期号排序
+                pair_results.sort(key=lambda x: x['期号'])
+                
+                # 计算统计信息
+                accounts = account_pair.split(' ↔ ')
+                account1, account2 = accounts[0], accounts[1]
+                
+                # 从原始数据中获取账户统计信息（如果有）
+                account1_stats = {'期数': 0, '记录数': 0}
+                account2_stats = {'期数': 0, '记录数': 0}
+                
+                if df_target is not None:
+                    # 获取账户1在该彩种下的投注统计
+                    account1_data = df_target[df_target['会员账号'] == account1]
+                    if not account1_data.empty:
+                        account1_stats['期数'] = account1_data['期号'].nunique()
+                        account1_stats['记录数'] = len(account1_data)
                     
-                    # 显示金额信息 - 修正为每个账户单独的平均每号金额
-                    st.write("**📊 投注金额分析:**")
-                    
-                    # 账户1详情
-                    st.write(f"**{account1}:**")
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.write(f"总金额: ¥{result['账户1总金额']:,.2f}")
-                    with col2:
-                        st.write(f"号码总数: {result['账户1号码总数']}个")
-                    with col3:
-                        st.write(f"平均每号金额: ¥{result['账户1平均每号金额']:,.2f}")
-                    
-                    # 账户2详情
-                    st.write(f"**{account2}:**")
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.write(f"总金额: ¥{result['账户2总金额']:,.2f}")
-                    with col2:
-                        st.write(f"号码总数: {result['账户2号码总数']}个")
-                    with col3:
-                        st.write(f"平均每号金额: ¥{result['账户2平均每号金额']:,.2f}")
-                    
-                    # 组合总金额
-                    st.write(f"**组合总金额:** ¥{result['组合总金额']:,.2f}")
-                    
-                    # 显示基本信息
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write(f"**期号:** {result['期号']}")
-                    with col2:
-                        st.write(f"**彩种:** {result['彩种']}")
-                    
-                    st.write(f"**检测类型:** {result['类型']}")
-                    
-                    # 🆕 优化显示：合并显示投注详情
-                    st.write(f"**🎯 {account1}投注详情:**")
-                    
-                    # 构建合并的投注详情字符串
-                    account1_bets = []
-                    for position, numbers in result['账户1号码'].items():
-                        numbers_str = ', '.join([f'{n:02d}' for n in numbers])
-                        account1_bets.append(f"{position}: {numbers_str}")
-                    
-                    # 用分号分隔，显示在一行
-                    st.write(f"投注位置: {'; '.join(account1_bets)}")
-                    
-                    # 账户2详情
-                    st.write(f"**🎯 {account2}投注详情:**")
-                    
-                    account2_bets = []
-                    for position, numbers in result['账户2号码'].items():
-                        numbers_str = ', '.join([f'{n:02d}' for n in numbers])
-                        account2_bets.append(f"{position}: {numbers_str}")
-                    
-                    st.write(f"投注位置: {'; '.join(account2_bets)}")
-                    
-                    # 合并覆盖情况
-                    st.write("**📈 合并覆盖情况:**")
-                    all_numbers = set()
-                    for numbers in result['账户1号码'].values():
-                        all_numbers.update(numbers)
-                    for numbers in result['账户2号码'].values():
-                        all_numbers.update(numbers)
-                    
-                    if all_numbers == set(range(1, 11)):
-                        # 按顺序显示所有号码
-                        sorted_numbers = sorted(all_numbers)
-                        numbers_display = ', '.join([f'{n:02d}' for n in sorted_numbers])
-                        st.success(f"✅ 完美覆盖1-10: {numbers_display}")
-                        
-                        # 显示覆盖统计
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("覆盖号码数", len(all_numbers))
-                        with col2:
-                            st.metric("应覆盖号码数", 10)
-                        with col3:
-                            st.metric("覆盖率", "100%")
+                    # 获取账户2在该彩种下的投注统计
+                    account2_data = df_target[df_target['会员账号'] == account2]
+                    if not account2_data.empty:
+                        account2_stats['期数'] = account2_data['期号'].nunique()
+                        account2_stats['记录数'] = len(account2_data)
+                
+                # 计算该组合的对刷统计
+                total_periods = len(pair_results)
+                total_amount = sum(r['组合总金额'] for r in pair_results)
+                avg_amount_per_period = total_amount / total_periods if total_periods > 0 else 0
+                
+                # 确定活跃度等级
+                def get_activity_level(periods):
+                    if periods <= 10:
+                        return '低活跃'
+                    elif periods <= 30:
+                        return '中活跃'
+                    elif periods <= 50:
+                        return '高活跃'
                     else:
-                        # 部分覆盖的情况
-                        missing_numbers = set(range(1, 11)) - all_numbers
-                        sorted_numbers = sorted(all_numbers)
-                        numbers_display = ', '.join([f'{n:02d}' for n in sorted(numbers)])
-                        st.warning(f"⚠️ 部分覆盖: {numbers_display}")
+                        return '极高活跃'
+                
+                # 确定主要对刷类型
+                def get_primary_type(pair_results):
+                    # 分析对刷模式
+                    modes = []
+                    for result in pair_results:
+                        acc1_positions = result['账户1位置']
+                        acc2_positions = result['账户2位置']
                         
-                        if missing_numbers:
-                            missing_display = ', '.join([f'{n:02d}' for n in sorted(missing_numbers)])
-                            st.info(f"缺失号码: {missing_display}")
+                        if '冠军' in acc1_positions and '第六名' in acc2_positions:
+                            modes.append('位置协作-基础')
+                        elif '冠军' in acc1_positions and '第七名' in acc2_positions:
+                            modes.append('位置协作-进阶')
+                        else:
+                            modes.append('位置协作-混合')
+                    
+                    # 返回出现最多的模式
+                    from collections import Counter
+                    if modes:
+                        return Counter(modes).most_common(1)[0][0]
+                    return '位置协作'
+                
+                # 确定主要彩种
+                def get_primary_lottery(pair_results):
+                    lotteries = [r['彩种'] for r in pair_results]
+                    from collections import Counter
+                    if lotteries:
+                        return Counter(lotteries).most_common(1)[0][0]
+                    return '未知彩种'
+                
+                # 获取主要号码
+                def get_primary_numbers(pair_results, account_index):
+                    all_numbers = []
+                    for result in pair_results:
+                        if account_index == 1:
+                            for numbers in result['账户1号码'].values():
+                                all_numbers.extend([f'{n:02d}' for n in numbers])
+                        else:
+                            for numbers in result['账户2号码'].values():
+                                all_numbers.extend([f'{n:02d}' for n in numbers])
+                    
+                    from collections import Counter
+                    if all_numbers:
+                        common_numbers = Counter(all_numbers).most_common(3)
+                        return ', '.join([num for num, _ in common_numbers])
+                    return '无'
+                
+                # 创建折叠框标题
+                title = f"**对刷组 {list(account_pair_groups.keys()).index(account_pair)+1}: {account_pair}**"
+                subtitle = f"活跃度: {get_activity_level(max(account1_stats['期数'], account2_stats['期数']))} | "
+                subtitle += f"彩种: {get_primary_lottery(pair_results)} | "
+                subtitle += f"对刷期数: {total_periods}期"
+                
+                with st.expander(f"{title} - {subtitle}", expanded=True):
+                    # 显示账户统计信息
+                    st.write(f"**账户在该彩种投注期数/总记录数:** {account1}({account1_stats['期数']}期/{account1_stats['记录数']}记录), {account2}({account2_stats['期数']}期/{account2_stats['记录数']}记录)")
+                    
+                    # 显示主要对刷类型
+                    primary_type = get_primary_type(pair_results)
+                    st.write(f"**主要对刷类型:** {primary_type}")
+                    
+                    # 显示金额统计
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("对刷期数", f"{total_periods}期")
+                    with col2:
+                        st.metric("总金额", f"¥{total_amount:,.2f}")
+                    with col3:
+                        st.metric("平均每期金额", f"¥{avg_amount_per_period:,.2f}")
+                    
+                    # 显示详细记录表格
+                    st.write("**详细记录:**")
+                    
+                    # 创建详细记录表格
+                    records_data = []
+                    for result in pair_results:
+                        # 提取主要信息
+                        period = result['期号']
+                        lottery = result['彩种']
+                        
+                        # 获取账户1的投注信息
+                        acc1_bets = []
+                        for position, numbers in result['账户1号码'].items():
+                            numbers_str = ', '.join([f'{n:02d}' for n in numbers])
+                            acc1_bets.append(f"{position}({numbers_str})")
+                        
+                        # 获取账户2的投注信息
+                        acc2_bets = []
+                        for position, numbers in result['账户2号码'].items():
+                            numbers_str = ', '.join([f'{n:02d}' for n in numbers])
+                            acc2_bets.append(f"{position}({numbers_str})")
+                        
+                        # 格式化金额
+                        acc1_amount = result['账户1总金额']
+                        acc2_amount = result['账户2总金额']
+                        
+                        records_data.append({
+                            '期号': period,
+                            '彩种': lottery,
+                            f'{account1}投注': '; '.join(acc1_bets),
+                            f'{account1}金额': f"¥{acc1_amount:,.1f}",
+                            f'{account2}投注': '; '.join(acc2_bets),
+                            f'{account2}金额': f"¥{acc2_amount:,.1f}",
+                            '合计金额': f"¥{result['组合总金额']:,.1f}"
+                        })
+                    
+                    # 显示表格
+                    if records_data:
+                        df_records = pd.DataFrame(records_data)
+                        st.dataframe(
+                            df_records,
+                            use_container_width=True,
+                            hide_index=True
+                        )
+                    
+                    # 显示对刷分析
+                    st.write("**对刷分析:**")
+                    
+                    # 分析对刷模式
+                    analysis_points = []
+                    
+                    # 1. 检查是否固定位置对刷
+                    acc1_positions_set = set()
+                    acc2_positions_set = set()
+                    for result in pair_results:
+                        acc1_positions_set.update(result['账户1位置'])
+                        acc2_positions_set.update(result['账户2位置'])
+                    
+                    if len(acc1_positions_set) <= 3 and len(acc2_positions_set) <= 3:
+                        analysis_points.append(f"✅ 固定位置对刷: {account1}主要在{', '.join(acc1_positions_set)}位置, {account2}主要在{', '.join(acc2_positions_set)}位置")
+                    
+                    # 2. 检查金额比例是否稳定
+                    amount_ratios = []
+                    for result in pair_results:
+                        if result['账户2总金额'] > 0:
+                            ratio = result['账户1总金额'] / result['账户2总金额']
+                            amount_ratios.append(ratio)
+                    
+                    if amount_ratios:
+                        avg_ratio = sum(amount_ratios) / len(amount_ratios)
+                        ratio_variance = max(amount_ratios) / min(amount_ratios) if min(amount_ratios) > 0 else 0
+                        
+                        if ratio_variance < 1.5:
+                            analysis_points.append(f"✅ 金额比例稳定: {account1}:{account2} ≈ {avg_ratio:.2f}:1")
+                        else:
+                            analysis_points.append(f"⚠️ 金额比例波动: 从{min(amount_ratios):.2f}:1到{max(amount_ratios):.2f}:1")
+                    
+                    # 3. 检查号码覆盖情况
+                    all_numbers = set()
+                    for result in pair_results:
+                        for numbers in result['账户1号码'].values():
+                            all_numbers.update(numbers)
+                        for numbers in result['账户2号码'].values():
+                            all_numbers.update(numbers)
+                    
+                    coverage_rate = len(all_numbers) / 10 * 100
+                    if coverage_rate >= 80:
+                        analysis_points.append(f"✅ 号码覆盖率高: 覆盖{len(all_numbers)}/10个号码 ({coverage_rate:.0f}%)")
+                    else:
+                        analysis_points.append(f"⚠️ 号码覆盖率一般: 仅覆盖{len(all_numbers)}/10个号码 ({coverage_rate:.0f}%)")
+                    
+                    # 显示分析点
+                    for point in analysis_points:
+                        st.write(point)
+                    
+                    # 添加风险评级
+                    st.write("**风险评级:**")
+                    
+                    # 根据多个因素评估风险
+                    risk_score = 0
+                    
+                    # 对刷期数越多风险越高
+                    risk_score += min(total_periods * 2, 20)
+                    
+                    # 金额越大风险越高
+                    if avg_amount_per_period > 100:
+                        risk_score += 20
+                    elif avg_amount_per_period > 50:
+                        risk_score += 15
+                    elif avg_amount_per_period > 20:
+                        risk_score += 10
+                    elif avg_amount_per_period > 10:
+                        risk_score += 5
+                    
+                    # 位置固定性越高风险越高
+                    if len(acc1_positions_set) <= 2 and len(acc2_positions_set) <= 2:
+                        risk_score += 15
+                    
+                    # 确定风险等级
+                    if risk_score >= 40:
+                        risk_level = "🔴 高风险"
+                    elif risk_score >= 25:
+                        risk_level = "🟡 中风险"
+                    else:
+                        risk_level = "🟢 低风险"
+                    
+                    st.write(f"{risk_level} (评分: {risk_score}/60)")
         else:
             if all_period_results:
                 st.info("🔍 未发现跨位置对刷组合")
             else:
                 st.info("🎉 未发现任何对刷组合")
-
-    def analyze_with_progress_enhanced(self, df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode):
-        """增强版分析 - 包含跨位置对刷检测"""
-        
-        # 原有的分析逻辑
-        all_period_results = self.analyze_with_progress(
-            df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode
-        )
-        
-        # 新增：跨位置对刷检测
-        cross_position_results = []
-        if analysis_mode == "自动识别所有彩种" or analysis_mode == "仅分析时时彩/PK10/赛车":
-            # 使用时时彩的金额阈值
-            min_avg_amount = ten_number_params.get('min_avg_amount', 5)
-            cross_position_results = self.detect_cross_position_betting(df_target, min_avg_amount)
-        
-        return all_period_results, cross_position_results
 
     def display_enhanced_results(self, all_period_results, analysis_mode, df_target=None):
         """增强结果展示 - 保留统计信息版本，传入df_target用于计算总投注期数"""
