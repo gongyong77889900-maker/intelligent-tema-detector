@@ -724,22 +724,20 @@ class MultiLotteryCoverageAnalyzer:
         return filtered_df
 
     def split_complex_bets(self, df):
-        """拆分包含多个位置-号码对的复合投注记录 - 完全重写版本"""
+        """拆分包含多个位置-号码对的复合投注记录 - 紧急修复版本"""
         if df.empty:
             return df
         
         new_rows = []
         
         for idx, row in df.iterrows():
-            # 创建行的字典副本，确保可以修改
-            row_dict = row.to_dict()
-            content = str(row_dict['内容']).strip()
-            play = str(row_dict['玩法']).strip()
-            lottery_category = row_dict.get('彩种类型', '10_number')
+            content = str(row['内容']).strip()
+            play = str(row['玩法']).strip()
+            lottery_category = row.get('彩种类型', '10_number')
             
             # 只处理10个号码的彩种，且内容包含多个位置-号码对
             if lottery_category != '10_number':
-                new_rows.append(row_dict)
+                new_rows.append(row)
                 continue
             
             # 检查是否为复合投注格式（包含多个位置-号码对）
@@ -748,51 +746,62 @@ class MultiLotteryCoverageAnalyzer:
                 position_number_pairs = self.parse_complex_bet_content(content, play)
                 
                 if len(position_number_pairs) > 1:
-                    # 获取原始投注金额
+                    # 🆕 获取原始金额
                     original_amount = 0
-                    if '投注金额' in row_dict and row_dict['投注金额']:
+                    if '投注金额' in row:
                         try:
-                            original_amount = float(row_dict['投注金额'])
-                        except (ValueError, TypeError):
+                            original_amount = float(row['投注金额'])
+                        except:
                             original_amount = 0
                     
-                    # 计算每条拆分记录的金额（按位置数平分）
-                    split_amount = original_amount / len(position_number_pairs) if original_amount > 0 else 0
+                    # 🆕 硬编码：计算每条记录的金额
+                    split_amount = original_amount / len(position_number_pairs)
                     
-                    # 记录调试信息
-                    logger.info(f"🔧 正在拆分复合投注 - 账户: {row_dict.get('会员账号', '未知')}, "
-                              f"期号: {row_dict.get('期号', '未知')}, 原始金额: {original_amount}, "
-                              f"拆分为 {len(position_number_pairs)} 条记录, 每条金额: {split_amount:.2f}")
-                    
-                    # 拆分记录
+                    # 🆕 直接拆分，不做任何复杂处理
                     for position, numbers in position_number_pairs.items():
-                        # 创建新记录
-                        new_row = row_dict.copy()
+                        # 创建新行
+                        new_row = {
+                            '会员账号': row['会员账号'],
+                            '彩种': row['彩种'],
+                            '期号': row['期号'],
+                            '玩法': position,
+                            '内容': ','.join([str(n) for n in sorted(numbers)]),
+                            '彩种类型': lottery_category,
+                            '投注金额': split_amount,  # 🆕 直接使用拆分后的金额
+                            '提取号码': sorted(numbers)  # 🆕 直接设置提取号码
+                        }
                         
-                        # 更新玩法为具体位置
-                        new_row['玩法'] = position
-                        
-                        # 更新内容为号码
-                        numbers_str = ','.join([str(n) for n in sorted(numbers)])
-                        new_row['内容'] = numbers_str
-                        
-                        # 🆕 关键修复：显式设置拆分后的金额
-                        new_row['投注金额'] = round(split_amount, 2)
-                        
-                        # 记录调试信息
-                        logger.debug(f"   生成新记录 - 位置: {position}, 号码: {numbers_str}, 金额: {new_row['投注金额']:.2f}")
+                        # 保留其他列
+                        for col in df.columns:
+                            if col not in new_row:
+                                new_row[col] = row[col]
                         
                         new_rows.append(new_row)
                     continue
             
             # 非复合投注，保留原记录
-            new_rows.append(row_dict)
+            new_rows.append(row)
         
         if new_rows:
             result_df = pd.DataFrame(new_rows).reset_index(drop=True)
             
-            # 验证拆分结果
-            self._validate_split_results(df, result_df)
+            # 🆕 立即输出验证结果
+            print("=" * 50)
+            print("金额拆分验证结果:")
+            print("=" * 50)
+            
+            for period in result_df['期号'].unique():
+                period_data = result_df[result_df['期号'] == period]
+                print(f"期号: {period}")
+                for account in period_data['会员账号'].unique():
+                    account_data = period_data[period_data['会员账号'] == account]
+                    total_amount = account_data['投注金额'].sum()
+                    record_count = len(account_data)
+                    print(f"  账户: {account}")
+                    print(f"    记录数: {record_count}")
+                    print(f"    总金额: ¥{total_amount:.2f}")
+                    print(f"    平均每条: ¥{total_amount/record_count:.2f}" if record_count > 0 else "    平均每条: ¥0.00")
+                    print(f"    样本金额: {account_data['投注金额'].head(3).tolist()}")
             
             return result_df
         return df
