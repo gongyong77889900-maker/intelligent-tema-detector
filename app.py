@@ -2660,6 +2660,30 @@ class MultiLotteryCoverageAnalyzer:
         
         return all_period_results
 
+    def analyze_with_progress_enhanced(self, df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode):
+        """增强版带进度显示的分析 - 包含跨位置对刷检测"""
+        
+        # 首先进行传统完美组合分析
+        all_period_results = self.analyze_with_progress(df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode)
+        
+        # 然后进行跨位置对刷检测
+        cross_position_results = []
+        
+        # 只在分析时时彩/PK10/赛车时进行跨位置对刷检测
+        if analysis_mode in ["自动识别所有彩种", "仅分析时时彩/PK10/赛车"]:
+            # 获取最小平均金额阈值
+            min_avg_amount = ten_number_params.get('min_avg_amount', 5)
+            
+            # 只分析10个号码的彩种
+            df_pk10 = df_target[df_target['彩种类型'] == '10_number'].copy()
+            
+            if not df_pk10.empty:
+                logger.info(f"🔍 开始跨位置对刷检测: {len(df_pk10)} 条记录")
+                cross_position_results = self.detect_cross_position_betting(df_pk10, min_avg_amount)
+                logger.info(f"📊 跨位置对刷检测完成: 发现 {len(cross_position_results)} 个组合")
+        
+        return all_period_results, cross_position_results
+
     def detect_cross_position_betting(self, df_target, min_avg_amount=5):
         """检测跨位置对刷模式 - 返回完整信息"""
         cross_position_results = []
