@@ -723,6 +723,121 @@ class MultiLotteryCoverageAnalyzer:
         
         return filtered_df
 
+    def split_complex_bets(self, df):
+        """拆分包含多个位置-号码对的复合投注记录 - 新增方法"""
+        if df.empty:
+            return df
+        
+        new_rows = []
+        
+        for idx, row in df.iterrows():
+            content = str(row['内容']).strip()
+            play = str(row['玩法']).strip()
+            lottery_category = row.get('彩种类型', '10_number')
+            
+            # 只处理10个号码的彩种，且内容包含多个位置-号码对
+            if lottery_category != '10_number':
+                new_rows.append(row)
+                continue
+            
+            # 检查是否为复合投注格式（包含多个位置-号码对）
+            if re.search(r'[^\d,\s-]+-\d+', content):
+                # 解析所有位置-号码对
+                position_number_pairs = self.parse_complex_bet_content(content, play)
+                
+                if len(position_number_pairs) > 1:
+                    # 拆分记录
+                    for position, numbers in position_number_pairs.items():
+                        new_row = row.copy()
+                        new_row['玩法'] = position
+                        
+                        # 将号码列表转换为逗号分隔的字符串
+                        numbers_str = ','.join([str(n) for n in sorted(numbers)])
+                        new_row['内容'] = numbers_str
+                        
+                        # 如果是拆分后的记录，调整金额
+                        if '投注金额' in new_row and new_row['投注金额'] > 0:
+                            # 按拆分后的记录数平分金额
+                            new_row['投注金额'] = new_row['投注金额'] / len(position_number_pairs)
+                        
+                        new_rows.append(new_row)
+                    continue
+            
+            # 非复合投注，保留原记录
+            new_rows.append(row)
+        
+        if new_rows:
+            return pd.DataFrame(new_rows)
+        return df
+    
+    def parse_complex_bet_content(self, content, original_play):
+        """解析复合投注内容中的多个位置-号码对 - 新增方法"""
+        content_str = str(content).strip()
+        position_number_pairs = {}
+        
+        try:
+            # 定义位置映射
+            position_mapping = {
+                '冠军': '冠军', '亚军': '亚军', '季军': '季军', 
+                '第三名': '季军',  # 特殊情况：第三名就是季军
+                '第四名': '第四名', '第五名': '第五名',
+                '第六名': '第六名', '第七名': '第七名', '第八名': '第八名', 
+                '第九名': '第九名', '第十名': '第十名'
+            }
+            
+            # 清理内容
+            content_str = re.sub(r'\s+', ' ', content_str)
+            
+            # 按逗号分割不同的位置-号码对
+            pairs = re.split(r'[,，]', content_str)
+            
+            for pair in pairs:
+                pair = pair.strip()
+                if not pair:
+                    continue
+                
+                # 匹配"位置-号码"格式
+                match = re.match(r'([^-]+)-(\d{1,2})', pair)
+                if match:
+                    position_raw = match.group(1).strip()
+                    number = int(match.group(2))
+                    
+                    # 规范化位置名称
+                    position = position_mapping.get(position_raw, position_raw)
+                    
+                    # 添加到对应的位置集合
+                    if position not in position_number_pairs:
+                        position_number_pairs[position] = set()
+                    
+                    position_number_pairs[position].add(number)
+            
+            # 如果没有匹配到任何位置-号码对，尝试其他格式
+            if not position_number_pairs and re.search(r'\d+', content_str):
+                # 可能只有号码，使用原始玩法作为位置
+                numbers = re.findall(r'\d+', content_str)
+                if numbers and original_play in ['1-5名', '6-10名']:
+                    # 确定具体的位置列表
+                    if original_play == '1-5名':
+                        positions = ['冠军', '亚军', '季军', '第四名', '第五名']
+                    else:
+                        positions = ['第六名', '第七名', '第八名', '第九名', '第十名']
+                    
+                    # 按顺序分配号码到位置
+                    for i, num_str in enumerate(numbers[:len(positions)]):
+                        if i < len(positions):
+                            position = positions[i]
+                            number = int(num_str)
+                            
+                            if position not in position_number_pairs:
+                                position_number_pairs[position] = set()
+                            
+                            position_number_pairs[position].add(number)
+        
+        except Exception as e:
+            logger.warning(f"解析复合投注内容失败: {content_str}, 错误: {str(e)}")
+        
+        return position_number_pairs
+
     def fixed_extract_amount(self, amount_str):
         """修复的金额提取方法"""
         return self.cached_extract_amount(str(amount_str))
@@ -741,28 +856,13 @@ class MultiLotteryCoverageAnalyzer:
             axis=1
         )
         
-        # 3. 🆕 增强：从内容中提取具体位置信息
-        df_clean['提取位置'] = df_clean.apply(
-            lambda row: self.enhanced_extract_position_from_content(
-                row['玩法'], 
-                row['内容'], 
-                row['彩种类型'] if not pd.isna(row['彩种类型']) else 'six_mark'
-            ), 
-            axis=1
-        )
+        # 🆕 新增：拆分复合投注记录（针对PK10系列）
+        logger.info("🔄 开始拆分复合投注记录...")
+        initial_count = len(df_clean)
+        df_clean = self.split_complex_bets(df_clean)
+        logger.info(f"✅ 复合投注拆分完成: {initial_count} → {len(df_clean)} 条记录")
         
-        # 4. 🆕 如果提取到了具体位置，更新玩法列
-        mask = df_clean['提取位置'] != df_clean['玩法']
-        extracted_count = mask.sum()
-        
-        if extracted_count > 0:
-            logger.info(f"✅ 从内容中提取到 {extracted_count} 条记录的具体位置信息")
-            df_clean.loc[mask, '玩法'] = df_clean.loc[mask, '提取位置']
-        
-        # 删除临时列
-        df_clean = df_clean.drop('提取位置', axis=1)
-        
-        # 5. 提取号码 - 使用正确的玩法和彩种类型
+        # 3. 提取号码 - 使用正确的玩法和彩种类型
         df_clean['提取号码'] = df_clean.apply(
             lambda row: self.cached_extract_numbers(
                 row['内容'], 
@@ -772,19 +872,18 @@ class MultiLotteryCoverageAnalyzer:
             axis=1
         )
         
-        # 6. 过滤无号码记录
+        # 4. 过滤无号码记录
         initial_count = len(df_clean)
         df_clean = df_clean[df_clean['提取号码'].apply(lambda x: len(x) > 0)]
         no_number_count = initial_count - len(df_clean)
         
-        # 7. 过滤非号码投注玩法
+        # 5. 过滤非号码投注玩法
         df_clean = self.filter_number_bets_only(df_clean)
         non_number_play_count = initial_count - no_number_count - len(df_clean)
         
-        # 8. 🆕 输出预处理统计信息
+        # 6. 🆕 输出预处理统计信息
         logger.info(f"📊 预处理统计: 初始 {initial_count} 条记录")
         logger.info(f"📊 提取号码后: {len(df_clean)} 条记录")
-        logger.info(f"📊 提取到具体位置: {extracted_count} 条记录")
         
         return df_clean, no_number_count, non_number_play_count
 
@@ -2596,11 +2695,7 @@ class MultiLotteryCoverageAnalyzer:
         return all_period_results
 
     def detect_cross_position_betting(self, df_target, min_avg_amount=5):
-        """检测跨位置对刷模式 - 改进版本
-        
-        针对PK10系列，检测不同账户在不同位置上合作覆盖所有号码的情况
-        例如：账户A投注1-5名，账户B投注6-10名，合并后覆盖1-10
-        """
+        """检测跨位置对刷模式 - 改进版本，支持拆分后的数据"""
         cross_position_results = []
         
         # 只分析10个号码的彩种
@@ -2626,15 +2721,11 @@ class MultiLotteryCoverageAnalyzer:
                 account = row['会员账号']
                 position = row['玩法']
                 
-                # 使用提取号码或重新提取
+                # 使用提取号码
                 if '提取号码' in row and row['提取号码']:
                     numbers = row['提取号码']
                 else:
-                    numbers = self.cached_extract_numbers(
-                        row['内容'], 
-                        '10_number', 
-                        position
-                    )
+                    continue
                 
                 # 如果没有提取到号码，跳过
                 if not numbers:
@@ -2661,6 +2752,7 @@ class MultiLotteryCoverageAnalyzer:
                 continue
             
             logger.info(f"📊 期号 {period}: 有 {len(accounts)} 个账户投注")
+            logger.info(f"📊 账户位置分布: { {acc: list(pos.keys()) for acc, pos in account_positions.items()} }")
             
             # 检查所有2账户组合
             for i in range(len(accounts)):
@@ -2711,6 +2803,8 @@ class MultiLotteryCoverageAnalyzer:
                             }
                             
                             logger.info(f"✅ 发现跨位置对刷: {acc1} ↔ {acc2}, 期号: {period}")
+                            logger.info(f"  账户1号码: {result['账户1号码']}")
+                            logger.info(f"  账户2号码: {result['账户2号码']}")
                             cross_position_results.append(result)
         
         logger.info(f"📊 跨位置对刷检测完成: 发现 {len(cross_position_results)} 个组合")
@@ -3430,21 +3524,33 @@ def main():
                 with st.spinner("正在进行数据预处理..."):
                     df_clean, no_number_count, non_number_play_count = analyzer.enhanced_data_preprocessing(df_clean)
                     
-                    # 🆕 添加调试信息
-                    st.info(f"📊 数据预处理完成")
-                    st.info(f"- 初始记录数: {len(df_clean)}")
-                    st.info(f"- 提取到号码的记录数: {len(df_clean)}")
+                    # 显示预处理统计
+                    st.success(f"✅ 数据预处理完成，共 {len(df_clean)} 条记录")
                     
-                    # 显示预处理后的玩法分布
-                    play_distribution = df_clean['玩法'].value_counts().head(10)
-                    if not play_distribution.empty:
-                        st.info("🎯 预处理后的玩法分布（前10位）:")
-                        st.dataframe(play_distribution)
+                    # 显示彩种类型分布
+                    if '彩种类型' in df_clean.columns:
+                        lottery_dist = df_clean['彩种类型'].value_counts()
+                        st.info("🎲 彩种类型分布:")
+                        st.dataframe(lottery_dist)
                     
-                    # 显示样本数据
-                    with st.expander("🔍 查看预处理后的样本数据", expanded=False):
-                        sample_data = df_clean[['会员账号', '彩种', '玩法', '内容', '提取号码']].head(10)
+                    # 显示玩法分布
+                    play_dist = df_clean['玩法'].value_counts().head(20)
+                    st.info("🎯 玩法分布（前20位）:")
+                    st.dataframe(play_dist)
+                    
+                    # 显示详细样本数据
+                    with st.expander("🔍 查看详细的预处理后数据样本", expanded=False):
+                        sample_cols = ['会员账号', '彩种', '玩法', '内容', '提取号码']
+                        if '投注金额' in df_clean.columns:
+                            sample_cols.append('投注金额')
+                        
+                        sample_data = df_clean[sample_cols].head(20)
                         st.dataframe(sample_data)
+                        
+                        # 显示每个账户的投注情况
+                        st.info("👥 各账户投注统计:")
+                        account_stats = df_clean['会员账号'].value_counts().head(10)
+                        st.dataframe(account_stats)
                 
                 # 从投注内容中提取具体位置信息
                 with st.spinner("正在从投注内容中提取具体位置信息..."):
