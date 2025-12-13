@@ -724,7 +724,7 @@ class MultiLotteryCoverageAnalyzer:
         return filtered_df
 
     def split_complex_bets(self, df):
-        """拆分包含多个位置-号码对的复合投注记录 - 修复金额计算"""
+        """拆分包含多个位置-号码对的复合投注记录 - 修复金额拆分问题"""
         if df.empty:
             return df
         
@@ -758,7 +758,7 @@ class MultiLotteryCoverageAnalyzer:
                     split_amount = original_amount / len(position_number_pairs) if original_amount > 0 else 0
                     
                     # 记录日志以便调试
-                    logger.info(f"拆分复合投注: 账户={row.get('会员账号', '未知')}, 期号={row.get('期号', '未知')}, "
+                    logger.info(f"🔧 拆分复合投注: 账户={row.get('会员账号', '未知')}, 期号={row.get('期号', '未知')}, "
                               f"原始金额={original_amount}, 拆分为{len(position_number_pairs)}条, 每条金额={split_amount:.2f}")
                     
                     # 拆分记录
@@ -770,8 +770,12 @@ class MultiLotteryCoverageAnalyzer:
                         numbers_str = ','.join([str(n) for n in sorted(numbers)])
                         new_row['内容'] = numbers_str
                         
-                        # 设置拆分后的金额
+                        # 🆕 关键修复：确保设置拆分后的金额
+                        # 这里必须使用round确保精度
                         new_row['投注金额'] = round(split_amount, 2)
+                        
+                        # 🆕 调试：检查设置后的金额
+                        logger.debug(f"  设置新行金额: {new_row['投注金额']:.2f} (原始: {original_amount:.2f} / {len(position_number_pairs)}条)")
                         
                         new_rows.append(new_row)
                     continue
@@ -780,7 +784,26 @@ class MultiLotteryCoverageAnalyzer:
             new_rows.append(row)
         
         if new_rows:
-            return pd.DataFrame(new_rows).reset_index(drop=True)
+            result_df = pd.DataFrame(new_rows).reset_index(drop=True)
+            
+            # 🆕 验证拆分后的金额
+            if '投注金额' in result_df.columns:
+                # 计算原始行金额和拆分后金额的对比
+                original_total = df['投注金额'].sum() if '投注金额' in df.columns else 0
+                split_total = result_df['投注金额'].sum()
+                
+                logger.info(f"💰 金额拆分验证: 原始总金额={original_total:.2f}, 拆分后总金额={split_total:.2f}")
+                
+                # 检查每个账户在每期的金额是否正确
+                if '期号' in result_df.columns and '会员账号' in result_df.columns:
+                    for period in result_df['期号'].unique():
+                        period_data = result_df[result_df['期号'] == period]
+                        for account in period_data['会员账号'].unique():
+                            account_data = period_data[period_data['会员账号'] == account]
+                            account_total = account_data['投注金额'].sum()
+                            logger.info(f"📊 期号 {period} - 账户 {account}: 拆分后总金额={account_total:.2f}")
+            
+            return result_df
         return df
     
     def parse_complex_bet_content(self, content, original_play):
@@ -871,20 +894,20 @@ class MultiLotteryCoverageAnalyzer:
         
         # 🆕 新增：拆分复合投注记录（针对PK10系列）
         logger.info("🔄 开始拆分复合投注记录...")
+        
+        # 记录拆分前的金额统计
+        if '投注金额' in df_clean.columns:
+            original_amount_stats = {}
+            if '期号' in df_clean.columns and '会员账号' in df_clean.columns:
+                grouped = df_clean.groupby(['期号', '会员账号'])['投注金额'].sum()
+                for (period, account), amount in grouped.items():
+                    original_amount_stats[(period, account)] = amount
+                    logger.info(f"📊 拆分前 - 期号 {period} - 账户 {account}: 原始金额={amount:.2f}")
+        
         initial_count = len(df_clean)
         df_clean = self.split_complex_bets(df_clean)
         after_split_count = len(df_clean)
         logger.info(f"✅ 复合投注拆分完成: {initial_count} → {after_split_count} 条记录")
-        
-        # 🆕 验证拆分后的金额
-        if '投注金额' in df_clean.columns:
-            total_amount = df_clean['投注金额'].sum()
-            logger.info(f"💰 拆分后总金额: ¥{total_amount:.2f}")
-            
-            # 检查每个账户在每期的总金额
-            if '会员账号' in df_clean.columns and '期号' in df_clean.columns:
-                account_period_stats = df_clean.groupby(['期号', '会员账号'])['投注金额'].sum()
-                logger.info(f"📊 账户-期号金额统计:\n{account_period_stats.to_string()}")
         
         # 3. 提取号码 - 使用正确的玩法和彩种类型
         df_clean['提取号码'] = df_clean.apply(
@@ -904,10 +927,6 @@ class MultiLotteryCoverageAnalyzer:
         # 5. 过滤非号码投注玩法
         df_clean = self.filter_number_bets_only(df_clean)
         non_number_play_count = initial_count - no_number_count - len(df_clean)
-        
-        # 6. 🆕 输出预处理统计信息
-        logger.info(f"📊 预处理统计: 初始 {initial_count} 条记录")
-        logger.info(f"📊 提取号码后: {len(df_clean)} 条记录")
         
         return df_clean, no_number_count, non_number_play_count
 
@@ -2732,7 +2751,7 @@ class MultiLotteryCoverageAnalyzer:
         return all_period_results
 
     def detect_cross_position_betting(self, df_target, min_avg_amount=5):
-        """检测跨位置对刷模式 - 修复金额计算"""
+        """检测跨位置对刷模式 - 修复金额计算问题"""
         cross_position_results = []
         
         # 只分析10个号码的彩种
@@ -2778,12 +2797,13 @@ class MultiLotteryCoverageAnalyzer:
                 # 添加号码
                 account_positions[account][position].update(numbers)
                 
-                # 累加金额 - 确保正确处理浮点数
+                # 🆕 关键修复：累加金额
                 if '投注金额' in row:
                     try:
                         bet_amount = float(row['投注金额'])
+                        # 添加调试信息
+                        logger.debug(f"期号 {period} - 账户 {account} - 位置 {position}: 金额 {bet_amount:.2f}")
                         account_amounts[account] += bet_amount
-                        logger.debug(f"期号 {period} - 账户 {account} - 位置 {position}: 金额 {bet_amount:.2f}, 累计 {account_amounts[account]:.2f}")
                     except Exception as e:
                         logger.warning(f"金额累加失败: {row.get('投注金额', '无')}, 错误: {str(e)}")
             
@@ -2792,7 +2812,9 @@ class MultiLotteryCoverageAnalyzer:
             if len(accounts) < 2:
                 continue
             
-            logger.info(f"📊 期号 {period}: 账户金额统计: { {acc: f'{amount:.2f}' for acc, amount in account_amounts.items()} }")
+            # 🆕 记录每个账户的总金额
+            for account, amount in account_amounts.items():
+                logger.info(f"📊 期号 {period} - 账户 {account} 总投注金额: ¥{amount:.2f}")
             
             # 检查所有2账户组合
             for i in range(len(accounts)):
@@ -2839,10 +2861,14 @@ class MultiLotteryCoverageAnalyzer:
                                     pos: sorted(list(nums)) 
                                     for pos, nums in account_positions[acc2].items()
                                 },
-                                '类型': '跨位置对刷'
+                                '类型': '跨位置对刷',
+                                '账户1总金额': round(account_amounts.get(acc1, 0), 2),  # 🆕 添加各个账户的总金额
+                                '账户2总金额': round(account_amounts.get(acc2, 0), 2)
                             }
                             
-                            logger.info(f"✅ 发现跨位置对刷: {acc1} ↔ {acc2}, 期号: {period}, 总金额: {total_amount:.2f}")
+                            logger.info(f"✅ 发现跨位置对刷: {acc1} ↔ {acc2}, 期号: {period}")
+                            logger.info(f"  账户1总金额: ¥{result['账户1总金额']:.2f}, 账户2总金额: ¥{result['账户2总金额']:.2f}")
+                            logger.info(f"  检测总金额: ¥{total_amount:.2f}, 平均每号金额: ¥{avg_per_number:.2f}")
                             cross_position_results.append(result)
         
         logger.info(f"📊 跨位置对刷检测完成: 发现 {len(cross_position_results)} 个组合")
@@ -2869,45 +2895,41 @@ class MultiLotteryCoverageAnalyzer:
             # 显示详细结果
             for idx, result in enumerate(cross_position_results, 1):
                 with st.expander(f"组合{idx}: {result['账户组合']} - {result['期号']}", expanded=True):
-                    # 显示原始金额信息
-                    st.write(f"**原始投注金额分析:**")
-                    
-                    # 计算每个账户的原始投注金额（从原始数据）
-                    if df_target is not None:
-                        period_data = df_target[df_target['期号'] == result['期号']]
-                        for account in result['账户组合'].split(' ↔ '):
-                            account_data = period_data[period_data['会员账号'] == account]
-                            if not account_data.empty:
-                                original_amount = account_data['投注金额'].sum() if '投注金额' in account_data.columns else 0
-                                st.write(f"- **{account}** 原始总投注: ¥{original_amount:,.2f}")
-                    
+                    # 🆕 添加各个账户的详细金额信息
+                    st.write("**详细金额分析:**")
                     col1, col2, col3 = st.columns(3)
+                    with col1:
+                        account1 = result['账户组合'].split(' ↔ ')[0]
+                        st.write(f"**{account1}总金额:** ¥{result.get('账户1总金额', 0):,.2f}")
+                    with col2:
+                        account2 = result['账户组合'].split(' ↔ ')[1]
+                        st.write(f"**{account2}总金额:** ¥{result.get('账户2总金额', 0):,.2f}")
+                    with col3:
+                        st.write(f"**检测总金额:** ¥{result['总投注金额']:,.2f}")
+                    
+                    col1, col2 = st.columns(2)
                     with col1:
                         st.write(f"**期号:** {result['期号']}")
                     with col2:
                         st.write(f"**彩种:** {result['彩种']}")
-                    with col3:
-                        st.write(f"**检测总金额:** ¥{result['总投注金额']:,.2f}")
                     
                     st.write(f"**平均每号金额:** ¥{result['平均每号金额']:,.2f}")
                     st.write(f"**覆盖情况:** {result['覆盖情况']}")
                     st.write(f"**检测类型:** {result['类型']}")
                     
                     # 账户1详情
-                    st.write("**账户1详情:**")
+                    st.write(f"**账户1详情 ({account1}):**")
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.write(f"- **账户:** {result['账户组合'].split(' ↔ ')[0]}")
                         st.write(f"- **投注位置:** {', '.join(result['账户1位置'])}")
                     with col2:
                         for position, numbers in result['账户1号码'].items():
                             st.write(f"  - {position}: {', '.join([f'{n:02d}' for n in numbers])}")
                     
                     # 账户2详情
-                    st.write("**账户2详情:**")
+                    st.write(f"**账户2详情 ({account2}):**")
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.write(f"- **账户:** {result['账户组合'].split(' ↔ ')[1]}")
                         st.write(f"- **投注位置:** {', '.join(result['账户2位置'])}")
                     with col2:
                         for position, numbers in result['账户2号码'].items():
@@ -2930,7 +2952,7 @@ class MultiLotteryCoverageAnalyzer:
                 st.info("🔍 未发现跨位置对刷组合")
             else:
                 st.info("🎉 未发现任何对刷组合")
-    
+
     def analyze_with_progress_enhanced(self, df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode):
         """增强版分析 - 包含跨位置对刷检测"""
         
