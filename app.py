@@ -2548,6 +2548,218 @@ class MultiLotteryCoverageAnalyzer:
         
         return all_period_results
 
+    def detect_cross_position_betting(self, df_target, min_avg_amount=5):
+        """检测跨位置对刷模式 - 新增方法
+        
+        针对PK10系列，检测不同账户在不同位置上合作覆盖所有号码的情况
+        例如：账户A投注1-5名，账户B投注6-10名，合并后覆盖1-10
+        """
+        cross_position_results = []
+        
+        # 只分析10个号码的彩种
+        df_pk10 = df_target[df_target['彩种类型'] == '10_number'].copy()
+        
+        if df_pk10.empty:
+            return cross_position_results
+        
+        # 按期号分组分析
+        for period in df_pk10['期号'].unique():
+            period_data = df_pk10[df_pk10['期号'] == period]
+            
+            # 按账户和位置分组
+            account_positions = {}
+            account_amounts = {}
+            
+            for _, row in period_data.iterrows():
+                account = row['会员账号']
+                position = row['玩法']
+                
+                if '提取号码' in row and row['提取号码']:
+                    numbers = row['提取号码']
+                else:
+                    numbers = self.cached_extract_numbers(
+                        row['内容'], 
+                        '10_number', 
+                        position
+                    )
+                
+                # 初始化账户数据结构
+                if account not in account_positions:
+                    account_positions[account] = {}
+                    account_amounts[account] = 0
+                
+                if position not in account_positions[account]:
+                    account_positions[account][position] = set()
+                
+                # 添加号码
+                account_positions[account][position].update(numbers)
+                
+                # 累加金额
+                if '投注金额' in row:
+                    account_amounts[account] += row['投注金额']
+            
+            # 至少有2个账户才进行分析
+            accounts = list(account_positions.keys())
+            if len(accounts) < 2:
+                continue
+            
+            # 检查所有2账户组合
+            for i in range(len(accounts)):
+                for j in range(i+1, len(accounts)):
+                    acc1 = accounts[i]
+                    acc2 = accounts[j]
+                    
+                    # 检查是否形成了1-10的完整覆盖
+                    combined_numbers = set()
+                    
+                    # 合并账户1的所有位置的号码
+                    for position in account_positions[acc1]:
+                        combined_numbers.update(account_positions[acc1][position])
+                    
+                    # 合并账户2的所有位置的号码
+                    for position in account_positions[acc2]:
+                        combined_numbers.update(account_positions[acc2][position])
+                    
+                    # 检查是否覆盖了1-10
+                    if combined_numbers == set(range(1, 11)):
+                        # 计算总金额
+                        total_amount = account_amounts[acc1] + account_amounts[acc2]
+                        
+                        # 计算每个号码的平均金额
+                        avg_per_number = total_amount / 10
+                        
+                        # 检查是否满足金额阈值
+                        if avg_per_number >= min_avg_amount:
+                            # 构建结果
+                            result = {
+                                '期号': period,
+                                '账户组合': f"{acc1} ↔ {acc2}",
+                                '彩种': period_data['彩种'].iloc[0],
+                                '总投注金额': total_amount,
+                                '平均每号金额': avg_per_number,
+                                '覆盖情况': '1-10全覆盖',
+                                '账户1位置': list(account_positions[acc1].keys()),
+                                '账户2位置': list(account_positions[acc2].keys()),
+                                '账户1号码': {
+                                    pos: sorted(list(nums)) 
+                                    for pos, nums in account_positions[acc1].items()
+                                },
+                                '账户2号码': {
+                                    pos: sorted(list(nums)) 
+                                    for pos, nums in account_positions[acc2].items()
+                                },
+                                '类型': '跨位置对刷'
+                            }
+                            
+                            cross_position_results.append(result)
+        
+        return cross_position_results
+    
+    # ==================== 在 detect_cross_position_betting 方法后添加其他辅助方法 ====================
+    
+    def enhanced_display_results(self, all_period_results, cross_position_results, analysis_mode, df_target=None):
+        """增强结果展示 - 包含跨位置对刷检测"""
+        
+        # 先显示传统的完美覆盖组合
+        if all_period_results:
+            st.subheader("🎯 传统完美覆盖组合")
+            self.display_enhanced_results(all_period_results, analysis_mode, df_target)
+        
+        # 显示跨位置对刷检测结果
+        if cross_position_results:
+            st.subheader("🔄 跨位置对刷检测")
+            
+            # 统计信息
+            total_cross = len(cross_position_results)
+            st.metric("发现跨位置对刷组合", f"{total_cross}组")
+            
+            # 显示详细结果
+            for idx, result in enumerate(cross_position_results, 1):
+                with st.expander(f"组合{idx}: {result['账户组合']} - {result['期号']}", expanded=True):
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.write(f"**期号:** {result['期号']}")
+                    with col2:
+                        st.write(f"**彩种:** {result['彩种']}")
+                    with col3:
+                        st.write(f"**总金额:** ¥{result['总投注金额']:,.2f}")
+                    
+                    st.write(f"**平均每号金额:** ¥{result['平均每号金额']:,.2f}")
+                    st.write(f"**覆盖情况:** {result['覆盖情况']}")
+                    st.write(f"**检测类型:** {result['类型']}")
+                    
+                    # 账户1详情
+                    st.write("**账户1详情:**")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"- **账户:** {result['账户组合'].split(' ↔ ')[0]}")
+                        st.write(f"- **投注位置:** {', '.join(result['账户1位置'])}")
+                    with col2:
+                        for position, numbers in result['账户1号码'].items():
+                            st.write(f"  - {position}: {', '.join([f'{n:02d}' for n in numbers])}")
+                    
+                    # 账户2详情
+                    st.write("**账户2详情:**")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"- **账户:** {result['账户组合'].split(' ↔ ')[1]}")
+                        st.write(f"- **投注位置:** {', '.join(result['账户2位置'])}")
+                    with col2:
+                        for position, numbers in result['账户2号码'].items():
+                            st.write(f"  - {position}: {', '.join([f'{n:02d}' for n in numbers])}")
+                    
+                    # 合并覆盖情况
+                    st.write("**合并覆盖情况:**")
+                    all_numbers = set()
+                    for numbers in result['账户1号码'].values():
+                        all_numbers.update(numbers)
+                    for numbers in result['账户2号码'].values():
+                        all_numbers.update(numbers)
+                    
+                    if all_numbers == set(range(1, 11)):
+                        st.success(f"✅ 完美覆盖1-10: {', '.join([f'{n:02d}' for n in sorted(all_numbers)])}")
+                    else:
+                        st.warning(f"⚠️ 部分覆盖: {', '.join([f'{n:02d}' for n in sorted(all_numbers)])}")
+        else:
+            if all_period_results:
+                st.info("🔍 未发现跨位置对刷组合")
+            else:
+                st.info("🎉 未发现任何对刷组合")
+    
+    def analyze_with_progress_enhanced(self, df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode):
+        """增强版分析 - 包含跨位置对刷检测"""
+        
+        # 原有的分析逻辑
+        all_period_results = self.analyze_with_progress(
+            df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode
+        )
+        
+        # 新增：跨位置对刷检测
+        cross_position_results = []
+        if analysis_mode == "自动识别所有彩种" or analysis_mode == "仅分析时时彩/PK10/赛车":
+            # 使用时时彩的金额阈值
+            min_avg_amount = ten_number_params.get('min_avg_amount', 5)
+            cross_position_results = self.detect_cross_position_betting(df_target, min_avg_amount)
+        
+        return all_period_results, cross_position_results
+
+    def analyze_with_progress_enhanced(self, df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode):
+        """增强版分析 - 包含跨位置对刷检测"""
+        
+        # 原有的分析逻辑
+        all_period_results = self.analyze_with_progress(
+            df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode
+        )
+        
+        # 新增：跨位置对刷检测
+        cross_position_results = []
+        if analysis_mode == "自动识别所有彩种" or analysis_mode == "仅分析时时彩/PK10/赛车":
+            # 使用时时彩的金额阈值
+            min_avg_amount = ten_number_params.get('min_avg_amount', 5)
+            cross_position_results = self.detect_cross_position_betting(df_target, min_avg_amount)
+        
+        return all_period_results, cross_position_results
+
     def display_enhanced_results(self, all_period_results, analysis_mode, df_target=None):
         """增强结果展示 - 保留统计信息版本，传入df_target用于计算总投注期数"""
         if not all_period_results:
@@ -3273,13 +3485,13 @@ def main():
                         'min_avg_amount': ssc_3d_min_avg_amount                   # 🆕 新增时时彩/3D阈值
                     }
                     
-                    all_period_results = analyzer.analyze_with_progress(
+                    all_period_results, cross_position_results = analyzer.analyze_with_progress_enhanced(
                         df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode
                     )
 
                 # 显示结果 - 使用增强版展示
                 st.header("📊 完美覆盖组合检测结果")
-                analyzer.display_enhanced_results(all_period_results, analysis_mode, df_target)
+                analyzer.enhanced_display_results(all_period_results, cross_position_results, analysis_mode, df_target)
                 
                 # 导出功能
                 if all_period_results:
