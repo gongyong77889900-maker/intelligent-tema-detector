@@ -821,15 +821,16 @@ class MultiLotteryCoverageAnalyzer:
         ]
         
         if len(period_data) < 2:
+            logger.info(f"⚠️ 期号 {period} 只有 {len(period_data)} 条分组玩法记录，跳过")
             return None
         
-        st.info(f"🎯 开始分析期号 {period} 的分组玩法...")
+        logger.info(f"🎯 开始分析期号 {period} 的分组玩法...")
         
         # 获取所有分组玩法类型
         play_types = period_data['玩法'].unique()
-        st.info(f"🔍 发现的分组玩法类型: {list(play_types)}")
+        logger.info(f"🔍 发现的分组玩法类型: {list(play_types)}")
         
-        # 按账户分组
+        # 按账户分组 - 注意：这里需要将所有分组玩法合并考虑
         account_numbers = {}
         account_amount_stats = {}
         account_bet_contents = {}
@@ -866,32 +867,17 @@ class MultiLotteryCoverageAnalyzer:
                     'avg_amount_per_number': avg_amount_per_number
                 }
                 
-                st.info(f"📊 账户 {account}: {number_count}个号码 ({account_numbers[account]})，总金额: {total_amount:.2f}")
+                logger.info(f"📊 账户 {account}: {number_count}个号码 ({account_numbers[account]})，总金额: {total_amount:.2f}")
         
         if len(account_numbers) < 2:
-            st.warning(f"⚠️ 期号 {period} 只有 {len(account_numbers)} 个账户，跳过")
+            logger.info(f"⚠️ 期号 {period} 只有 {len(account_numbers)} 个账户，跳过")
             return None
         
-        # 筛选有效账户
-        filtered_account_numbers = {}
-        filtered_account_amount_stats = {}
-        filtered_account_bet_contents = {}
+        logger.info(f"📊 期号 {period}: 共有 {len(account_numbers)} 个账户")
         
-        for account, numbers in account_numbers.items():
-            stats = account_amount_stats[account]
-            if len(numbers) >= int(min_number_count) and stats['avg_amount_per_number'] >= float(min_avg_amount):
-                filtered_account_numbers[account] = numbers
-                filtered_account_amount_stats[account] = account_amount_stats[account]
-                filtered_account_bet_contents[account] = account_bet_contents[account]
-        
-        if len(filtered_account_numbers) < 2:
-            st.warning(f"⚠️ 期号 {period} 只有 {len(filtered_account_numbers)} 个有效账户，跳过")
-            return None
-        
-        st.success(f"✅ 期号 {period}: {len(filtered_account_numbers)} 个有效账户")
-        
-        # 尝试所有可能的2账户组合
-        all_accounts = list(filtered_account_numbers.keys())
+        # 🆕 关键修复：放宽阈值检查，先找到所有可能的组合
+        # 对于分组玩法，只要账户有号码就考虑，后续再检查金额阈值
+        all_accounts = list(account_numbers.keys())
         perfect_combinations = []
         
         for i in range(len(all_accounts)):
@@ -899,60 +885,83 @@ class MultiLotteryCoverageAnalyzer:
                 acc1 = all_accounts[i]
                 acc2 = all_accounts[j]
                 
-                set1 = set(filtered_account_numbers[acc1])
-                set2 = set(filtered_account_numbers[acc2])
+                set1 = set(account_numbers[acc1])
+                set2 = set(account_numbers[acc2])
                 combined_set = set1 | set2
                 
                 # 检查是否覆盖1-10
                 if len(combined_set) == 10:
-                    st.success(f"🎯 发现完美覆盖组合: {acc1} + {acc2}")
-                    st.info(f"   {acc1}: {sorted(set1)}")
-                    st.info(f"   {acc2}: {sorted(set2)}")
-                    st.info(f"   合并: {sorted(combined_set)}")
+                    logger.info(f"🎯 发现号码完美覆盖组合: {acc1} + {acc2}")
+                    logger.info(f"   {acc1}: {sorted(set1)}")
+                    logger.info(f"   {acc2}: {sorted(set2)}")
+                    logger.info(f"   合并: {sorted(combined_set)}")
                     
                     # 检查金额匹配度
-                    avg1 = filtered_account_amount_stats[acc1]['avg_amount_per_number']
-                    avg2 = filtered_account_amount_stats[acc2]['avg_amount_per_number']
+                    avg1 = account_amount_stats[acc1]['avg_amount_per_number']
+                    avg2 = account_amount_stats[acc2]['avg_amount_per_number']
                     similarity = self.calculate_similarity([avg1, avg2])
                     
+                    # 🆕 关键修复：这里min_avg_amount应该是float类型
+                    min_avg_amount_float = float(min_avg_amount) if min_avg_amount is not None else 0
+                    
+                    # 记录所有组合，即使金额不满足阈值
                     result_data = {
                         'accounts': sorted([acc1, acc2]),
                         'account_count': 2,
-                        'total_amount': filtered_account_amount_stats[acc1]['total_amount'] + filtered_account_amount_stats[acc2]['total_amount'],
-                        'avg_amount_per_number': (filtered_account_amount_stats[acc1]['total_amount'] + filtered_account_amount_stats[acc2]['total_amount']) / 10,
+                        'total_amount': account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount'],
+                        'avg_amount_per_number': (account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount']) / 10,
                         'similarity': similarity,
                         'similarity_indicator': self.get_similarity_indicator(similarity),
                         'individual_amounts': {
-                            acc1: filtered_account_amount_stats[acc1]['total_amount'],
-                            acc2: filtered_account_amount_stats[acc2]['total_amount']
+                            acc1: account_amount_stats[acc1]['total_amount'],
+                            acc2: account_amount_stats[acc2]['total_amount']
                         },
                         'individual_avg_per_number': {
-                            acc1: filtered_account_amount_stats[acc1]['avg_amount_per_number'],
-                            acc2: filtered_account_amount_stats[acc2]['avg_amount_per_number']
+                            acc1: account_amount_stats[acc1]['avg_amount_per_number'],
+                            acc2: account_amount_stats[acc2]['avg_amount_per_number']
                         },
                         'bet_contents': {
-                            acc1: filtered_account_bet_contents[acc1],
-                            acc2: filtered_account_bet_contents[acc2]
+                            acc1: account_bet_contents[acc1],
+                            acc2: account_bet_contents[acc2]
                         },
-                        'merged_numbers': sorted(combined_set)
+                        'merged_numbers': sorted(combined_set),
+                        'meets_amount_threshold': avg1 >= min_avg_amount_float and avg2 >= min_avg_amount_float
                     }
                     
                     perfect_combinations.append(result_data)
         
         if perfect_combinations:
-            st.success(f"🎉 期号 {period} 发现 {len(perfect_combinations)} 个完美覆盖组合")
-            return {
-                'period': period,
-                'lottery': lottery,
-                'position': '分组玩法',
-                'lottery_category': '10_number',
-                'total_combinations': len(perfect_combinations),
-                'all_combinations': perfect_combinations,
-                'filtered_accounts': len(filtered_account_numbers),
-                'total_numbers': 10
-            }
+            # 过滤满足金额阈值的组合
+            filtered_combinations = [combo for combo in perfect_combinations if combo['meets_amount_threshold']]
+            
+            if filtered_combinations:
+                logger.info(f"🎉 期号 {period} 发现 {len(filtered_combinations)} 个完美覆盖组合（满足金额阈值）")
+                
+                # 移除临时的meets_amount_threshold字段
+                for combo in filtered_combinations:
+                    del combo['meets_amount_threshold']
+                
+                return {
+                    'period': period,
+                    'lottery': lottery,
+                    'position': '分组玩法',
+                    'lottery_category': '10_number',
+                    'total_combinations': len(filtered_combinations),
+                    'all_combinations': filtered_combinations,
+                    'filtered_accounts': len(account_numbers),
+                    'total_numbers': 10,
+                    'all_possible_combinations': len(perfect_combinations)  # 记录所有可能的组合
+                }
+            else:
+                # 显示未满足阈值的原因
+                logger.info(f"📊 期号 {period} 有 {len(perfect_combinations)} 个号码完美覆盖组合，但都不满足金额阈值")
+                for combo in perfect_combinations:
+                    acc1, acc2 = combo['accounts']
+                    avg1 = combo['individual_avg_per_number'][acc1]
+                    avg2 = combo['individual_avg_per_number'][acc2]
+                    logger.info(f"  组合 {acc1}+{acc2}: 平均金额 {avg1:.2f}, {avg2:.2f} (阈值: {min_avg_amount})")
         
-        st.info(f"📊 期号 {period} 未发现完美覆盖组合")
+        logger.info(f"📊 期号 {period} 未发现完美覆盖组合")
         return None
 
     def analyze_pk10_group_plays(self, df_target, period, lottery, play_method, min_number_count, min_avg_amount):
@@ -2571,44 +2580,31 @@ class MultiLotteryCoverageAnalyzer:
             unique_periods = group_play_data['期号'].unique()
             st.info(f"📊 分组玩法涉及期号: {list(unique_periods)}")
             
-            # 为每个期号创建进度条
-            progress_bar = st.progress(0)
-            
-            for period_idx, period in enumerate(unique_periods):
+            # 分析每个期号
+            for period in unique_periods:
                 # 获取该期号的所有彩票类型
                 period_lotteries = group_play_data[group_play_data['期号'] == period]['彩种'].unique()
                 
                 for lottery in period_lotteries:
-                    # 分析该期号的两种分组玩法
-                    for play_method in ['1-5名', '6-10名']:
-                        # 检查该期号是否有这种玩法
-                        period_play_data = group_play_data[
-                            (group_play_data['期号'] == period) & 
-                            (group_play_data['彩种'] == lottery) & 
-                            (group_play_data['玩法'] == play_method)
-                        ]
+                    result = self.analyze_group_play_period(
+                        df_target, period, lottery,
+                        ten_number_params['min_number_count'],  # 这里传入的是min_number_count
+                        ten_number_params['min_avg_amount']     # 这里传入的是min_avg_amount
+                    )
+                    
+                    if result:
+                        key = (period, lottery, '分组玩法')
+                        all_period_results[key] = result
                         
-                        if len(period_play_data) >= 2:
-                            st.info(f"🎯 分析 {period} {lottery} {play_method}...")
-                            
-                            result = self.analyze_pk10_group_plays(
-                                df_target, period, lottery, play_method,
-                                ten_number_params['min_number_count'],
-                                ten_number_params['min_avg_amount']
-                            )
-                            
-                            if result:
-                                key = (period, lottery, play_method)
-                                all_period_results[key] = result
-                                st.success(f"✅ {period} {play_method}: 发现 {result['total_combinations']} 个完美组合")
-                        else:
-                            st.info(f"📊 {period} {play_method}: 只有 {len(period_play_data)} 条记录，跳过")
-                
-                # 更新进度
-                progress = (period_idx + 1) / len(unique_periods)
-                progress_bar.progress(progress)
-            
-            progress_bar.empty()
+                        # 显示结果
+                        st.success(f"✅ {period} {lottery}: 发现 {result['total_combinations']} 个完美组合")
+                        
+                        # 显示组合详情
+                        for combo in result['all_combinations']:
+                            acc1, acc2 = combo['accounts']
+                            st.info(f"  组合: {acc1} + {acc2}")
+                            st.info(f"  号码: {combo['merged_numbers']}")
+                            st.info(f"  相似度: {combo['similarity']:.1f}% {combo['similarity_indicator']}")
         
         # 🆕 第二步：分析非分组玩法
         st.info("🔍 开始分析普通玩法...")
