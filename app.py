@@ -3205,215 +3205,165 @@ def main():
             else:
                 df = pd.read_excel(uploaded_file)
             
-            # st.success(f"✅ 成功读取文件，共 {len(df):,} 条记录")
+            st.success(f"✅ 成功读取文件，共 {len(df):,} 条记录")
             
-            # 隐藏分析模式和参数设置显示
-            pass
-            
-            # 将列名识别和数据质量检查放入折叠框
-            # with st.expander("🔧 数据预处理过程", expanded=False):
+            # 🆕 关键修复：保留列名映射步骤，但隐藏显示
             # 增强版列名映射
-            with st.spinner("正在进行列名识别..."):
-                column_mapping = analyzer.enhanced_column_mapping(df)
+            column_mapping = analyzer.enhanced_column_mapping(df)
             
             if column_mapping is None:
                 st.error("❌ 列名映射失败，无法继续分析")
                 return
             
+            # 重命名列
             df = df.rename(columns=column_mapping)
-            # st.success("✅ 列名映射完成")
-    
+            
+            # 🆕 关键修复：确保列名正确
             # 数据质量验证
-            with st.spinner("正在进行数据质量验证..."):
-                quality_issues = analyzer.validate_data_quality(df)
+            quality_issues = analyzer.validate_data_quality(df)
             
             # 数据清理
             required_columns = ['会员账号', '彩种', '期号', '玩法', '内容']
-            available_columns = [col for col in required_columns if col in df.columns]
             
+            # 检查必要列是否存在
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            if missing_columns:
+                st.error(f"❌ 缺少必要列: {missing_columns}")
+                st.info(f"当前列名: {list(df.columns)}")
+                return
+            
+            # 检查是否有金额列
             has_amount_column = '金额' in df.columns
+            
+            # 创建干净的DataFrame
+            df_clean = df[required_columns].copy()
             if has_amount_column:
-                available_columns.append('金额')
-                # 隐藏金额检测信息
-                # st.success("💰 检测到金额列，将进行金额分析")
-            else:
-                # 隐藏警告信息
-                # st.warning("⚠️ 未检测到金额列，将只分析号码覆盖")
-                pass
-
-            if len(available_columns) >= 5:
-                df_clean = df[available_columns].copy()
-                df_clean = df_clean.dropna(subset=required_columns)
+                df_clean['金额'] = df['金额']
+            
+            # 清理数据
+            for col in required_columns:
+                df_clean[col] = df_clean[col].astype(str).str.strip()
+    
+            # 🆕 关键修复：执行数据预处理，但不显示过程
+            with st.spinner("正在处理数据..."):
+                df_clean, _, _ = analyzer.enhanced_data_preprocessing(df_clean)
+            
+            # 从投注内容中提取具体位置信息
+            if '彩种类型' in df_clean.columns:
+                df_clean['提取位置'] = df_clean.apply(
+                    lambda row: analyzer.enhanced_extract_position_from_content(
+                        row['玩法'], row['内容'], row['彩种类型']
+                    ), 
+                    axis=1
+                )
                 
-                for col in available_columns:
-                    df_clean[col] = df_clean[col].astype(str).str.strip()
-
-                # 隐藏账户行为分析
-                pass
+                # 对于成功提取到具体位置的记录，更新玩法列为提取的位置
+                mask = df_clean['提取位置'] != df_clean['玩法']
+                if mask.any():
+                    df_clean.loc[mask, '玩法'] = df_clean.loc[mask, '提取位置']
                 
-                # 统一的数据预处理
-                with st.spinner("正在进行数据预处理..."):
-                    df_clean, no_number_count, non_number_play_count = analyzer.enhanced_data_preprocessing(df_clean)
-                # 隐藏账户行为分析
-                pass
-                
-                # 从投注内容中提取具体位置信息
-                with st.spinner("正在从投注内容中提取具体位置信息..."):
-                    # 创建临时列来存储从内容中提取的位置
-                    df_clean['提取位置'] = df_clean.apply(
-                        lambda row: analyzer.enhanced_extract_position_from_content(
-                            row['玩法'], row['内容'], row['彩种类型'] if '彩种类型' in df_clean.columns else 'six_mark'
-                        ), 
-                        axis=1
-                    )
-                    
-                    # 对于成功提取到具体位置的记录，更新玩法列为提取的位置
-                    mask = df_clean['提取位置'] != df_clean['玩法']
-                    if mask.sum() > 0:
-                        st.success(f"✅ 从内容中提取到 {mask.sum()} 条记录的具体位置信息")
-                        df_clean.loc[mask, '玩法'] = df_clean.loc[mask, '提取位置']
-                    
-                    # 删除临时列
-                    df_clean = df_clean.drop('提取位置', axis=1)
-                
-                # 应用金额提取
-                if has_amount_column:
-                    with st.spinner("正在提取金额数据..."):
-                        df_clean['投注金额'] = df_clean['金额'].apply(analyzer.extract_bet_amount)
-                    
-                    total_bet_amount = df_clean['投注金额'].sum()
-                    valid_amount_count = (df_clean['投注金额'] > 0).sum()
-                    
-                # 隐藏账户行为分析
-                pass
-
-                # 隐藏账户行为分析
-                pass
-
-                # 筛选有效玩法数据
-                if analysis_mode == "仅分析六合彩":
-                    valid_plays = ['特码', '正码一', '正码二', '正码三', '正码四', '正码五', '正码六', 
-                                 '正一特', '正二特', '正三特', '正四特', '正五特', '正六特', '平码', '平特',
-                                 '尾数', '全尾', '特尾']  # 🆕 新增尾数相关玩法
-                elif analysis_mode == "仅分析时时彩/PK10/赛车":
-                    valid_plays = ['冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆', '前一']
-                elif analysis_mode == "仅分析快三":
-                    valid_plays = ['和值']
-                else:
-                    valid_plays = ['特码', '正码一', '正码二', '正码三', '正码四', '正码五', '正码六', 
-                                 '正一特', '正二特', '正三特', '正四特', '正五特', '正六特', '平码', '平特',
-                                 '尾数', '全尾', '特尾',  # 🆕 新增尾数相关玩法
-                                 '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', '定位胆', '前一', '和值']
-                
+                # 删除临时列
+                df_clean = df_clean.drop('提取位置', axis=1)
+            
+            # 应用金额提取
+            if has_amount_column:
+                df_clean['投注金额'] = df_clean['金额'].apply(analyzer.extract_bet_amount)
+            
+            # 筛选有效玩法数据
+            if analysis_mode == "仅分析六合彩":
+                valid_plays = ['特码', '正码一', '正码二', '正码三', '正码四', '正码五', '正码六', 
+                             '正一特', '正二特', '正三特', '正四特', '正五特', '正六特', '平码', '平特',
+                             '尾数', '全尾', '特尾']
                 df_target = df_clean[df_clean['玩法'].isin(valid_plays)]
-                
-                # 根据分析模式筛选彩种
-                if analysis_mode == "仅分析六合彩":
+                if '彩种类型' in df_clean.columns:
                     df_target = df_target[df_target['彩种类型'] == 'six_mark']
-                    st.info(f"🔍 已筛选六合彩数据: {len(df_target):,} 条记录")
-                elif analysis_mode == "仅分析时时彩/PK10/赛车":
+            elif analysis_mode == "仅分析时时彩/PK10/赛车":
+                valid_plays = ['冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', 
+                             '定位胆', '前一', '1-5名', '6-10名']
+                df_target = df_clean[df_clean['玩法'].isin(valid_plays)]
+                if '彩种类型' in df_clean.columns:
                     df_target = df_target[df_target['彩种类型'] == '10_number']
-                    st.info(f"🔍 已筛选时时彩/PK10/赛车数据: {len(df_target):,} 条记录")
-                elif analysis_mode == "仅分析快三":
+            elif analysis_mode == "仅分析快三":
+                valid_plays = ['和值']
+                df_target = df_clean[df_clean['玩法'].isin(valid_plays)]
+                if '彩种类型' in df_clean.columns:
                     df_target = df_target[df_target['彩种类型'] == 'fast_three']
-                    st.info(f"🔍 已筛选快三数据: {len(df_target):,} 条记录")
-                else:
-                    # 自动识别模式，保留所有支持的彩种
+            else:
+                valid_plays = ['特码', '正码一', '正码二', '正码三', '正码四', '正码五', '正码六', 
+                             '正一特', '正二特', '正三特', '正四特', '正五特', '正六特', '平码', '平特',
+                             '尾数', '全尾', '特尾',
+                             '冠军', '亚军', '季军', '第四名', '第五名', '第六名', '第七名', '第八名', '第九名', '第十名', 
+                             '定位胆', '前一', '和值', '1-5名', '6-10名']
+                df_target = df_clean[df_clean['玩法'].isin(valid_plays)]
+                if '彩种类型' in df_clean.columns:
                     df_target = df_target[df_target['彩种类型'].notna()]
-                    six_mark_count = len(df_target[df_target['彩种类型'] == 'six_mark'])
-                    ten_number_count = len(df_target[df_target['彩种类型'] == '10_number'])
-                    fast_three_count = len(df_target[df_target['彩种类型'] == 'fast_three'])
-                # 隐藏账户行为分析
-                pass
+    
+            if len(df_target) == 0:
+                st.error("❌ 未找到符合条件的有效玩法数据")
+                return
+    
+            # 分析数据
+            with st.spinner("正在分析数据..."):
+                six_mark_params = {
+                    'min_number_count': six_mark_min_number_count,
+                    'min_avg_amount': six_mark_min_avg_amount,
+                    'tail_min_number_count': six_mark_tail_min_number_count,
+                    'tail_min_avg_amount': six_mark_tail_min_avg_amount
+                }
+                ten_number_params = {
+                    'min_number_count': ten_number_min_number_count,
+                    'min_avg_amount': ten_number_min_avg_amount,
+                    'sum_min_number_count': ten_number_sum_min_number_count,
+                    'sum_min_avg_amount': ten_number_sum_min_avg_amount
+                }
+                fast_three_params = {
+                    'sum_min_number_count': fast_three_sum_min_number_count,
+                    'sum_min_avg_amount': fast_three_sum_min_avg_amount,
+                    'base_min_number_count': fast_three_base_min_number_count,
+                    'base_min_avg_amount': fast_three_base_min_avg_amount
+                }
+                ssc_3d_params = {
+                    'min_number_count': ssc_3d_min_number_count,
+                    'min_avg_amount': ssc_3d_min_avg_amount
+                }
                 
-                # st.write(f"✅ 有效玩法数据行数: {len(df_target):,}")
-
-                if len(df_target) == 0:
-                    st.error("❌ 未找到符合条件的有效玩法数据")
-                    st.info("""
-                    **可能原因:**
-                    1. 彩种名称不匹配 - 当前支持的彩种类型:
-                       - **六合彩**: 新澳门六合彩, 澳门六合彩, 香港六合彩等
-                       - **时时彩/PK10/赛车**: 时时彩, PK10, 赛车, 幸运28等
-                       - **快三**: 快三, 快3, K3, 分分快三等
-                    
-                    2. 玩法名称不匹配 - 当前支持的玩法:
-                       - **六合彩**: 特码, 正码一至正码六, 正一特至正六特, 平码, 平特
-                       - **时时彩/PK10/赛车**: 冠军、亚军、季军、第四名到第十名、定位胆、前一
-                       - **快三**: 和值
-                    
-                    3. 数据格式问题
-                    """)
-                    return
-
-                # 分析数据 - 使用增强版分析
-                with st.spinner("正在进行完美覆盖分析..."):
-                    six_mark_params = {
-                        'min_number_count': six_mark_min_number_count,
-                        'min_avg_amount': six_mark_min_avg_amount,
-                        'tail_min_number_count': six_mark_tail_min_number_count,
-                        'tail_min_avg_amount': six_mark_tail_min_avg_amount
-                    }
-                    ten_number_params = {
-                        'min_number_count': ten_number_min_number_count,
-                        'min_avg_amount': ten_number_min_avg_amount,
-                        'sum_min_number_count': ten_number_sum_min_number_count,  # 🆕 新增冠亚和阈值
-                        'sum_min_avg_amount': ten_number_sum_min_avg_amount       # 🆕 新增冠亚和阈值
-                    }
-                    fast_three_params = {
-                        'sum_min_number_count': fast_three_sum_min_number_count,  # 🆕 新增快三和值阈值
-                        'sum_min_avg_amount': fast_three_sum_min_avg_amount,      # 🆕 新增快三和值阈值
-                        'base_min_number_count': fast_three_base_min_number_count, # 🆕 新增快三基础阈值
-                        'base_min_avg_amount': fast_three_base_min_avg_amount      # 🆕 新增快三基础阈值
-                    }
-                    ssc_3d_params = {
-                        'min_number_count': ssc_3d_min_number_count,              # 🆕 新增时时彩/3D阈值
-                        'min_avg_amount': ssc_3d_min_avg_amount                   # 🆕 新增时时彩/3D阈值
-                    }
-                    
-                    all_period_results = analyzer.analyze_with_progress(
-                        df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode
-                    )
-
-                # 显示结果 - 使用增强版展示
-                st.header("📊 完美覆盖组合检测结果")
+                all_period_results = analyzer.analyze_with_progress(
+                    df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode
+                )
+            
+            # 显示最终结果
+            if all_period_results:
+                total_combinations = sum(result['total_combinations'] for result in all_period_results.values())
+                st.success(f"✅ 分析完成，共发现 {total_combinations} 个完美覆盖组合")
                 analyzer.display_enhanced_results(all_period_results, analysis_mode, df_target)
                 
                 # 导出功能
-                if all_period_results:
-                    st.markdown("---")
-                    st.subheader("📥 数据导出")
-                    
-                    if st.button("📊 生成完美组合数据报告"):
-                        download_df = analyzer.enhanced_export(all_period_results, analysis_mode)
-                        
-                        # 转换为Excel
-                        output = BytesIO()
-                        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                            download_df.to_excel(writer, index=False, sheet_name='完美组合数据')
-                            
-                            # 添加统计工作表
-                            account_stats = analyzer._calculate_detailed_account_stats(all_period_results)
-                            if account_stats:
-                                df_account_stats = pd.DataFrame(account_stats)
-                                df_account_stats.to_excel(writer, index=False, sheet_name='账户参与统计')
-                        
-                        # 提供下载
-                        st.download_button(
-                            label="📥 下载完整分析报告",
-                            data=output.getvalue(),
-                            file_name=f"全彩种完美组合分析报告_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        )
-                        
-                        st.success("✅ 数据导出准备完成！")
+                st.markdown("---")
+                st.subheader("📥 数据导出")
                 
+                if st.button("📊 生成完美组合数据报告"):
+                    download_df = analyzer.enhanced_export(all_period_results, analysis_mode)
+                    
+                    output = BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        download_df.to_excel(writer, index=False, sheet_name='完美组合数据')
+                        
+                        account_stats = analyzer._calculate_detailed_account_stats(all_period_results)
+                        if account_stats:
+                            df_account_stats = pd.DataFrame(account_stats)
+                            df_account_stats.to_excel(writer, index=False, sheet_name='账户参与统计')
+                    
+                    st.download_button(
+                        label="📥 下载完整分析报告",
+                        data=output.getvalue(),
+                        file_name=f"全彩种完美组合分析报告_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                    
+                    st.success("✅ 数据导出准备完成!")
             else:
-                st.error(f"❌ 缺少必要数据列，可用列: {available_columns}")
-                st.info("💡 请确保文件包含以下必要列:")
-                for col in ['会员账号', '彩种', '期号', '玩法', '内容']:
-                    st.write(f"- {col}")
-        
+                st.info("📊 分析完成: 未发现完美覆盖组合")
+            
         except Exception as e:
             st.error(f"❌ 处理文件时出错: {str(e)}")
             logger.error(f"文件处理错误: {str(e)}", exc_info=True)
