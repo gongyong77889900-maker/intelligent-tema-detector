@@ -2611,40 +2611,226 @@ class MultiLotteryCoverageAnalyzer:
         return None
     
     def analyze_with_progress(self, df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode):
-        """带进度显示的分析 - 精简版本，不显示中间过程"""
+        """带进度显示的分析 - 根据不同彩种使用不同的分析方法"""
         all_period_results = {}
         
         # 根据分析模式筛选数据
         if analysis_mode == "仅分析六合彩":
             df_target = df_target[df_target['彩种类型'] == 'six_mark']
+            # 六合彩：按位置分析
+            return self.analyze_by_position(df_target, six_mark_params, 'six_mark')
+            
         elif analysis_mode == "仅分析时时彩/PK10/赛车":
             df_target = df_target[df_target['彩种类型'] == '10_number']
+            # PK10/时时彩/赛车：按期号合并分析
+            return self.analyze_by_period_merge(df_target, ten_number_params, '10_number')
+            
         elif analysis_mode == "仅分析快三":
             df_target = df_target[df_target['彩种类型'] == 'fast_three']
+            # 快三：按位置分析（和值）
+            return self.analyze_by_position(df_target, fast_three_params, 'fast_three')
+            
+        else:
+            # 自动识别所有彩种：分别用不同方法分析
+            all_results = {}
+            
+            # 六合彩：按位置分析
+            six_mark_data = df_target[df_target['彩种类型'] == 'six_mark']
+            if len(six_mark_data) > 0:
+                six_mark_results = self.analyze_by_position(six_mark_data, six_mark_params, 'six_mark')
+                all_results.update(six_mark_results)
+            
+            # PK10/时时彩/赛车：按期号合并分析
+            ten_number_data = df_target[df_target['彩种类型'] == '10_number']
+            if len(ten_number_data) > 0:
+                ten_number_results = self.analyze_by_period_merge(ten_number_data, ten_number_params, '10_number')
+                all_results.update(ten_number_results)
+            
+            # 快三：按位置分析
+            fast_three_data = df_target[df_target['彩种类型'] == 'fast_three']
+            if len(fast_three_data) > 0:
+                fast_three_results = self.analyze_by_position(fast_three_data, fast_three_params, 'fast_three')
+                all_results.update(fast_three_results)
+            
+            return all_results
+    
+    def analyze_by_position(self, df_target, params, lottery_category):
+        """按位置分析 - 适用于六合彩、快三等需要按位置单独分析的彩种"""
+        all_period_results = {}
         
-        if len(df_target) == 0:
-            return all_period_results
+        if lottery_category == 'six_mark':
+            min_number_count = params['min_number_count']
+            min_avg_amount = params['min_avg_amount']
+            total_numbers = 49  # 六合彩总号码数
+        elif lottery_category == 'fast_three':
+            min_number_count = params.get('sum_min_number_count', 4)  # 默认和值阈值
+            min_avg_amount = params.get('sum_min_avg_amount', 5)
+            total_numbers = 16  # 快三和值总号码数
+        else:
+            min_number_count = 3
+            min_avg_amount = 5
+            total_numbers = 10
+        
+        # 按期号、彩种、玩法分组
+        grouped = df_target.groupby(['期号', '彩种', '玩法'])
+        
+        for (period, lottery, position), group in grouped:
+            if len(group) >= 2:
+                # 调用原有的按位置分析方法
+                result = self.analyze_period_lottery_position(
+                    group, period, lottery, position,
+                    min_number_count,
+                    min_avg_amount
+                )
+                if result:
+                    key = (period, lottery, position)
+                    all_period_results[key] = result
+        
+        return all_period_results
+    
+    def analyze_by_period_merge(self, df_target, params, lottery_category):
+        """按期号合并分析 - 专门用于PK10/时时彩/赛车"""
+        all_period_results = {}
+        
+        # 获取参数
+        min_number_count = params['min_number_count']
+        min_avg_amount = params['min_avg_amount']
         
         # 获取所有唯一的期号
         all_unique_periods = df_target['期号'].unique()
         
-        # 分析每个期号（不显示任何中间过程）
+        # 分析每个期号
         for period in all_unique_periods:
             # 获取该期号的所有彩票类型
             period_lotteries = df_target[df_target['期号'] == period]['彩种'].unique()
             
             for lottery in period_lotteries:
-                result = self.analyze_group_play_period(
+                # 🆕 使用专门的PK10按期号合并分析方法
+                result = self.analyze_pk10_period_merge(
                     df_target, period, lottery,
-                    ten_number_params['min_number_count'],
-                    ten_number_params['min_avg_amount']
+                    min_number_count,
+                    min_avg_amount
                 )
                 
                 if result:
-                    key = (period, lottery, '全期号合并')
+                    key = (period, lottery, '按期号合并')
                     all_period_results[key] = result
         
         return all_period_results
+    
+    def analyze_pk10_period_merge(self, df_target, period, lottery, min_number_count, min_avg_amount):
+        """PK10按期号合并分析 - 专门用于PK10系列彩票"""
+        # 筛选该期号的所有数据
+        period_data = df_target[
+            (df_target['期号'] == period) & 
+            (df_target['彩种'] == lottery)
+        ]
+        
+        if len(period_data) < 2:
+            return None
+        
+        # 按账户分组，合并所有号码
+        account_numbers = {}
+        account_amount_stats = {}
+        account_bet_contents = {}
+        
+        for account in period_data['会员账号'].unique():
+            account_data = period_data[period_data['会员账号'] == account]
+            
+            all_numbers = set()
+            total_amount = 0
+            
+            for _, row in account_data.iterrows():
+                numbers = row['提取号码'] if '提取号码' in row else self.cached_extract_numbers(row['内容'], '10_number', row['玩法'])
+                all_numbers.update(numbers)
+                
+                # 提取金额
+                if '投注金额' in row:
+                    amount = row['投注金额']
+                elif '金额' in row:
+                    amount = self.extract_bet_amount(row['金额'])
+                else:
+                    amount = 0
+                total_amount += amount
+            
+            if all_numbers:
+                account_numbers[account] = sorted(all_numbers)
+                account_bet_contents[account] = ", ".join([f"{num:02d}" for num in sorted(all_numbers)])
+                
+                number_count = len(all_numbers)
+                avg_amount_per_number = total_amount / number_count if number_count > 0 else 0
+                
+                account_amount_stats[account] = {
+                    'number_count': number_count,
+                    'total_amount': total_amount,
+                    'avg_amount_per_number': avg_amount_per_number
+                }
+        
+        if len(account_numbers) < 2:
+            return None
+        
+        # PK10总号码数是10
+        total_numbers = 10
+        
+        # 尝试所有可能的2账户组合
+        all_accounts = list(account_numbers.keys())
+        perfect_combinations = []
+        
+        for i in range(len(all_accounts)):
+            for j in range(i+1, len(all_accounts)):
+                acc1 = all_accounts[i]
+                acc2 = all_accounts[j]
+                
+                set1 = set(account_numbers[acc1])
+                set2 = set(account_numbers[acc2])
+                combined_set = set1 | set2
+                
+                # 检查是否覆盖1-10
+                if len(combined_set) == total_numbers:
+                    # 检查金额匹配度
+                    avg1 = account_amount_stats[acc1]['avg_amount_per_number']
+                    avg2 = account_amount_stats[acc2]['avg_amount_per_number']
+                    similarity = self.calculate_similarity([avg1, avg2])
+                    
+                    # 检查金额阈值
+                    if avg1 >= float(min_avg_amount) and avg2 >= float(min_avg_amount):
+                        result_data = {
+                            'accounts': sorted([acc1, acc2]),
+                            'account_count': 2,
+                            'total_amount': account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount'],
+                            'avg_amount_per_number': (account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount']) / 10,
+                            'similarity': similarity,
+                            'similarity_indicator': self.get_similarity_indicator(similarity),
+                            'individual_amounts': {
+                                acc1: account_amount_stats[acc1]['total_amount'],
+                                acc2: account_amount_stats[acc2]['total_amount']
+                            },
+                            'individual_avg_per_number': {
+                                acc1: account_amount_stats[acc1]['avg_amount_per_number'],
+                                acc2: account_amount_stats[acc2]['avg_amount_per_number']
+                            },
+                            'bet_contents': {
+                                acc1: account_bet_contents[acc1],
+                                acc2: account_bet_contents[acc2]
+                            },
+                            'merged_numbers': sorted(combined_set)
+                        }
+                        
+                        perfect_combinations.append(result_data)
+        
+        if perfect_combinations:
+            return {
+                'period': period,
+                'lottery': lottery,
+                'position': '按期号合并',
+                'lottery_category': '10_number',
+                'total_combinations': len(perfect_combinations),
+                'all_combinations': perfect_combinations,
+                'filtered_accounts': len(account_numbers),
+                'total_numbers': total_numbers
+            }
+        
+        return None
 
     def display_enhanced_results(self, all_period_results, analysis_mode, df_target=None):
         """增强结果展示 - 保留统计信息版本，传入df_target用于计算总投注期数"""
