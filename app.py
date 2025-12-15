@@ -3125,8 +3125,7 @@ def main():
                     st.write(f"  金额文本: {amount_text}")
                     st.write(f"  提取金额: {amount}")
                     st.write("---")
-            
-            # 继续原有代码...
+
             # 隐藏分析模式和参数设置显示
             pass
             
