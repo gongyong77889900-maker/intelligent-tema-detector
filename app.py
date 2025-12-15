@@ -3096,7 +3096,7 @@ def main():
         "赛车类基础-平均金额阈值", 
         min_value=0, 
         max_value=20,
-        value=2,
+        value=5,
         step=1,
         help="时时彩/PK10/赛车基础玩法：只分析平均每号金额大于等于此值的账户"
     )
@@ -3187,9 +3187,11 @@ def main():
             # 读取文件 - 增强编码处理
             if uploaded_file.name.endswith('.csv'):
                 try:
+                    # 先尝试UTF-8
                     df = pd.read_csv(uploaded_file)
                 except UnicodeDecodeError:
-                    uploaded_file.seek(0)
+                    # 如果UTF-8失败，尝试其他编码
+                    uploaded_file.seek(0)  # 重置文件指针
                     try:
                         df = pd.read_csv(uploaded_file, encoding='gbk')
                     except:
@@ -3198,30 +3200,32 @@ def main():
                             df = pd.read_csv(uploaded_file, encoding='gb2312')
                         except:
                             uploaded_file.seek(0)
+                            # 最后尝试忽略错误
                             df = pd.read_csv(uploaded_file, encoding_errors='ignore')
             else:
                 df = pd.read_excel(uploaded_file)
             
-            st.success(f"✅ 成功读取文件，共 {len(df):,} 条记录")
+            st.success(f"✅ 成功读取文件, 共 {len(df):,} 条记录")
             
-            # 隐藏所有中间显示，只显示成功消息
-            # with st.spinner("正在处理数据..."):
             # 增强版列名映射
-            column_mapping = analyzer.enhanced_column_mapping(df)
+            with st.spinner("正在进行列名识别..."):
+                column_mapping = analyzer.enhanced_column_mapping(df)
             
             if column_mapping is None:
-                st.error("❌ 列名映射失败，无法继续分析")
+                st.error("❌ 列名映射失败, 无法继续分析")
                 return
             
             df = df.rename(columns=column_mapping)
-            
-            # 数据质量验证（静默处理）
-            quality_issues = analyzer.validate_data_quality(df)
+    
+            # 数据质量验证
+            with st.spinner("正在进行数据质量验证..."):
+                quality_issues = analyzer.validate_data_quality(df)
             
             # 数据清理
             required_columns = ['会员账号', '彩种', '期号', '玩法', '内容']
             available_columns = [col for col in required_columns if col in df.columns]
             
+            # 检查是否有金额列
             has_amount_column = '金额' in df.columns
             
             if len(available_columns) >= 5:
@@ -3230,27 +3234,33 @@ def main():
                 
                 for col in available_columns:
                     df_clean[col] = df_clean[col].astype(str).str.strip()
-    
-                # 统一的数据预处理（静默）
-                df_clean, _, _ = analyzer.enhanced_data_preprocessing(df_clean)
+
+                # 统一的数据预处理
+                with st.spinner("正在进行数据预处理..."):
+                    df_clean, no_number_count, non_number_play_count = analyzer.enhanced_data_preprocessing(df_clean)
                 
-                # 从投注内容中提取具体位置信息（静默）
-                df_clean['提取位置'] = df_clean.apply(
-                    lambda row: analyzer.enhanced_extract_position_from_content(
-                        row['玩法'], row['内容'], row['彩种类型'] if '彩种类型' in df_clean.columns else 'six_mark'
-                    ), 
-                    axis=1
-                )
-                
-                # 对于成功提取到具体位置的记录，更新玩法列为提取的位置
-                mask = df_clean['提取位置'] != df_clean['玩法']
-                df_clean.loc[mask, '玩法'] = df_clean.loc[mask, '提取位置']
-                df_clean = df_clean.drop('提取位置', axis=1)
+                # 从投注内容中提取具体位置信息
+                with st.spinner("正在从投注内容中提取具体位置信息..."):
+                    # 创建临时列来存储从内容中提取的位置
+                    df_clean['提取位置'] = df_clean.apply(
+                        lambda row: analyzer.enhanced_extract_position_from_content(
+                            row['玩法'], row['内容'], row['彩种类型'] if '彩种类型' in df_clean.columns else 'six_mark'
+                        ), 
+                        axis=1
+                    )
+                    
+                    # 对于成功提取到具体位置的记录，更新玩法列为提取的位置
+                    mask = df_clean['提取位置'] != df_clean['玩法']
+                    df_clean.loc[mask, '玩法'] = df_clean.loc[mask, '提取位置']
+                    
+                    # 删除临时列
+                    df_clean = df_clean.drop('提取位置', axis=1)
                 
                 # 应用金额提取
                 if has_amount_column:
-                    df_clean['投注金额'] = df_clean['金额'].apply(analyzer.extract_bet_amount)
-                
+                    with st.spinner("正在提取金额数据..."):
+                        df_clean['投注金额'] = df_clean['金额'].apply(analyzer.extract_bet_amount)
+
                 # 筛选有效玩法数据
                 if analysis_mode == "仅分析六合彩":
                     valid_plays = ['特码', '正码一', '正码二', '正码三', '正码四', '正码五', '正码六', 
@@ -3275,13 +3285,13 @@ def main():
                                  '定位胆', '前一', '和值', '1-5名', '6-10名']
                     df_target = df_clean[df_clean['玩法'].isin(valid_plays)]
                     df_target = df_target[df_target['彩种类型'].notna()]
-                
+
                 if len(df_target) == 0:
                     st.error("❌ 未找到符合条件的有效玩法数据")
                     return
-                
-                # 分析数据 - 静默处理
-                with st.spinner("正在分析数据..."):
+
+                # 分析数据
+                with st.spinner("正在进行完美覆盖分析..."):
                     six_mark_params = {
                         'min_number_count': six_mark_min_number_count,
                         'min_avg_amount': six_mark_min_avg_amount,
@@ -3308,10 +3318,11 @@ def main():
                     all_period_results = analyzer.analyze_with_progress(
                         df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode
                     )
-                
-                # 显示最终结果
+
+                # 显示结果
                 if all_period_results:
-                    st.success(f"✅ 分析完成，共发现 {sum(result['total_combinations'] for result in all_period_results.values())} 个完美覆盖组合")
+                    total_combinations = sum(result['total_combinations'] for result in all_period_results.values())
+                    st.success(f"✅ 分析完成, 共发现 {total_combinations} 个完美覆盖组合")
                     analyzer.display_enhanced_results(all_period_results, analysis_mode, df_target)
                     
                     # 导出功能
@@ -3321,15 +3332,18 @@ def main():
                     if st.button("📊 生成完美组合数据报告"):
                         download_df = analyzer.enhanced_export(all_period_results, analysis_mode)
                         
+                        # 转换为Excel
                         output = BytesIO()
                         with pd.ExcelWriter(output, engine='openpyxl') as writer:
                             download_df.to_excel(writer, index=False, sheet_name='完美组合数据')
                             
+                            # 添加统计工作表
                             account_stats = analyzer._calculate_detailed_account_stats(all_period_results)
                             if account_stats:
                                 df_account_stats = pd.DataFrame(account_stats)
                                 df_account_stats.to_excel(writer, index=False, sheet_name='账户参与统计')
                         
+                        # 提供下载
                         st.download_button(
                             label="📥 下载完整分析报告",
                             data=output.getvalue(),
@@ -3337,14 +3351,16 @@ def main():
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                         )
                         
-                        st.success("✅ 数据导出准备完成！")
+                        st.success("✅ 数据导出准备完成!")
                 else:
                     st.info("📊 分析完成: 未发现完美覆盖组合")
                 
             else:
-                st.error(f"❌ 缺少必要数据列")
-                return
-                
+                st.error(f"❌ 缺少必要数据列, 可用列: {available_columns}")
+                st.info("💡 请确保文件包含以下必要列:")
+                for col in ['会员账号', '彩种', '期号', '玩法', '内容']:
+                    st.write(f"- {col}")
+        
         except Exception as e:
             st.error(f"❌ 处理文件时出错: {str(e)}")
             logger.error(f"文件处理错误: {str(e)}", exc_info=True)
@@ -3352,27 +3368,28 @@ def main():
             # 提供更详细的错误信息
             with st.expander("🔍 查看详细错误信息", expanded=False):
                 st.code(f"""
-        错误类型: {type(e).__name__}
-        错误信息: {str(e)}
-        
-        可能的原因:
-        1. 文件编码问题 - 尝试将文件另存为UTF-8编码
-        2. 文件格式问题 - 确保文件是有效的CSV或Excel格式
-        3. 内存不足 - 尝试分析较小的数据文件
-        4. 列名不匹配 - 检查文件是否包含必要的列
-        
-        如果问题持续存在,请联系技术支持。  # <-- 这里有中文逗号"！"
-                        """)
+错误类型: {type(e).__name__}
+错误信息: {str(e)}
+
+可能的原因:
+1. 文件编码问题 - 尝试将文件另存为UTF-8编码
+2. 文件格式问题 - 确保文件是有效的CSV或Excel格式
+3. 内存不足 - 尝试分析较小的数据文件
+4. 列名不匹配 - 检查文件是否包含必要的列
+
+如果问题持续存在,请联系技术支持.
+                """)
     
     else:
+        # 保持原有的欢迎页面不变
         st.info("💡 **彩票完美覆盖分析系统**")
         st.markdown("""
         ### 🚀 系统特色功能:
 
         **🎲 全彩种支持**
-        - ✅ **六合彩**: 1-49个号码，支持特码、正码、正特、平码等多种玩法
-        - ✅ **时时彩/PK10/赛车**: 1-10共10个号码，**按位置精准分析**  
-        - ✅ **快三**: 3-18共16个号码，和值玩法
+        - ✅ **六合彩**: 1-49个号码,支持特码、正码、正特、平码等多种玩法
+        - ✅ **时时彩/PK10/赛车**: 1-10共10个号码,**按位置精准分析**  
+        - ✅ **快三**: 3-18共16个号码,和值玩法
         - 🔄 **自动识别**: 智能识别彩种类型
 
         **📍 位置精准分析**
@@ -3382,36 +3399,36 @@ def main():
         - ✅ **位置统计**: 按位置统计完美组合数量
 
         **🔍 智能数据识别**
-        - ✅ 增强列名识别：支持多种列名变体
-        - 📊 数据质量验证：完整的数据检查流程
-        - 🎯 玩法分类统一：智能识别各彩种玩法
-        - 💰 金额提取优化：支持多种金额格式
+        - ✅ 增强列名识别:支持多种列名变体
+        - 📊 数据质量验证:完整的数据检查流程
+        - 🎯 玩法分类统一:智能识别各彩种玩法
+        - 💰 金额提取优化:支持多种金额格式
 
         **⚡ 性能优化**
-        - 🔄 缓存机制：号码和金额提取缓存
-        - 📈 进度显示：实时分析进度
-        - 🎨 界面优化：现代化Streamlit界面
+        - 🔄 缓存机制:号码和金额提取缓存
+        - 📈 进度显示:实时分析进度
+        - 🎨 界面优化:现代化Streamlit界面
 
         **📊 分析增强**
-        - 👥 账户聚合视图：按账户统计参与情况和总投注金额
-        - 📋 详细组合分析：完整的组合信息展示
-        - 📊 汇总统计：多维度数据统计
+        - 👥 账户聚合视图:按账户统计参与情况和总投注金额
+        - 📋 详细组合分析:完整的组合信息展示
+        - 📊 汇总统计:多维度数据统计
 
         ### 🎯 各彩种分析原理:
 
         **六合彩 (49个号码)**
-        - 检测同一期号、同一位置内不同账户的投注号码是否形成完美覆盖（1-49全部覆盖）
-        - 分析各账户的投注金额匹配度，识别可疑的协同投注行为
+        - 检测同一期号、同一位置内不同账户的投注号码是否形成完美覆盖(1-49全部覆盖)
+        - 分析各账户的投注金额匹配度,识别可疑的协同投注行为
         - 支持特码、正码、正特、平码等多种玩法
 
         **时时彩/PK10/赛车 (10个号码)**  
         - **按位置精准分析**: 冠军、亚军、季军等每个位置独立分析
-        - 检测同一位置内，不同账户是否覆盖全部10个号码（1-10）
-        - 识别对刷行为：多个账户在同一位置合作覆盖所有号码
+        - 检测同一位置内,不同账户是否覆盖全部10个号码(1-10)
+        - 识别对刷行为:多个账户在同一位置合作覆盖所有号码
 
         **快三 (16个号码)**
-        - **和值玩法**: 检测同一期号内不同账户是否覆盖全部16个和值（3-18）
-        - 分析各账户的投注金额匹配度，识别可疑的协同投注行为
+        - **和值玩法**: 检测同一期号内不同账户是否覆盖全部16个和值(3-18)
+        - 分析各账户的投注金额匹配度,识别可疑的协同投注行为
 
         ### 📝 支持的列名格式:
         """)
