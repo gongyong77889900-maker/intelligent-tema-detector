@@ -786,7 +786,7 @@ class MultiLotteryCoverageAnalyzer:
         return df_clean, no_number_count, non_number_play_count
 
     def analyze_group_play_period(self, df_target, period, lottery, min_number_count, min_avg_amount):
-        """专门分析特定期号的分组玩法 - 精简版本"""
+        """专门分析特定期号的分组玩法 - 精简版本，不显示中间过程"""
         # 筛选该期号的所有数据
         period_data = df_target[
             (df_target['期号'] == period) & 
