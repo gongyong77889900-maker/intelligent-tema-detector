@@ -173,16 +173,6 @@ class MultiLotteryCoverageAnalyzer:
         }
         
         self.account_keywords = ['会员', '账号', '账户', '用户', '玩家', 'id', 'name', 'user', 'player']
-
-        # 🆕 新增：玩法分组映射 - 处理1-5名, 6-10名
-        self.group_play_mapping = {
-            '1-5名': ['冠军', '亚军', '季军', '第四名', '第五名'],
-            '6-10名': ['第六名', '第七名', '第八名', '第九名', '第十名'],
-            '1~5名': ['冠军', '亚军', '季军', '第四名', '第五名'],
-            '6~10名': ['第六名', '第七名', '第八名', '第九名', '第十名'],
-            '1-5ming': ['冠军', '亚军', '季军', '第四名', '第五名'],
-            '6-10ming': ['第六名', '第七名', '第八名', '第九名', '第十名']
-        }
         
         # 玩法分类映射 - 扩展支持六合彩正码正特
         self.play_mapping = {
@@ -632,61 +622,116 @@ class MultiLotteryCoverageAnalyzer:
         return self.cached_extract_amount(str(amount_str))
 
     def expand_group_play_records(self, df):
-        """将分组玩法记录展开为多个独立的位置记录 - 简化版本"""
+        """将分组玩法记录展开为多个独立的位置记录"""
         expanded_rows = []
         
         for idx, row in df.iterrows():
             play_method = str(row['玩法']).strip()
-            content = str(row['内容']).strip()
             
             # 检查是否是分组玩法
             is_group_play = False
-            for keyword in ['1-5名', '6-10名', '1~5名', '6~10名']:
-                if keyword in play_method:
+            group_key = None
+            
+            for key in self.group_play_expansion.keys():
+                if key in play_method:
                     is_group_play = True
+                    group_key = key
                     break
             
-            if is_group_play:
-                # 🆕 简化：直接提取所有数字
-                numbers = []
+            if is_group_play and group_key:
+                # 获取分组配置
+                group_config = self.group_play_expansion[group_key]
+                positions = group_config['positions']
                 
-                # 方法1：按逗号分割
+                # 解析投注内容
+                content = str(row['内容']).strip()
+                
+                # 🆕 改进：解析复杂格式 "冠军-01,第三名-02,第四名-03,第五名-04,亚军-05"
+                bets_by_position = {}
+                
+                # 尝试用逗号分割
                 if ',' in content or '，' in content:
+                    # 统一替换为半角逗号
                     content_clean = content.replace('，', ',')
-                    parts = content_clean.split(',')
+                    parts = [p.strip() for p in content_clean.split(',')]
                     
                     for part in parts:
-                        part = part.strip()
-                        # 提取数字
-                        num_matches = re.findall(r'\d+', part)
-                        for match in num_matches:
-                            if match.isdigit():
-                                num = int(match)
-                                if 1 <= num <= 10:  # PK10号码范围
-                                    numbers.append(num)
-                else:
-                    # 方法2：直接提取所有数字
-                    num_matches = re.findall(r'\d+', content)
-                    for match in num_matches:
-                        if match.isdigit():
-                            num = int(match)
+                        if part:
+                            # 尝试用"-"或":"分割
+                            separator = None
+                            for sep in ['-', ':', '：']:
+                                if sep in part:
+                                    separator = sep
+                                    break
+                            
+                            if separator:
+                                pos_num = part.split(separator, 1)
+                                if len(pos_num) == 2:
+                                    position_name = pos_num[0].strip()
+                                    number_part = pos_num[1].strip()
+                                    
+                                    # 标准化位置名称
+                                    normalized_position = self.normalize_play_category(position_name, '10_number')
+                                    
+                                    # 提取号码
+                                    numbers = []
+                                    # 提取数字
+                                    num_matches = re.findall(r'\d{1,2}', number_part)
+                                    for num_str in num_matches:
+                                        if num_str.isdigit():
+                                            num = int(num_str)
+                                            if 1 <= num <= 10:  # PK10号码范围
+                                                numbers.append(num)
+                                    
+                                    if numbers and normalized_position in positions:
+                                        if normalized_position not in bets_by_position:
+                                            bets_by_position[normalized_position] = []
+                                        bets_by_position[normalized_position].extend(numbers)
+                
+                # 🆕 如果没有解析出具体位置，尝试根据上下文推断
+                if not bets_by_position:
+                    # 提取所有数字
+                    all_numbers = []
+                    num_matches = re.findall(r'\d{1,2}', content)
+                    for num_str in num_matches:
+                        if num_str.isdigit():
+                            num = int(num_str)
                             if 1 <= num <= 10:
-                                numbers.append(num)
+                                all_numbers.append(num)
+                    
+                    if all_numbers:
+                        # 将数字均匀分配到各个位置
+                        num_per_position = min(len(all_numbers) // len(positions), 5)
+                        if num_per_position > 0:
+                            for i, position in enumerate(positions):
+                                start_idx = i * num_per_position
+                                end_idx = start_idx + num_per_position
+                                if start_idx < len(all_numbers) and end_idx <= len(all_numbers):
+                                    position_numbers = all_numbers[start_idx:end_idx]
+                                    if position_numbers:
+                                        bets_by_position[position] = position_numbers
                 
-                # 去重
-                numbers = list(set(numbers))
-                numbers.sort()
-                
-                # 将号码列表存储到内容中
-                new_row = row.copy()
-                new_row['内容'] = ', '.join([f"{num:02d}" for num in numbers])
-                expanded_rows.append(new_row)
+                # 创建展开后的记录
+                if bets_by_position:
+                    for position, numbers in bets_by_position.items():
+                        if numbers:  # 只创建有号码的记录
+                            new_row = row.copy()
+                            new_row['玩法'] = position
+                            new_row['内容'] = ', '.join([f"{num:02d}" for num in sorted(set(numbers))])
+                            expanded_rows.append(new_row)
+                else:
+                    # 无法解析，保留原始记录
+                    expanded_rows.append(row)
             else:
                 # 非分组玩法，直接保留
                 expanded_rows.append(row)
         
         if expanded_rows:
             expanded_df = pd.DataFrame(expanded_rows)
+            original_count = len(df)
+            expanded_count = len(expanded_df)
+            logger.info(f"📊 分组玩法展开: 从 {original_count} 条记录展开到 {expanded_count} 条记录")
+            
             return expanded_df
         
         return df
@@ -1625,54 +1670,104 @@ class MultiLotteryCoverageAnalyzer:
             config = self.get_play_specific_config(lottery_category, play_method)
             number_range = config['number_range']
             
-            # 🆕 特别处理：对于PK10系列的位置-号码格式（最高优先级）
-            # 您的数据格式：'冠军-01,第三名-02,第四名-03,第五名-04,亚军-05'
+            # 🆕 特殊处理：对于PK10系列的位置-号码格式（最高优先级）
+            play_str = str(play_method).strip().lower() if play_method else ""
             
-            # 1. 首先按逗号分割
-            if ',' in content_str or '，' in content_str:
-                # 统一替换为半角逗号
-                content_clean = content_str.replace('，', ',')
-                parts = content_clean.split(',')
+            # 1. 首先处理特殊格式："冠军-01,第三名-02,第四名-03,第五名-04,亚军-05"
+            if lottery_category == '10_number' and ('-' in content_str or ':' in content_str or '：' in content_str):
+                # 清理内容
+                content_clean = content_str
                 
-                for part in parts:
-                    part = part.strip()
-                    if '-' in part:
-                        # 分割位置和号码，如 '冠军-01' -> ['冠军', '01']
-                        position_number = part.split('-')
-                        if len(position_number) >= 2:
-                            number_part = position_number[-1].strip()  # 取最后一个部分作为号码
-                            
-                            # 提取数字
-                            num_matches = re.findall(r'\d+', number_part)
-                            for match in num_matches:
-                                if match.isdigit():
-                                    num = int(match)
+                # 移除中文括号及其内容
+                content_clean = re.sub(r'[\(（][^\)）]+[\)）]', '', content_clean)
+                
+                # 检查是否是位置-号码格式
+                position_patterns = [
+                    # 格式1: "冠军-01"
+                    r'([^\d\-:：,，]+)[\-:：]\s*(\d{1,2})',
+                    # 格式2: "冠军:01"
+                    r'([^,:：\d]+)[,:：]\s*(\d{1,2})',
+                    # 格式3: "冠军01" (无分隔符)
+                    r'([^\d]+)(\d{1,2})'
+                ]
+                
+                # 尝试多种模式匹配
+                for pattern in position_patterns:
+                    matches = re.findall(pattern, content_clean)
+                    if matches:
+                        for match in matches:
+                            if len(match) >= 2:
+                                position_part = match[0].strip()
+                                num_str = match[1].strip()
+                                
+                                # 如果num_str是纯数字，直接处理
+                                if num_str.isdigit():
+                                    num = int(num_str)
                                     if num in number_range:
                                         numbers.append(num)
-                    else:
-                        # 如果没有'-'，直接提取数字
-                        num_matches = re.findall(r'\d+', part)
-                        for match in num_matches:
-                            if match.isdigit():
-                                num = int(match)
+                        
+                        if numbers:
+                            # 去重并返回
+                            numbers = list(set(numbers))
+                            numbers = [num for num in numbers if num in number_range]
+                            numbers.sort()
+                            return numbers
+                
+                # 2. 处理逗号分隔的数字："01,02,03,04,05"
+                if ',' in content_clean or '，' in content_clean:
+                    # 替换全角逗号为半角逗号
+                    content_clean = content_clean.replace('，', ',')
+                    
+                    # 分割并处理每个部分
+                    parts = [p.strip() for p in content_clean.split(',')]
+                    for part in parts:
+                        # 提取数字
+                        num_matches = re.findall(r'\d{1,2}', part)
+                        for num_str in num_matches:
+                            if num_str.isdigit():
+                                num = int(num_str)
                                 if num in number_range:
                                     numbers.append(num)
+                    
+                    if numbers:
+                        numbers = list(set(numbers))
+                        numbers = [num for num in numbers if num in number_range]
+                        numbers.sort()
+                        return numbers
             
-            # 2. 如果没有逗号，直接处理
-            else:
-                # 提取所有数字
-                num_matches = re.findall(r'\d+', content_str)
-                for match in num_matches:
-                    if match.isdigit():
-                        num = int(match)
+            # 3. 通用数字提取（原有逻辑保持不变）
+            # 从整个内容中提取所有数字
+            all_number_matches = re.findall(r'\b\d{1,2}\b', content_str)
+            if all_number_matches:
+                for num_str in all_number_matches:
+                    if num_str.isdigit():
+                        num = int(num_str)
                         if num in number_range:
                             numbers.append(num)
+                if numbers:
+                    return list(set(numbers))
+            
+            # 处理分隔符格式
+            separators = [',', '，', ' ', ';', '；', '、', '/', '\\', '|']
+            for sep in separators:
+                if sep in content_str:
+                    parts = content_str.split(sep)
+                    for part in parts:
+                        part_clean = part.strip()
+                        num_matches = re.findall(r'\b\d{1,2}\b', part_clean)
+                        for num_str in num_matches:
+                            if num_str.isdigit():
+                                num = int(num_str)
+                                if num in number_range:
+                                    numbers.append(num)
+                    if numbers:
+                        break
             
             # 去重并排序
             numbers = list(set(numbers))
             numbers = [num for num in numbers if num in number_range]
             numbers.sort()
-            
+
             return numbers
                 
         except Exception as e:
@@ -2807,10 +2902,6 @@ def main():
     # 侧边栏设置 - 分别设置不同彩种的阈值
     st.sidebar.header("⚙️ 分析参数设置")
 
-    # 🆕 添加测试按钮
-    if st.button("🔍 运行详细测试模式"):
-        st.subheader("🔬 详细测试模式")
-    
     # 文件上传
     st.sidebar.header("📁 数据上传")
     uploaded_file = st.sidebar.file_uploader(
@@ -2875,15 +2966,15 @@ def main():
         "赛车类基础-号码数量阈值", 
         min_value=1, 
         max_value=10, 
-        value=1,  # 🆕 调整为1，更宽松
+        value=3,
         help="时时彩/PK10/赛车基础玩法：只分析投注号码数量大于等于此值的账户"
     )
     
     ten_number_min_avg_amount = st.sidebar.slider(
         "赛车类基础-平均金额阈值", 
         min_value=0, 
-        max_value=50,
-        value=0,  # 🆕 调整为0，更宽松
+        max_value=20,
+        value=5,
         step=1,
         help="时时彩/PK10/赛车基础玩法：只分析平均每号金额大于等于此值的账户"
     )
@@ -3036,6 +3127,9 @@ def main():
                     st.write("---")
             
             # 继续原有代码...
+            # 隐藏分析模式和参数设置显示
+            pass
+            
             # 隐藏分析模式和参数设置显示
             pass
             
