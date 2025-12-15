@@ -3347,15 +3347,22 @@ def main():
                 
         except Exception as e:
             st.error(f"❌ 处理文件时出错: {str(e)}")
-                
+            logger.error(f"文件处理错误: {str(e)}", exc_info=True)
+            
+            # 提供更详细的错误信息
+            with st.expander("🔍 查看详细错误信息", expanded=False):
+                st.code(f"""
+        错误类型: {type(e).__name__}
+        错误信息: {str(e)}
+        
         可能的原因:
         1. 文件编码问题 - 尝试将文件另存为UTF-8编码
         2. 文件格式问题 - 确保文件是有效的CSV或Excel格式
         3. 内存不足 - 尝试分析较小的数据文件
         4. 列名不匹配 - 检查文件是否包含必要的列
-                
-        如果问题持续存在，请联系技术支持。
-                """)
+        
+        如果问题持续存在，请联系技术支持。  # <-- 这里有中文逗号"！"
+                        """)
     
     else:
         st.info("💡 **彩票完美覆盖分析系统**")
