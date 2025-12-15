@@ -751,8 +751,16 @@ class MultiLotteryCoverageAnalyzer:
         # 1. 首先识别彩种类型
         df_clean['彩种类型'] = df_clean['彩种'].apply(self.identify_lottery_category)
         
+        # 🆕 新增：显示彩种识别结果
+        st.info(f"📊 彩种识别结果:")
+        st.write(df_clean[['彩种', '彩种类型']].drop_duplicates().head(20))
+        
         # 🆕 新增：展开分组玩法
         df_clean = self.expand_group_play_records(df_clean)
+        
+        # 🆕 新增：显示分组玩法展开后的数据
+        st.info(f"📊 分组玩法展开后数据:")
+        st.write(df_clean[['会员账号', '彩种', '玩法', '内容']].head(20))
         
         # 2. 统一玩法分类
         df_clean['玩法'] = df_clean.apply(
@@ -762,6 +770,10 @@ class MultiLotteryCoverageAnalyzer:
             ), 
             axis=1
         )
+        
+        # 🆕 新增：显示玩法分类结果
+        st.info(f"📊 玩法分类结果:")
+        st.write(df_clean[['玩法', '内容']].head(20))
         
         # 3. 提取号码
         df_clean['提取号码'] = df_clean.apply(
@@ -773,14 +785,32 @@ class MultiLotteryCoverageAnalyzer:
             axis=1
         )
         
+        # 🆕 新增：显示号码提取结果
+        st.info(f"📊 号码提取结果:")
+        sample_df = df_clean[['内容', '提取号码']].head(20)
+        st.write(sample_df)
+        
+        # 显示提取的号码详情
+        for idx, row in sample_df.iterrows():
+            st.write(f"内容: {row['内容']} -> 号码: {row['提取号码']}")
+        
         # 4. 过滤无号码记录
         initial_count = len(df_clean)
         df_clean = df_clean[df_clean['提取号码'].apply(lambda x: len(x) > 0)]
         no_number_count = initial_count - len(df_clean)
         
+        if no_number_count > 0:
+            st.warning(f"⚠️ 过滤了 {no_number_count} 条无号码记录")
+        
         # 5. 过滤非号码投注玩法
         df_clean = self.filter_number_bets_only(df_clean)
         non_number_play_count = initial_count - no_number_count - len(df_clean)
+        
+        if non_number_play_count > 0:
+            st.warning(f"⚠️ 过滤了 {non_number_play_count} 条非号码投注记录")
+        
+        final_count = len(df_clean)
+        st.success(f"✅ 数据预处理完成: 从 {initial_count} 条记录中保留 {final_count} 条有效记录")
         
         return df_clean, no_number_count, non_number_play_count
 
@@ -2881,6 +2911,56 @@ def main():
     
     # 侧边栏设置 - 分别设置不同彩种的阈值
     st.sidebar.header("⚙️ 分析参数设置")
+
+        # 🆕 添加测试按钮
+        if st.button("🔍 运行详细测试模式"):
+            st.subheader("🔬 详细测试模式")
+            
+            # 直接测试您的数据格式
+            test_data = [
+                {
+                    '会员账号': 'zhang123',
+                    '彩种': '澳洲飞艇',
+                    '期号': '202512110279',
+                    '玩法': '1-5名',
+                    '内容': '冠军-01,第三名-02,第四名-03,第五名-04,亚军-05',
+                    '金额': '投注：20.000 抵用：0 中奖：0.000'
+                },
+                {
+                    '会员账号': 'Wlj507',
+                    '彩种': '澳洲飞艇',
+                    '期号': '202512110279',
+                    '玩法': '6-10名',
+                    '内容': '第七名-06,第八名-07,第九名-08,第六名-09,第十名-10',
+                    '金额': '投注：10.000 抵用：0 中奖：19.400'
+                }
+            ]
+            
+            test_df = pd.DataFrame(test_data)
+            st.write("测试数据:")
+            st.dataframe(test_df)
+            
+            # 测试号码提取
+            st.write("🔍 测试号码提取:")
+            for idx, row in test_df.iterrows():
+                content = row['内容']
+                lottery_category = analyzer.identify_lottery_category(row['彩种'])
+                play_method = row['玩法']
+                
+                st.write(f"行 {idx+1}:")
+                st.write(f"  内容: {content}")
+                st.write(f"  彩种类型: {lottery_category}")
+                st.write(f"  玩法: {play_method}")
+                
+                numbers = analyzer.enhanced_extract_numbers(content, lottery_category, play_method)
+                st.write(f"  提取号码: {numbers}")
+                
+                # 测试金额提取
+                amount_text = row['金额']
+                amount = analyzer.extract_bet_amount(amount_text)
+                st.write(f"  金额文本: {amount_text}")
+                st.write(f"  提取金额: {amount}")
+                st.write("---")
     
     # 文件上传
     st.sidebar.header("📁 数据上传")
@@ -2946,15 +3026,15 @@ def main():
         "赛车类基础-号码数量阈值", 
         min_value=1, 
         max_value=10, 
-        value=3,
+        value=1,  # 🆕 调整为1，更宽松
         help="时时彩/PK10/赛车基础玩法：只分析投注号码数量大于等于此值的账户"
     )
     
     ten_number_min_avg_amount = st.sidebar.slider(
         "赛车类基础-平均金额阈值", 
         min_value=0, 
-        max_value=20,
-        value=5,
+        max_value=50,
+        value=0,  # 🆕 调整为0，更宽松
         step=1,
         help="时时彩/PK10/赛车基础玩法：只分析平均每号金额大于等于此值的账户"
     )
@@ -3063,10 +3143,13 @@ def main():
             else:
                 df = pd.read_excel(uploaded_file)
             
-            # st.success(f"✅ 成功读取文件，共 {len(df):,} 条记录")
+            st.success(f"✅ 成功读取文件，共 {len(df):,} 条记录")
             
-            # 隐藏分析模式和参数设置显示
-            pass
+            # 🆕 显示数据预览
+            st.subheader("📋 原始数据预览")
+            st.write(f"数据形状: {df.shape} (行 x 列)")
+            st.write("列名:", list(df.columns))
+            st.dataframe(df.head(10))
             
             # 将列名识别和数据质量检查放入折叠框
             # with st.expander("🔧 数据预处理过程", expanded=False):
