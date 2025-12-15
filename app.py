@@ -3266,7 +3266,7 @@ def main():
         "赛车类基础-平均金额阈值", 
         min_value=0, 
         max_value=20,
-        value=5,
+        value=2,
         step=1,
         help="时时彩/PK10/赛车基础玩法：只分析平均每号金额大于等于此值的账户"
     )
