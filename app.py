@@ -2973,22 +2973,7 @@ def main():
         try:
             # 读取文件 - 增强编码处理
             if uploaded_file.name.endswith('.csv'):
-                try:
-                    # 先尝试UTF-8
-                    df = pd.read_csv(uploaded_file)
-                except UnicodeDecodeError:
-                    # 如果UTF-8失败，尝试其他编码
-                    uploaded_file.seek(0)  # 重置文件指针
-                    try:
-                        df = pd.read_csv(uploaded_file, encoding='gbk')
-                    except:
-                        uploaded_file.seek(0)
-                        try:
-                            df = pd.read_csv(uploaded_file, encoding='gb2312')
-                        except:
-                            uploaded_file.seek(0)
-                            # 最后尝试忽略错误
-                            df = pd.read_csv(uploaded_file, encoding_errors='ignore')
+                # ... 读取文件的代码 ...
             else:
                 df = pd.read_excel(uploaded_file)
             
@@ -2999,6 +2984,60 @@ def main():
             st.write(f"数据形状: {df.shape} (行 x 列)")
             st.write("列名:", list(df.columns))
             st.dataframe(df.head(10))
+            
+            # 🆕 添加测试按钮（确保这个缩进与上面的代码对齐）
+            if st.button("🔍 运行详细测试模式"):
+                st.subheader("🔬 详细测试模式")
+                
+                # 直接测试您的数据格式
+                test_data = [
+                    {
+                        '会员账号': 'zhang123',
+                        '彩种': '澳洲飞艇',
+                        '期号': '202512110279',
+                        '玩法': '1-5名',
+                        '内容': '冠军-01,第三名-02,第四名-03,第五名-04,亚军-05',
+                        '金额': '投注：20.000 抵用：0 中奖：0.000'
+                    },
+                    {
+                        '会员账号': 'Wlj507',
+                        '彩种': '澳洲飞艇',
+                        '期号': '202512110279',
+                        '玩法': '6-10名',
+                        '内容': '第七名-06,第八名-07,第九名-08,第六名-09,第十名-10',
+                        '金额': '投注：10.000 抵用：0 中奖：19.400'
+                    }
+                ]
+                
+                test_df = pd.DataFrame(test_data)
+                st.write("测试数据:")
+                st.dataframe(test_df)
+                
+                # 测试号码提取
+                st.write("🔍 测试号码提取:")
+                for idx, row in test_df.iterrows():
+                    content = row['内容']
+                    lottery_category = analyzer.identify_lottery_category(row['彩种'])
+                    play_method = row['玩法']
+                    
+                    st.write(f"行 {idx+1}:")
+                    st.write(f"  内容: {content}")
+                    st.write(f"  彩种类型: {lottery_category}")
+                    st.write(f"  玩法: {play_method}")
+                    
+                    numbers = analyzer.enhanced_extract_numbers(content, lottery_category, play_method)
+                    st.write(f"  提取号码: {numbers}")
+                    
+                    # 测试金额提取
+                    amount_text = row['金额']
+                    amount = analyzer.extract_bet_amount(amount_text)
+                    st.write(f"  金额文本: {amount_text}")
+                    st.write(f"  提取金额: {amount}")
+                    st.write("---")
+            
+            # 继续原有代码...
+            # 隐藏分析模式和参数设置显示
+            pass
             
             # 将列名识别和数据质量检查放入折叠框
             # with st.expander("🔧 数据预处理过程", expanded=False):
@@ -3285,53 +3324,6 @@ def main():
         - ✅ 彩种必须是支持的彩票类型
         - 💰 可选包含金额列进行深度分析
         """)
-
-            
-            # 直接测试您的数据格式
-            test_data = [
-                {
-                    '会员账号': 'zhang123',
-                    '彩种': '澳洲飞艇',
-                    '期号': '202512110279',
-                    '玩法': '1-5名',
-                    '内容': '冠军-01,第三名-02,第四名-03,第五名-04,亚军-05',
-                    '金额': '投注：20.000 抵用：0 中奖：0.000'
-                },
-                {
-                    '会员账号': 'Wlj507',
-                    '彩种': '澳洲飞艇',
-                    '期号': '202512110279',
-                    '玩法': '6-10名',
-                    '内容': '第七名-06,第八名-07,第九名-08,第六名-09,第十名-10',
-                    '金额': '投注：10.000 抵用：0 中奖：19.400'
-                }
-            ]
-            
-            test_df = pd.DataFrame(test_data)
-            st.write("测试数据:")
-            st.dataframe(test_df)
-            
-            # 测试号码提取
-            st.write("🔍 测试号码提取:")
-            for idx, row in test_df.iterrows():
-                content = row['内容']
-                lottery_category = analyzer.identify_lottery_category(row['彩种'])
-                play_method = row['玩法']
-                
-                st.write(f"行 {idx+1}:")
-                st.write(f"  内容: {content}")
-                st.write(f"  彩种类型: {lottery_category}")
-                st.write(f"  玩法: {play_method}")
-                
-                numbers = analyzer.enhanced_extract_numbers(content, lottery_category, play_method)
-                st.write(f"  提取号码: {numbers}")
-                
-                # 测试金额提取
-                amount_text = row['金额']
-                amount = analyzer.extract_bet_amount(amount_text)
-                st.write(f"  金额文本: {amount_text}")
-                st.write(f"  提取金额: {amount}")
-                st.write("---")
 
 if __name__ == "__main__":
     main()
