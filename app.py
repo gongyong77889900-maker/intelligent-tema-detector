@@ -2755,21 +2755,24 @@ class MultiLotteryCoverageAnalyzer:
             
             return all_results
     
-    def analyze_by_position_no_duplicate(self, df_target, params, lottery_category):
+    def analyze_by_position(self, df_target, params, lottery_category):
         """按位置分析 - 无重复完美覆盖版本"""
         all_period_results = {}
         
         if lottery_category == 'six_mark':
             min_number_count = params['min_number_count']
             min_avg_amount = params['min_avg_amount']
+            max_amount_ratio = params.get('max_amount_ratio', 10)  # 🆕 获取金额倍数限制
             total_numbers = 49  # 六合彩总号码数
         elif lottery_category == 'fast_three':
             min_number_count = params.get('sum_min_number_count', 4)  # 默认和值阈值
             min_avg_amount = params.get('sum_min_avg_amount', 5)
+            max_amount_ratio = params.get('max_amount_ratio', 10)  # 🆕 获取金额倍数限制
             total_numbers = 16  # 快三和值总号码数
         else:
             min_number_count = params.get('min_number_count', 3)
             min_avg_amount = params.get('min_avg_amount', 5)
+            max_amount_ratio = params.get('max_amount_ratio', 10)  # 🆕 获取金额倍数限制
             total_numbers = 10
         
         # 按期号、彩种、玩法分组
@@ -2778,24 +2781,27 @@ class MultiLotteryCoverageAnalyzer:
         for (period, lottery, position), group in grouped:
             if len(group) >= 2:
                 # 调用原有的按位置分析方法（需要确保它是无重复版本）
-                result = self.analyze_period_lottery_position_no_duplicate(
+                result = self.analyze_period_lottery_position(
                     group, period, lottery, position,
                     min_number_count,
                     min_avg_amount
                 )
                 if result:
+                    # 🆕 添加金额倍数限制
+                    result['max_amount_ratio'] = max_amount_ratio
                     key = (period, lottery, position)
                     all_period_results[key] = result
         
         return all_period_results
     
-    def analyze_by_period_merge_no_duplicate(self, df_target, params, lottery_category):
+    def analyze_by_period_merge(self, df_target, params, lottery_category):
         """按期号合并分析 - 无重复完美覆盖版本"""
         all_period_results = {}
         
         # 获取参数
         min_number_count = params.get('min_number_count', 3)
         min_avg_amount = params.get('min_avg_amount', 5)
+        max_amount_ratio = params.get('max_amount_ratio', 10)  # 🆕 获取金额倍数限制
         
         # 获取所有唯一的期号
         all_unique_periods = df_target['期号'].unique()
@@ -2810,7 +2816,8 @@ class MultiLotteryCoverageAnalyzer:
                 result = self.analyze_pk10_period_merge_no_duplicate(
                     df_target, period, lottery,
                     min_number_count,
-                    min_avg_amount
+                    min_avg_amount,
+                    max_amount_ratio  # 🆕 传递金额倍数限制
                 )
                 
                 if result:
@@ -2924,7 +2931,7 @@ class MultiLotteryCoverageAnalyzer:
         
         return None
     
-    def analyze_pk10_period_merge_no_duplicate(self, df_target, period, lottery, min_number_count, min_avg_amount):
+    def analyze_pk10_period_merge_no_duplicate(self, df_target, period, lottery, min_number_count, min_avg_amount, max_amount_ratio=10):
         """PK10按期号合并分析 - 无重复完美覆盖版本"""
         # 筛选该期号的所有数据
         period_data = df_target[
@@ -2998,9 +3005,22 @@ class MultiLotteryCoverageAnalyzer:
                 
                 # 检查是否完美覆盖且无重复
                 if len(combined_set) == total_numbers and len(set1) + len(set2) == total_numbers:
-                    # 检查金额匹配度
+                    # 🆕 金额倍数限制检查
                     avg1 = account_amount_stats[acc1]['avg_amount_per_number']
                     avg2 = account_amount_stats[acc2]['avg_amount_per_number']
+                    
+                    max_avg = max(avg1, avg2)
+                    min_avg = min(avg1, avg2)
+                    
+                    if max_avg == 0 or min_avg == 0:
+                        continue  # 避免除零错误
+                    
+                    amount_ratio = max_avg / min_avg
+                    
+                    if amount_ratio > max_amount_ratio:
+                        continue  # 金额差距超过允许倍数，跳过
+                    
+                    # 检查金额匹配度
                     similarity = self.calculate_similarity([avg1, avg2])
                     
                     # 检查金额阈值
@@ -3025,6 +3045,7 @@ class MultiLotteryCoverageAnalyzer:
                                 acc2: account_bet_contents[acc2]
                             },
                             'merged_numbers': sorted(combined_set),
+                            'amount_ratio': amount_ratio,
                             'is_no_duplicate': True
                         }
                         
@@ -3040,6 +3061,7 @@ class MultiLotteryCoverageAnalyzer:
                 'all_combinations': perfect_combinations,
                 'filtered_accounts': len(account_numbers),
                 'total_numbers': total_numbers,
+                'max_amount_ratio': max_amount_ratio,
                 'is_no_duplicate': True
             }
         
