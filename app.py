@@ -3466,7 +3466,7 @@ def main():
     max_amount_ratio = st.sidebar.slider(
         "组内账户金额最大差距倍数", 
         min_value=1, 
-        max_value=100, 
+        max_value=1000, 
         value=10,
         help="对刷组内账户金额差距不超过设定倍数（例如：10表示10倍差距，1表示必须完全相等）"
     )
