@@ -2577,6 +2577,140 @@ class MultiLotteryCoverageAnalyzer:
         with col3:
             st.metric("平均期数", f"{df_stats['投注期数'].mean():.1f}")
 
+    def analyze_period_merge_coverage(self, df_target, period, lottery, min_number_count, min_avg_amount):
+        """按期号合并分析：不考虑位置，只看整个期号的号码覆盖"""
+        # 筛选该期号的数据
+        period_data = df_target[
+            (df_target['期号'] == period) & 
+            (df_target['彩种'] == lottery)
+        ]
+        
+        if len(period_data) < 2:
+            return None
+        
+        logger.info(f"🎯 开始按期号合并分析: {period} {lottery}")
+        
+        # 按账户分组，合并所有号码（不考虑位置）
+        account_numbers = {}
+        account_amount_stats = {}
+        account_bet_contents = {}
+        
+        for account in period_data['会员账号'].unique():
+            account_data = period_data[period_data['会员账号'] == account]
+            
+            all_numbers = set()
+            total_amount = 0
+            
+            for _, row in account_data.iterrows():
+                numbers = row['提取号码'] if '提取号码' in row else self.cached_extract_numbers(row['内容'], '10_number', row['玩法'])
+                all_numbers.update(numbers)
+                
+                # 提取金额
+                if '投注金额' in row:
+                    amount = row['投注金额']
+                elif '金额' in row:
+                    amount = self.extract_bet_amount(row['金额'])
+                else:
+                    amount = 0
+                total_amount += amount
+            
+            if all_numbers:
+                account_numbers[account] = sorted(all_numbers)
+                account_bet_contents[account] = ", ".join([f"{num:02d}" for num in sorted(all_numbers)])
+                
+                number_count = len(all_numbers)
+                avg_amount_per_number = total_amount / number_count if number_count > 0 else 0
+                
+                account_amount_stats[account] = {
+                    'number_count': number_count,
+                    'total_amount': total_amount,
+                    'avg_amount_per_number': avg_amount_per_number
+                }
+                
+                st.info(f"📊 账户 {account}: {number_count}个号码 ({account_numbers[account]})，总金额: {total_amount:.2f}，平均每号: {avg_amount_per_number:.2f}")
+        
+        if len(account_numbers) < 2:
+            return None
+        
+        st.success(f"✅ 期号 {period}: {len(account_numbers)} 个有效账户")
+        
+        # 尝试所有可能的2账户组合
+        all_accounts = list(account_numbers.keys())
+        perfect_combinations = []
+        
+        for i in range(len(all_accounts)):
+            for j in range(i+1, len(all_accounts)):
+                acc1 = all_accounts[i]
+                acc2 = all_accounts[j]
+                
+                set1 = set(account_numbers[acc1])
+                set2 = set(account_numbers[acc2])
+                combined_set = set1 | set2
+                
+                # 检查是否覆盖1-10
+                if len(combined_set) == 10:
+                    st.success(f"🎯 发现完美覆盖组合: {acc1} + {acc2}")
+                    st.info(f"   {acc1}: {sorted(set1)}")
+                    st.info(f"   {acc2}: {sorted(set2)}")
+                    st.info(f"   合并: {sorted(combined_set)}")
+                    
+                    # 检查金额匹配度
+                    avg1 = account_amount_stats[acc1]['avg_amount_per_number']
+                    avg2 = account_amount_stats[acc2]['avg_amount_per_number']
+                    similarity = self.calculate_similarity([avg1, avg2])
+                    
+                    # 记录所有组合
+                    meets_threshold = avg1 >= float(min_avg_amount) and avg2 >= float(min_avg_amount)
+                    
+                    result_data = {
+                        'accounts': sorted([acc1, acc2]),
+                        'account_count': 2,
+                        'total_amount': account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount'],
+                        'avg_amount_per_number': (account_amount_stats[acc1]['total_amount'] + account_amount_stats[acc2]['total_amount']) / 10,
+                        'similarity': similarity,
+                        'similarity_indicator': self.get_similarity_indicator(similarity),
+                        'individual_amounts': {
+                            acc1: account_amount_stats[acc1]['total_amount'],
+                            acc2: account_amount_stats[acc2]['total_amount']
+                        },
+                        'individual_avg_per_number': {
+                            acc1: account_amount_stats[acc1]['avg_amount_per_number'],
+                            acc2: account_amount_stats[acc2]['avg_amount_per_number']
+                        },
+                        'bet_contents': {
+                            acc1: account_bet_contents[acc1],
+                            acc2: account_bet_contents[acc2]
+                        },
+                        'merged_numbers': sorted(combined_set),
+                        'meets_amount_threshold': meets_threshold
+                    }
+                    
+                    perfect_combinations.append(result_data)
+        
+        if perfect_combinations:
+            # 筛选满足金额阈值的组合
+            filtered_combinations = [combo for combo in perfect_combinations if combo['meets_amount_threshold']]
+            
+            if filtered_combinations:
+                st.success(f"🎉 期号 {period} 发现 {len(filtered_combinations)} 个完美覆盖组合")
+                
+                # 移除临时字段
+                for combo in filtered_combinations:
+                    del combo['meets_amount_threshold']
+                
+                return {
+                    'period': period,
+                    'lottery': lottery,
+                    'position': '按期号合并',
+                    'lottery_category': '10_number',
+                    'total_combinations': len(filtered_combinations),
+                    'all_combinations': filtered_combinations,
+                    'filtered_accounts': len(account_numbers),
+                    'total_numbers': 10
+                }
+        
+        return None
+    
     def analyze_with_progress(self, df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode):
         """带进度显示的分析 - 无重复完美覆盖版本"""
         all_period_results = {}
@@ -2621,24 +2755,21 @@ class MultiLotteryCoverageAnalyzer:
             
             return all_results
     
-    def analyze_by_position(self, df_target, params, lottery_category):
+    def analyze_by_position_no_duplicate(self, df_target, params, lottery_category):
         """按位置分析 - 无重复完美覆盖版本"""
         all_period_results = {}
         
         if lottery_category == 'six_mark':
             min_number_count = params['min_number_count']
             min_avg_amount = params['min_avg_amount']
-            max_amount_ratio = params.get('max_amount_ratio', 10)
             total_numbers = 49  # 六合彩总号码数
         elif lottery_category == 'fast_three':
-            min_number_count = params.get('sum_min_number_count', 4)
+            min_number_count = params.get('sum_min_number_count', 4)  # 默认和值阈值
             min_avg_amount = params.get('sum_min_avg_amount', 5)
-            max_amount_ratio = params.get('max_amount_ratio', 10)
             total_numbers = 16  # 快三和值总号码数
         else:
             min_number_count = params.get('min_number_count', 3)
             min_avg_amount = params.get('min_avg_amount', 5)
-            max_amount_ratio = params.get('max_amount_ratio', 10)
             total_numbers = 10
         
         # 按期号、彩种、玩法分组
@@ -2646,12 +2777,11 @@ class MultiLotteryCoverageAnalyzer:
         
         for (period, lottery, position), group in grouped:
             if len(group) >= 2:
-                # 🆕 调用无重复版本的按位置分析方法
-                result = self.analyze_period_lottery_position(
+                # 调用原有的按位置分析方法（需要确保它是无重复版本）
+                result = self.analyze_period_lottery_position_no_duplicate(
                     group, period, lottery, position,
                     min_number_count,
-                    min_avg_amount,
-                    max_amount_ratio  # 🆕 传递金额倍数限制
+                    min_avg_amount
                 )
                 if result:
                     key = (period, lottery, position)
@@ -2659,14 +2789,13 @@ class MultiLotteryCoverageAnalyzer:
         
         return all_period_results
     
-    def analyze_by_period_merge(self, df_target, params, lottery_category):
+    def analyze_by_period_merge_no_duplicate(self, df_target, params, lottery_category):
         """按期号合并分析 - 无重复完美覆盖版本"""
         all_period_results = {}
         
         # 获取参数
         min_number_count = params.get('min_number_count', 3)
         min_avg_amount = params.get('min_avg_amount', 5)
-        max_amount_ratio = params.get('max_amount_ratio', 10)  # 🆕 获取金额倍数限制
         
         # 获取所有唯一的期号
         all_unique_periods = df_target['期号'].unique()
@@ -2681,8 +2810,7 @@ class MultiLotteryCoverageAnalyzer:
                 result = self.analyze_pk10_period_merge_no_duplicate(
                     df_target, period, lottery,
                     min_number_count,
-                    min_avg_amount,
-                    max_amount_ratio  # 🆕 传递金额倍数限制
+                    min_avg_amount
                 )
                 
                 if result:
@@ -2691,7 +2819,7 @@ class MultiLotteryCoverageAnalyzer:
         
         return all_period_results
     
-    def analyze_period_lottery_position(self, group, period, lottery, position, user_min_number_count, user_min_avg_amount, max_amount_ratio=10):
+    def analyze_period_lottery_position_no_duplicate(self, group, period, lottery, position, user_min_number_count, user_min_avg_amount):
         """分析特定期数、彩种和位置 - 无重复完美覆盖版本"""
         
         lottery_category = self.identify_lottery_category(lottery)
@@ -3331,7 +3459,7 @@ def main():
     max_amount_ratio = st.sidebar.slider(
         "组内账户金额最大差距倍数", 
         min_value=1, 
-        max_value=100, 
+        max_value=50, 
         value=10,
         help="对刷组内账户金额差距不超过设定倍数（例如：10表示10倍差距，1表示必须完全相等）"
     )
