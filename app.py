@@ -1909,8 +1909,8 @@ class MultiLotteryCoverageAnalyzer:
         else: 
             return "🔴"
     
-    def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers, lottery_category, play_method=None):
-        """寻找完美组合 - 优化版本：基于数学配对的通用优化，支持所有彩种"""
+    def find_perfect_combinations(self, account_numbers, account_amount_stats, account_bet_contents, min_avg_amount, total_numbers, lottery_category, play_method=None, max_amount_ratio=10):
+        """寻找完美组合 - 优化版本：基于数学配对的通用优化，支持所有彩种，包含金额平衡检查"""
         
         all_results = {2: [], 3: [], 4: []}
         
@@ -1977,18 +1977,31 @@ class MultiLotteryCoverageAnalyzer:
                     if combo_key in found_combinations_2:
                         continue
                         
-                    # 检查并集是否完美覆盖
+                    # 检查并集是否完美覆盖 且 没有重复号码
                     set1 = account_sets[acc1]
                     set2 = account_sets[acc2]
                     combined_set = set1 | set2
-                    if len(combined_set) == total_numbers and set1.isdisjoint(set2):
+                    if len(combined_set) == total_numbers and set1.isdisjoint(set2):  # 添加互斥性检查
                         # 金额检查
                         avg_amounts = [
                             account_amount_stats[acc1]['avg_amount_per_number'],
                             account_amount_stats[acc2]['avg_amount_per_number']
                         ]
                         
-                        if min(avg_amounts) >= float(min_avg_amount):
+                        # 检查金额平衡（最大金额与最小金额的倍数）
+                        individual_amounts = [
+                            account_amount_stats[acc1]['total_amount'],
+                            account_amount_stats[acc2]['total_amount']
+                        ]
+                        max_amount = max(individual_amounts)
+                        min_amount = min(individual_amounts)
+                        
+                        # 检查金额平衡条件
+                        amount_balanced = True
+                        if min_amount > 0 and max_amount / min_amount > max_amount_ratio:
+                            amount_balanced = False
+                        
+                        if min(avg_amounts) >= float(min_avg_amount) and amount_balanced:
                             # 标记这个组合已经找到
                             found_combinations_2.add(combo_key)
                             
@@ -2081,7 +2094,21 @@ class MultiLotteryCoverageAnalyzer:
                                 account_amount_stats[acc3]['avg_amount_per_number']
                             ]
                             
-                            if min(avg_amounts) >= float(min_avg_amount):
+                            # 检查金额平衡（最大金额与最小金额的倍数）
+                            individual_amounts = [
+                                account_amount_stats[acc1]['total_amount'],
+                                account_amount_stats[acc2]['total_amount'],
+                                account_amount_stats[acc3]['total_amount']
+                            ]
+                            max_amount = max(individual_amounts)
+                            min_amount = min(individual_amounts)
+                            
+                            # 检查金额平衡条件
+                            amount_balanced = True
+                            if min_amount > 0 and max_amount / min_amount > max_amount_ratio:
+                                amount_balanced = False
+                            
+                            if min(avg_amounts) >= float(min_avg_amount) and amount_balanced:
                                 # 标记这个组合已经找到
                                 found_combinations_3.add(combo_key)
                                 
@@ -2197,7 +2224,22 @@ class MultiLotteryCoverageAnalyzer:
                                     account_amount_stats[acc4]['avg_amount_per_number']
                                 ]
                                 
-                                if min(avg_amounts) >= float(min_avg_amount):
+                                # 检查金额平衡（最大金额与最小金额的倍数）
+                                individual_amounts = [
+                                    account_amount_stats[acc1]['total_amount'],
+                                    account_amount_stats[acc2]['total_amount'],
+                                    account_amount_stats[acc3]['total_amount'],
+                                    account_amount_stats[acc4]['total_amount']
+                                ]
+                                max_amount = max(individual_amounts)
+                                min_amount = min(individual_amounts)
+                                
+                                # 检查金额平衡条件
+                                amount_balanced = True
+                                if min_amount > 0 and max_amount / min_amount > max_amount_ratio:
+                                    amount_balanced = False
+                                
+                                if min(avg_amounts) >= float(min_avg_amount) and amount_balanced:
                                     # 标记这个组合已经找到
                                     found_combinations_4.add(combo_key)
                                     
@@ -2241,14 +2283,14 @@ class MultiLotteryCoverageAnalyzer:
         
         return all_results
 
-    def analyze_period_lottery_position(self, group, period, lottery, position, user_min_number_count, user_min_avg_amount):
-        """分析特定期数、彩种和位置 - 增强分组玩法分析"""
+    def analyze_period_lottery_position(self, group, period, lottery, position, user_min_number_count, user_min_avg_amount, max_amount_ratio=10):
+        """分析特定期数、彩种和位置 - 增强分组玩法分析，包含金额平衡检查"""
         
         lottery_category = self.identify_lottery_category(lottery)
         if not lottery_category:
             return None
         
-        # 🆕 检查是否是分组玩法
+        # 检查是否是分组玩法
         play_str = str(position).strip()
         is_group_play = False
         
@@ -2264,7 +2306,7 @@ class MultiLotteryCoverageAnalyzer:
         if is_group_play:
             # 对于分组玩法，号码总数是10（1-10）
             config = self.get_play_specific_config('10_number', position)
-            total_numbers = 10  # 🆕 固定为10，因为分组玩法需要覆盖1-10
+            total_numbers = 10  # 固定为10，因为分组玩法需要覆盖1-10
         else:
             config = self.get_play_specific_config(lottery_category, position)
             total_numbers = config['total_numbers']
@@ -2333,7 +2375,7 @@ class MultiLotteryCoverageAnalyzer:
         if len(filtered_account_numbers) < 2:
             return None
         
-        # 🆕 对于分组玩法，调整分析参数
+        # 对于分组玩法，调整分析参数
         if is_group_play:
             # 分组玩法：两个账户的组合需要覆盖1-10
             # 检查两个账户的号码是否合并后覆盖1-10
@@ -2350,44 +2392,56 @@ class MultiLotteryCoverageAnalyzer:
                         set2 = set(filtered_account_numbers[acc2])
                         combined_set = set1 | set2
                         
-                        # 检查是否覆盖1-10
-                        if len(combined_set) == 10:
+                        # 检查是否覆盖1-10 且 没有重复号码
+                        if len(combined_set) == 10 and set1.isdisjoint(set2):
                             # 计算金额匹配度
                             avg1 = filtered_account_amount_stats[acc1]['avg_amount_per_number']
                             avg2 = filtered_account_amount_stats[acc2]['avg_amount_per_number']
                             similarity = self.calculate_similarity([avg1, avg2])
                             
-                            result_data = {
-                                'accounts': sorted([acc1, acc2]),
-                                'account_count': 2,
-                                'total_amount': filtered_account_amount_stats[acc1]['total_amount'] + filtered_account_amount_stats[acc2]['total_amount'],
-                                'avg_amount_per_number': (filtered_account_amount_stats[acc1]['total_amount'] + filtered_account_amount_stats[acc2]['total_amount']) / 10,
-                                'similarity': similarity,
-                                'similarity_indicator': self.get_similarity_indicator(similarity),
-                                'individual_amounts': {
-                                    acc1: filtered_account_amount_stats[acc1]['total_amount'],
-                                    acc2: filtered_account_amount_stats[acc2]['total_amount']
-                                },
-                                'individual_avg_per_number': {
-                                    acc1: filtered_account_amount_stats[acc1]['avg_amount_per_number'],
-                                    acc2: filtered_account_amount_stats[acc2]['avg_amount_per_number']
-                                },
-                                'bet_contents': {
-                                    acc1: filtered_account_bet_contents[acc1],
-                                    acc2: filtered_account_bet_contents[acc2]
-                                }
-                            }
+                            # 检查金额平衡
+                            amount1 = filtered_account_amount_stats[acc1]['total_amount']
+                            amount2 = filtered_account_amount_stats[acc2]['total_amount']
+                            max_amount = max(amount1, amount2)
+                            min_amount = min(amount1, amount2)
                             
-                            return {
-                                'period': period,
-                                'lottery': lottery,
-                                'position': position,
-                                'lottery_category': lottery_category,
-                                'total_combinations': 1,
-                                'all_combinations': [result_data],
-                                'filtered_accounts': len(filtered_account_numbers),
-                                'total_numbers': 10
-                            }
+                            # 检查金额平衡条件
+                            amount_balanced = True
+                            if min_amount > 0 and max_amount / min_amount > max_amount_ratio:
+                                amount_balanced = False
+                            
+                            if amount_balanced:
+                                result_data = {
+                                    'accounts': sorted([acc1, acc2]),
+                                    'account_count': 2,
+                                    'total_amount': filtered_account_amount_stats[acc1]['total_amount'] + filtered_account_amount_stats[acc2]['total_amount'],
+                                    'avg_amount_per_number': (filtered_account_amount_stats[acc1]['total_amount'] + filtered_account_amount_stats[acc2]['total_amount']) / 10,
+                                    'similarity': similarity,
+                                    'similarity_indicator': self.get_similarity_indicator(similarity),
+                                    'individual_amounts': {
+                                        acc1: filtered_account_amount_stats[acc1]['total_amount'],
+                                        acc2: filtered_account_amount_stats[acc2]['total_amount']
+                                    },
+                                    'individual_avg_per_number': {
+                                        acc1: filtered_account_amount_stats[acc1]['avg_amount_per_number'],
+                                        acc2: filtered_account_amount_stats[acc2]['avg_amount_per_number']
+                                    },
+                                    'bet_contents': {
+                                        acc1: filtered_account_bet_contents[acc1],
+                                        acc2: filtered_account_bet_contents[acc2]
+                                    }
+                                }
+                                
+                                return {
+                                    'period': period,
+                                    'lottery': lottery,
+                                    'position': position,
+                                    'lottery_category': lottery_category,
+                                    'total_combinations': 1,
+                                    'all_combinations': [result_data],
+                                    'filtered_accounts': len(filtered_account_numbers),
+                                    'total_numbers': 10
+                                }
         
         # 对于非分组玩法，使用原有逻辑
         all_results = self.find_perfect_combinations(
@@ -2397,7 +2451,8 @@ class MultiLotteryCoverageAnalyzer:
             min_avg_amount,
             total_numbers,
             lottery_category,
-            position
+            position,
+            max_amount_ratio  # 新增参数
         )
         
         total_combinations = sum(len(results) for results in all_results.values())
@@ -2641,7 +2696,7 @@ class MultiLotteryCoverageAnalyzer:
         
         return None
     
-    def analyze_with_progress(self, df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode):
+    def analyze_with_progress(self, df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode, max_amount_ratio=10):
         """带进度显示的分析 - 根据不同彩种使用不同的分析方法"""
         all_period_results = {}
         
@@ -2649,17 +2704,17 @@ class MultiLotteryCoverageAnalyzer:
         if analysis_mode == "仅分析六合彩":
             df_target = df_target[df_target['彩种类型'] == 'six_mark']
             # 六合彩：按位置分析
-            return self.analyze_by_position(df_target, six_mark_params, 'six_mark')
+            return self.analyze_by_position(df_target, six_mark_params, 'six_mark', max_amount_ratio)
             
         elif analysis_mode == "仅分析时时彩/PK10/赛车":
             df_target = df_target[df_target['彩种类型'] == '10_number']
             # PK10/时时彩/赛车：按期号合并分析
-            return self.analyze_by_period_merge(df_target, ten_number_params, '10_number')
+            return self.analyze_by_period_merge(df_target, ten_number_params, '10_number', max_amount_ratio)
             
         elif analysis_mode == "仅分析快三":
             df_target = df_target[df_target['彩种类型'] == 'fast_three']
             # 快三：按位置分析（和值）
-            return self.analyze_by_position(df_target, fast_three_params, 'fast_three')
+            return self.analyze_by_position(df_target, fast_three_params, 'fast_three', max_amount_ratio)
             
         else:
             # 自动识别所有彩种：分别用不同方法分析
@@ -2668,24 +2723,24 @@ class MultiLotteryCoverageAnalyzer:
             # 六合彩：按位置分析
             six_mark_data = df_target[df_target['彩种类型'] == 'six_mark']
             if len(six_mark_data) > 0:
-                six_mark_results = self.analyze_by_position(six_mark_data, six_mark_params, 'six_mark')
+                six_mark_results = self.analyze_by_position(six_mark_data, six_mark_params, 'six_mark', max_amount_ratio)
                 all_results.update(six_mark_results)
             
             # PK10/时时彩/赛车：按期号合并分析
             ten_number_data = df_target[df_target['彩种类型'] == '10_number']
             if len(ten_number_data) > 0:
-                ten_number_results = self.analyze_by_period_merge(ten_number_data, ten_number_params, '10_number')
+                ten_number_results = self.analyze_by_period_merge(ten_number_data, ten_number_params, '10_number', max_amount_ratio)
                 all_results.update(ten_number_results)
             
             # 快三：按位置分析
             fast_three_data = df_target[df_target['彩种类型'] == 'fast_three']
             if len(fast_three_data) > 0:
-                fast_three_results = self.analyze_by_position(fast_three_data, fast_three_params, 'fast_three')
+                fast_three_results = self.analyze_by_position(fast_three_data, fast_three_params, 'fast_three', max_amount_ratio)
                 all_results.update(fast_three_results)
             
             return all_results
     
-    def analyze_by_position(self, df_target, params, lottery_category):
+    def analyze_by_position(self, df_target, params, lottery_category, max_amount_ratio=10):
         """按位置分析 - 适用于六合彩、快三等需要按位置单独分析的彩种"""
         all_period_results = {}
         
@@ -2711,7 +2766,8 @@ class MultiLotteryCoverageAnalyzer:
                 result = self.analyze_period_lottery_position(
                     group, period, lottery, position,
                     min_number_count,
-                    min_avg_amount
+                    min_avg_amount,
+                    max_amount_ratio  # 新增参数
                 )
                 if result:
                     key = (period, lottery, position)
@@ -2719,7 +2775,7 @@ class MultiLotteryCoverageAnalyzer:
         
         return all_period_results
     
-    def analyze_by_period_merge(self, df_target, params, lottery_category):
+    def analyze_by_period_merge(self, df_target, params, lottery_category, max_amount_ratio=10):
         """按期号合并分析 - 专门用于PK10/时时彩/赛车"""
         all_period_results = {}
         
@@ -2736,11 +2792,12 @@ class MultiLotteryCoverageAnalyzer:
             period_lotteries = df_target[df_target['期号'] == period]['彩种'].unique()
             
             for lottery in period_lotteries:
-                # 🆕 使用专门的PK10按期号合并分析方法
+                # 使用专门的PK10按期号合并分析方法
                 result = self.analyze_pk10_period_merge(
                     df_target, period, lottery,
                     min_number_count,
-                    min_avg_amount
+                    min_avg_amount,
+                    max_amount_ratio  # 新增参数
                 )
                 
                 if result:
@@ -2749,8 +2806,8 @@ class MultiLotteryCoverageAnalyzer:
         
         return all_period_results
     
-    def analyze_pk10_period_merge(self, df_target, period, lottery, min_number_count, min_avg_amount):
-        """PK10按期号合并分析 - 专门用于PK10系列彩票"""
+    def analyze_pk10_period_merge(self, df_target, period, lottery, min_number_count, min_avg_amount, max_amount_ratio=10):
+        """PK10按期号合并分析 - 专门用于PK10系列彩票，包含金额平衡检查"""
         # 筛选该期号的所有数据
         period_data = df_target[
             (df_target['期号'] == period) & 
@@ -2816,15 +2873,23 @@ class MultiLotteryCoverageAnalyzer:
                 set2 = set(account_numbers[acc2])
                 combined_set = set1 | set2
                 
-                # 检查是否覆盖1-10
+                # 检查是否覆盖1-10 且 没有重复号码
                 if len(combined_set) == total_numbers and set1.isdisjoint(set2):
                     # 检查金额匹配度
                     avg1 = account_amount_stats[acc1]['avg_amount_per_number']
                     avg2 = account_amount_stats[acc2]['avg_amount_per_number']
                     similarity = self.calculate_similarity([avg1, avg2])
                     
-                    # 检查金额阈值
-                    if avg1 >= float(min_avg_amount) and avg2 >= float(min_avg_amount):
+                    # 检查金额平衡
+                    amount1 = account_amount_stats[acc1]['total_amount']
+                    amount2 = account_amount_stats[acc2]['total_amount']
+                    max_amount = max(amount1, amount2)
+                    min_amount = min(amount1, amount2)
+                    
+                    # 检查金额阈值和金额平衡
+                    if (avg1 >= float(min_avg_amount) and avg2 >= float(min_avg_amount) and
+                        min_amount > 0 and max_amount / min_amount <= max_amount_ratio):
+                        
                         result_data = {
                             'accounts': sorted([acc1, acc2]),
                             'account_count': 2,
@@ -3256,6 +3321,18 @@ def main():
         help="选择要分析的彩种类型"
     )
     
+    # ========== 金额平衡设置 ==========
+    st.sidebar.subheader("💰 金额平衡设置")
+    
+    # 金额平衡倍数设置
+    max_amount_ratio = st.sidebar.slider(
+        "组内最大金额与最小金额的允许倍数", 
+        min_value=1, 
+        max_value=50, 
+        value=10,
+        help="例如：10表示最大金额与最小金额的差距不超过10倍。设置为1则要求金额完全相等。"
+    )
+    
     # ========== 六合彩参数设置 ==========
     st.sidebar.subheader("🎯 六合彩参数设置")
     
@@ -3545,7 +3622,7 @@ def main():
                 }
                 
                 all_period_results = analyzer.analyze_with_progress(
-                    df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode
+                    df_target, six_mark_params, ten_number_params, fast_three_params, ssc_3d_params, analysis_mode, max_amount_ratio
                 )
             
             # 显示最终结果
