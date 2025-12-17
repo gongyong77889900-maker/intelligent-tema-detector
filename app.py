@@ -846,7 +846,7 @@ class MultiLotteryCoverageAnalyzer:
                 combined_set = set1 | set2
                 
                 # 检查是否覆盖1-10
-                if len(combined_set) == 10:
+                if len(combined_set) == 10 and set1.isdisjoint(set2):
                     # 检查金额匹配度
                     avg1 = account_amount_stats[acc1]['avg_amount_per_number']
                     avg2 = account_amount_stats[acc2]['avg_amount_per_number']
@@ -974,7 +974,7 @@ class MultiLotteryCoverageAnalyzer:
                 combined_set = set1 | set2
                 
                 # 检查是否覆盖1-10
-                if len(combined_set) == total_numbers:
+                if len(combined_set) == total_numbers and set1.isdisjoint(set2):
                     logger.info(f"🎯 发现完美覆盖组合: {acc1} + {acc2}")
                     logger.info(f"   {acc1}: {sorted(set1)}")
                     logger.info(f"   {acc2}: {sorted(set2)}")
@@ -1978,8 +1978,10 @@ class MultiLotteryCoverageAnalyzer:
                         continue
                         
                     # 检查并集是否完美覆盖
-                    combined_set = account_sets[acc1] | account_sets[acc2]
-                    if len(combined_set) == total_numbers:
+                    set1 = account_sets[acc1]
+                    set2 = account_sets[acc2]
+                    combined_set = set1 | set2
+                    if len(combined_set) == total_numbers and set1.isdisjoint(set2):
                         # 金额检查
                         avg_amounts = [
                             account_amount_stats[acc1]['avg_amount_per_number'],
@@ -2547,7 +2549,7 @@ class MultiLotteryCoverageAnalyzer:
                 combined_set = set1 | set2
                 
                 # 检查是否覆盖1-10
-                if len(combined_set) == 10:
+                if len(combined_set) == 10 and set1.isdisjoint(set2):
                     st.success(f"🎯 发现完美覆盖组合: {acc1} + {acc2}")
                     st.info(f"   {acc1}: {sorted(set1)}")
                     st.info(f"   {acc2}: {sorted(set2)}")
@@ -2786,7 +2788,7 @@ class MultiLotteryCoverageAnalyzer:
                 combined_set = set1 | set2
                 
                 # 检查是否覆盖1-10
-                if len(combined_set) == total_numbers:
+                if len(combined_set) == total_numbers and set1.isdisjoint(set2):
                     # 检查金额匹配度
                     avg1 = account_amount_stats[acc1]['avg_amount_per_number']
                     avg2 = account_amount_stats[acc2]['avg_amount_per_number']
