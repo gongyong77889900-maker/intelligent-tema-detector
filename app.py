@@ -2058,6 +2058,9 @@ class MultiLotteryCoverageAnalyzer:
                             
                         combined_set = set1_2 | account_sets[acc3]
                         if len(combined_set) == total_numbers:
+                            # 添加互斥性检查
+                            if (set1.isdisjoint(set2) and set1.isdisjoint(set3) and set2.isdisjoint(set3)):
+                                # 真正的完美覆盖
                             # 创建组合键，确保顺序一致
                             combo_key = tuple(sorted([acc1, acc2, acc3]))
                             if combo_key in found_combinations_3:
@@ -2154,7 +2157,12 @@ class MultiLotteryCoverageAnalyzer:
                                 continue
                                 
                             combined_set = set1_2_3 | account_sets[acc4]
-                            if len(combined_set) == total_numbers:
+                        if len(combined_set) == total_numbers:
+                            # 添加互斥性检查
+                            if (set1.isdisjoint(set2) and set1.isdisjoint(set3) and set1.isdisjoint(set4) and
+                                set2.isdisjoint(set3) and set2.isdisjoint(set4) and
+                                set3.isdisjoint(set4)):
+                                # 真正的完美覆盖
                                 # 创建组合键，确保顺序一致
                                 combo_key = tuple(sorted([acc1, acc2, acc3, acc4]))
                                 if combo_key in found_combinations_4:
