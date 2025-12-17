@@ -3487,7 +3487,7 @@ def main():
         "六合彩基础-平均金额阈值", 
         min_value=0, 
         max_value=50,
-        value=10,
+        value=32,
         step=1,
         help="六合彩特码、正码等：只分析平均每号金额大于等于此值的账户"
     )
