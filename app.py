@@ -2047,20 +2047,28 @@ class MultiLotteryCoverageAnalyzer:
                     if acc1 == acc2:
                         continue
                         
-                    set1_2 = account_sets[acc1] | account_sets[acc2]
-                    # 如果前两个账户已经有重复，跳过
+                    set1 = account_sets[acc1]
+                    set2 = account_sets[acc2]
+                    # 如果前两个账户有重复，跳过
+                    if not set1.isdisjoint(set2):
+                        continue
+                        
+                    set1_2 = set1 | set2
+                    # 如果前两个账户的并集号码数小于它们号码数之和（说明有重复）
                     if len(set1_2) < count1 + count2:
                         continue
                         
                     for acc3 in accounts_by_count[count3]:
                         if acc3 in [acc1, acc2]:
                             continue
+                        
+                        set3 = account_sets[acc3]
+                        # 检查第三个账户与前两个账户是否有重复
+                        if not set1.isdisjoint(set3) or not set2.isdisjoint(set3):
+                            continue
                             
-                        combined_set = set1_2 | account_sets[acc3]
+                        combined_set = set1_2 | set3
                         if len(combined_set) == total_numbers:
-                            # 添加互斥性检查
-                            if (set1.isdisjoint(set2) and set1.isdisjoint(set3) and set2.isdisjoint(set3)):
-                                # 真正的完美覆盖
                             # 创建组合键，确保顺序一致
                             combo_key = tuple(sorted([acc1, acc2, acc3]))
                             if combo_key in found_combinations_3:
@@ -2140,29 +2148,42 @@ class MultiLotteryCoverageAnalyzer:
                     if acc1 == acc2:
                         continue
                         
-                    set1_2 = account_sets[acc1] | account_sets[acc2]
+                    set1 = account_sets[acc1]
+                    set2 = account_sets[acc2]
+                    # 检查前两个账户是否有重复
+                    if not set1.isdisjoint(set2):
+                        continue
+                        
+                    set1_2 = set1 | set2
+                    # 如果前两个账户的并集号码数小于它们号码数之和
                     if len(set1_2) < count1 + count2:
                         continue
                         
                     for acc3 in accounts_by_count[count3]:
                         if acc3 in [acc1, acc2]:
                             continue
+                        
+                        set3 = account_sets[acc3]
+                        # 检查第三个账户与前两个账户是否有重复
+                        if not set1.isdisjoint(set3) or not set2.isdisjoint(set3):
+                            continue
                             
-                        set1_2_3 = set1_2 | account_sets[acc3]
+                        set1_2_3 = set1_2 | set3
                         if len(set1_2_3) < count1 + count2 + count3:
                             continue
                             
                         for acc4 in accounts_by_count[count4]:
                             if acc4 in [acc1, acc2, acc3]:
                                 continue
+                            
+                            set4 = account_sets[acc4]
+                            # 检查第四个账户与前三个账户是否有重复
+                            if (not set1.isdisjoint(set4) or not set2.isdisjoint(set4) or 
+                                not set3.isdisjoint(set4)):
+                                continue
                                 
-                            combined_set = set1_2_3 | account_sets[acc4]
-                        if len(combined_set) == total_numbers:
-                            # 添加互斥性检查
-                            if (set1.isdisjoint(set2) and set1.isdisjoint(set3) and set1.isdisjoint(set4) and
-                                set2.isdisjoint(set3) and set2.isdisjoint(set4) and
-                                set3.isdisjoint(set4)):
-                                # 真正的完美覆盖
+                            combined_set = set1_2_3 | set4
+                            if len(combined_set) == total_numbers:
                                 # 创建组合键，确保顺序一致
                                 combo_key = tuple(sorted([acc1, acc2, acc3, acc4]))
                                 if combo_key in found_combinations_4:
