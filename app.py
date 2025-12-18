@@ -897,8 +897,16 @@ class DataPreprocessor:
     def process(self, df: pd.DataFrame) -> pd.DataFrame:
         """预处理数据"""
         try:
+            st.info("🔍 开始数据预处理...")
+            
+            # 显示原始列名
+            st.write(f"📋 原始列名: {list(df.columns)}")
+            
             # 1. 重命名列
             df = self._rename_columns(df)
+            
+            # 显示重命名后的列名
+            st.write(f"🔄 重命名后列名: {list(df.columns)}")
             
             # 2. 验证必要列
             self._validate_required_columns(df)
@@ -918,7 +926,7 @@ class DataPreprocessor:
                 axis=1
             )
             
-            # 6. 提取号码（直接调用提取器方法）
+            # 6. 提取号码
             df['提取号码'] = df.apply(
                 lambda row: self.number_extractor.extract(
                     row['内容'], 
@@ -939,75 +947,168 @@ class DataPreprocessor:
             df = self._filter_number_bets(df)
             
             self.logger.info(f"数据预处理完成: 原始 {len(df)} 条记录")
+            st.success(f"✅ 数据预处理完成: 处理了 {len(df)} 条记录")
             
             return df
             
         except Exception as e:
             self.logger.error(f"数据预处理失败: {str(e)}", exc_info=True)
+            st.error(f"❌ 数据预处理失败: {str(e)}")
             raise
     
     def _rename_columns(self, df: pd.DataFrame) -> pd.DataFrame:
-        """重命名列"""
+        """重命名列 - 增强版本"""
         actual_columns = [str(col).strip() for col in df.columns]
         rename_dict = {}
         
+        st.write("🔍 开始列名映射...")
+        st.write(f"📋 检测到的列名: {actual_columns}")
+        
         for standard_col, possible_names in self.config.column_mappings.items():
+            st.write(f"  寻找 '{standard_col}' 的匹配...")
+            st.write(f"  可能的列名: {possible_names}")
+            
+            found = False
+            best_match = None
+            best_score = 0
+            
             for actual_col in actual_columns:
+                # 跳过已匹配的列
+                if actual_col in rename_dict.values():
+                    continue
+                    
                 actual_col_lower = actual_col.lower()
+                
+                # 方法1: 精确匹配
                 for possible_name in possible_names:
                     possible_name_lower = possible_name.lower()
                     
-                    # 模糊匹配
-                    if (possible_name_lower in actual_col_lower or 
-                        actual_col_lower in possible_name_lower or
-                        self._calculate_similarity(possible_name_lower, actual_col_lower) > 0.7):
+                    # 完全匹配
+                    if actual_col_lower == possible_name_lower:
                         rename_dict[actual_col] = standard_col
+                        st.write(f"    ✅ 精确匹配: '{actual_col}' -> '{standard_col}'")
+                        found = True
                         break
-                if actual_col in rename_dict:
+                    
+                    # 包含匹配
+                    if possible_name_lower in actual_col_lower or actual_col_lower in possible_name_lower:
+                        rename_dict[actual_col] = standard_col
+                        st.write(f"    ✅ 包含匹配: '{actual_col}' -> '{standard_col}'")
+                        found = True
+                        break
+                
+                if found:
                     break
+                
+                # 方法2: 相似度匹配
+                for possible_name in possible_names:
+                    similarity = self._calculate_string_similarity(actual_col, possible_name)
+                    if similarity > best_score and similarity > 0.6:  # 相似度阈值
+                        best_score = similarity
+                        best_match = (actual_col, standard_col)
+            
+            # 如果没有找到精确匹配，但找到了相似匹配
+            if not found and best_match:
+                actual_col, standard_col = best_match
+                rename_dict[actual_col] = standard_col
+                st.write(f"    ✅ 相似度匹配: '{actual_col}' -> '{standard_col}' (相似度: {best_score:.2f})")
+            
+            if not found and not best_match:
+                st.warning(f"    ⚠️ 未找到 '{standard_col}' 的匹配")
+        
+        st.write(f"📋 映射结果: {rename_dict}")
         
         if rename_dict:
             df = df.rename(columns=rename_dict)
+            # 保持原始列名顺序
+            df = df.reindex(columns=[rename_dict.get(col, col) for col in actual_columns if col in df.columns])
         
         return df
     
-    def _calculate_similarity(self, str1: str, str2: str) -> float:
-        """计算字符串相似度"""
-        set1 = set(str1)
-        set2 = set(str2)
+    def _calculate_string_similarity(self, str1: str, str2: str) -> float:
+        """计算字符串相似度 - 使用多种方法"""
+        str1_lower = str1.lower()
+        str2_lower = str2.lower()
+        
+        # 方法1: 集合相似度
+        set1 = set(str1_lower)
+        set2 = set(str2_lower)
         
         if not set1 or not set2:
             return 0.0
         
         intersection = len(set1 & set2)
         union = len(set1 | set2)
+        jaccard_similarity = intersection / union if union > 0 else 0.0
         
-        return intersection / union if union > 0 else 0.0
+        # 方法2: 长度相似度
+        len_similarity = 1 - abs(len(str1_lower) - len(str2_lower)) / max(len(str1_lower), len(str2_lower))
+        
+        # 方法3: 公共子串相似度
+        common_chars = set(str1_lower) & set(str2_lower)
+        char_similarity = len(common_chars) / max(len(set(str1_lower)), len(set(str2_lower)))
+        
+        # 综合相似度
+        combined_similarity = (jaccard_similarity + len_similarity + char_similarity) / 3
+        
+        return combined_similarity
     
     def _validate_required_columns(self, df: pd.DataFrame):
-        """验证必要列"""
+        """验证必要列 - 增强版本"""
         required_columns = ['会员账号', '彩种', '期号', '玩法', '内容']
         missing_columns = [col for col in required_columns if col not in df.columns]
         
         if missing_columns:
+            st.error("❌ 列名映射失败！")
+            st.write(f"📋 当前数据列名: {list(df.columns)}")
+            st.write(f"❌ 缺少必要列: {missing_columns}")
+            st.write("💡 请检查数据文件，确保包含以下列（或相似的列名）：")
+            
+            for col in required_columns:
+                st.write(f"  - **{col}**: {', '.join(self.config.column_mappings.get(col, []))}")
+            
+            # 提供手动映射选项
+            st.warning("💡 建议：")
+            st.write("1. 检查原始数据文件的列名")
+            st.write("2. 确保列名包含以下关键词：")
+            for col in missing_columns:
+                possible_names = self.config.column_mappings.get(col, [])
+                if possible_names:
+                    st.write(f"   - {col}: {', '.join(possible_names[:3])}...")
+            
             error_msg = f"缺少必要列: {missing_columns}"
             self.logger.error(error_msg)
             raise ValueError(error_msg)
+        else:
+            st.success(f"✅ 所有必要列都存在: {required_columns}")
     
     def _clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """清理数据"""
+        # 显示清理前的数据摘要
+        st.write("🧹 开始数据清理...")
+        st.write(f"📊 清理前记录数: {len(df)}")
+        
         # 去除空白
         for col in df.columns:
             if df[col].dtype == 'object':
                 df[col] = df[col].astype(str).str.strip()
+                # 显示列的空值情况
+                null_count = df[col].isnull().sum()
+                if null_count > 0:
+                    st.write(f"  - {col}: {null_count} 个空值")
         
         # 删除完全空白的行
         df = df.dropna(how='all')
+        
+        # 显示清理结果
+        st.write(f"📊 清理后记录数: {len(df)}")
         
         return df
     
     def _filter_number_bets(self, df: pd.DataFrame) -> pd.DataFrame:
         """过滤非号码投注"""
+        st.write("🔍 过滤非号码投注...")
+        
         # 非号码投注关键词
         non_number_keywords = [
             '大小', '单双', '龙虎', '特单', '特双', '特大', '特小',
@@ -1023,8 +1124,61 @@ class DataPreprocessor:
         removed_count = len(df) - len(filtered_df)
         if removed_count > 0:
             self.logger.info(f"过滤非号码投注: 移除 {removed_count} 条记录")
+            st.write(f"🗑️ 移除了 {removed_count} 条非号码投注记录")
+        
+        st.write(f"📊 过滤后记录数: {len(filtered_df)}")
         
         return filtered_df
+
+# ==================== 增强ConfigManager的列名映射 ====================
+class ConfigManager:
+    """统一的配置管理类"""
+    
+    # ... 其他代码保持不变 ...
+    
+    def _init_column_mappings(self) -> Dict[str, List[str]]:
+        """初始化列名映射 - 增强版本"""
+        return {
+            '会员账号': [
+                '会员账号', '会员账户', '账号', '账户', '用户账号', '玩家账号', 
+                '用户ID', '玩家ID', '会员', '账户名', '用户名', '玩家名',
+                '会员名', '账号名', '用户', '玩家', 'ID', 'user', 'player',
+                'account', '用户名', '账号名称', '用户名称', '玩家名称',
+                '会员编号', '账号编号', '用户编号', '玩家编号'
+            ],
+            '彩种': [
+                '彩种', '彩神', '彩票种类', '游戏类型', '彩票类型', '游戏彩种',
+                '彩票名称', '彩系', '游戏名称', '彩票', '彩', '类型',
+                'lottery', 'game', '彩票游戏', '彩种类型', '彩票类别',
+                '游戏种类', '彩票品种', '彩种类别'
+            ],
+            '期号': [
+                '期号', '期数', '期次', '期', '奖期', '开奖期号',
+                '期号信息', '期号编号', '奖期号', '期号代码', '期数编号',
+                '期次编号', '期编号', '期号数字', '期次号', '期号码',
+                '期号ID', '期号标识', '期号编码'
+            ],
+            '玩法': [
+                '玩法', '玩法分类', '投注类型', '类型', '投注玩法', '玩法类型',
+                '分类', '玩法名称', '投注方式', '玩法选项', '玩法选择',
+                '投注类别', '玩法类别', '投注分类', '玩法分类', '投注玩法类型',
+                '投注玩法分类', '玩法分类名称', '投注方式分类',
+                '玩法模式', '投注模式', '玩法选项', '投注选项'
+            ],
+            '内容': [
+                '内容', '投注内容', '下注内容', '注单内容', '投注号码', '号码内容',
+                '投注信息', '号码', '选号', '投注详情', '下注详情',
+                '注单详情', '投注内容详情', '下注内容详情', '注单内容详情',
+                '投注号码详情', '号码详情', '选号详情', '投注信息详情'
+            ],
+            '金额': [
+                '金额', '下注总额', '投注金额', '总额', '下注金额', '投注额',
+                '金额数值', '单注金额', '投注额', '钱', '元', '金额数',
+                '投注金额数', '下注金额数', '注单金额', '注单总额',
+                '投注总金额', '下注总金额', '注单总金额', '金额总计',
+                '投注金额总计', '下注金额总计', '注单金额总计'
+            ]
+        }
 
 # ==================== 组合查找器 ====================
 class CombinationFinder:
@@ -2013,9 +2167,45 @@ def main():
     st.sidebar.header("📁 数据上传")
     uploaded_file = st.sidebar.file_uploader(
         "上传投注数据文件", 
-        type=['csv', 'xlsx', 'xls'],
-        help="请上传包含彩票投注数据的Excel或CSV文件"
+        type=['csv', 'xlsx', 'xls', 'txt'],
+        help="请上传包含彩票投注数据的文件"
     )
+    
+    # 列名手动映射选项
+    st.sidebar.subheader("🔄 列名手动映射（可选）")
+    use_manual_mapping = st.sidebar.checkbox("使用手动列名映射", value=False)
+    
+    manual_mapping = {}
+    if use_manual_mapping and uploaded_file:
+        st.sidebar.info("请手动指定列名映射关系")
+        
+        # 读取文件但不进行自动映射
+        if uploaded_file.name.endswith('.csv'):
+            try:
+                preview_df = pd.read_csv(uploaded_file, nrows=5)
+            except UnicodeDecodeError:
+                uploaded_file.seek(0)
+                preview_df = pd.read_csv(uploaded_file, encoding='gbk', nrows=5)
+        else:
+            preview_df = pd.read_excel(uploaded_file, nrows=5)
+        
+        st.sidebar.write("文件前5行预览:")
+        st.sidebar.dataframe(preview_df)
+        
+        # 获取实际列名
+        actual_columns = list(preview_df.columns)
+        
+        # 标准列名选择
+        standard_columns = ['会员账号', '彩种', '期号', '玩法', '内容', '金额']
+        
+        for std_col in standard_columns:
+            selected_col = st.sidebar.selectbox(
+                f"选择 '{std_col}' 对应的列",
+                options=['（自动检测）'] + actual_columns,
+                key=f"manual_{std_col}"
+            )
+            if selected_col and selected_col != '（自动检测）':
+                manual_mapping[selected_col] = std_col
     
     # 分析模式选择
     analysis_mode = st.sidebar.radio(
@@ -2034,7 +2224,7 @@ def main():
         help="例如：10表示最大金额与最小金额的差距不超过10倍。设置为1则要求金额完全相等。"
     )
     
-    # 各彩种参数设置（示例，可根据需要扩展）
+    # 各彩种参数设置
     st.sidebar.subheader("🎯 六合彩参数设置")
     six_mark_min_number_count = st.sidebar.slider(
         "六合彩-号码数量阈值", 
@@ -2080,6 +2270,7 @@ def main():
     if uploaded_file is not None:
         try:
             # 读取文件
+            st.info("📖 正在读取文件...")
             if uploaded_file.name.endswith('.csv'):
                 try:
                     df = pd.read_csv(uploaded_file)
@@ -2089,11 +2280,31 @@ def main():
             else:
                 df = pd.read_excel(uploaded_file)
             
-            st.success(f"✅ 成功读取文件，共 {len(df):,} 条记录")
+            st.success(f"✅ 成功读取文件，共 {len(df):,} 条记录，{len(df.columns)} 列")
+            
+            # 如果使用了手动映射，先应用手动映射
+            if use_manual_mapping and manual_mapping:
+                st.info("🔄 应用手动列名映射...")
+                df = df.rename(columns=manual_mapping)
+                st.write(f"📋 手动映射后列名: {list(df.columns)}")
             
             # 数据预处理
             with st.spinner("正在处理数据..."):
-                df_processed = analyzer.data_preprocessor.process(df)
+                try:
+                    df_processed = analyzer.data_preprocessor.process(df)
+                except ValueError as e:
+                    st.error(f"❌ 数据预处理失败: {str(e)}")
+                    
+                    # 显示原始数据的前几行，帮助用户诊断
+                    st.subheader("🔍 数据预览（帮助诊断）")
+                    st.write("前5行数据:")
+                    st.dataframe(df.head())
+                    
+                    st.write("列名详情:")
+                    for i, col in enumerate(df.columns):
+                        st.write(f"{i+1}. '{col}' - 示例值: {df[col].iloc[0] if len(df) > 0 else '空'}")
+                    
+                    return
             
             # 筛选有效玩法数据
             valid_plays = [
@@ -2111,7 +2322,33 @@ def main():
             
             if len(df_target) == 0:
                 st.error("❌ 未找到符合条件的有效玩法数据")
+                st.write("🔍 发现以下玩法:")
+                unique_plays = df_processed['玩法'].unique() if '玩法' in df_processed.columns else []
+                st.write(f"数据中包含的玩法: {list(unique_plays)}")
+                st.write(f"系统支持的玩法: {valid_plays}")
                 return
+            
+            st.success(f"✅ 找到 {len(df_target)} 条有效玩法数据")
+            
+            # 显示数据摘要
+            with st.expander("📊 数据摘要", expanded=True):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("总记录数", len(df))
+                with col2:
+                    st.metric("有效记录数", len(df_target))
+                with col3:
+                    st.metric("有效玩法数", len(valid_plays))
+                
+                st.write("📋 彩种分布:")
+                if '彩种' in df_target.columns:
+                    lottery_dist = df_target['彩种'].value_counts().head(10)
+                    st.dataframe(lottery_dist)
+                
+                st.write("🎯 玩法分布:")
+                if '玩法' in df_target.columns:
+                    play_dist = df_target['玩法'].value_counts().head(10)
+                    st.dataframe(play_dist)
             
             # 分析数据
             with st.spinner("正在分析数据..."):
@@ -2175,6 +2412,11 @@ def main():
 1. 文件编码问题 - 尝试将文件另存为UTF-8编码
 2. 文件格式问题 - 确保文件是有效的CSV或Excel格式
 3. 列名不匹配 - 检查文件是否包含必要的列
+
+解决方法:
+1. 尝试使用手动列名映射功能
+2. 检查原始文件的列名
+3. 确保文件包含至少以下列：会员账号、彩种、期号、玩法、内容
             """)
     
     else:
@@ -2189,6 +2431,11 @@ def main():
         - ✅ **快三**: 3-18共16个和值，按位置精准分析
         - 🔄 **自动识别**: 智能识别彩种类型
 
+        **🔄 智能列名识别**
+        - ✅ **强大的列名映射**: 支持多种列名变体
+        - ✅ **手动映射**: 支持手动指定列名对应关系
+        - ✅ **详细调试**: 显示每一步的处理过程
+
         **⚡ 性能优化**
         - 🔄 智能缓存机制
         - 📈 模块化设计，代码清晰
@@ -2198,6 +2445,18 @@ def main():
         - 👥 支持2-4账户组合检测
         - 💰 金额平衡检查
         - 🎯 精确的位置识别
+
+        ### 📝 支持的主要列名:
+
+        **必需列:**
+        - **会员账号**: 会员账号, 会员账户, 账号, 账户, 用户账号, 玩家账号
+        - **彩种**: 彩种, 彩神, 彩票种类, 游戏类型, 彩票类型
+        - **期号**: 期号, 期数, 期次, 期, 奖期, 开奖期号
+        - **玩法**: 玩法, 玩法分类, 投注类型, 类型, 投注玩法, 玩法类型
+        - **内容**: 内容, 投注内容, 下注内容, 注单内容, 投注号码, 号码内容
+
+        **可选列:**
+        - **金额**: 金额, 下注总额, 投注金额, 总额, 下注金额, 投注额
         """)
 
 if __name__ == "__main__":
