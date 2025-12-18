@@ -334,13 +334,13 @@ class CacheManager:
     def cached_extract_numbers(self, func):
         """号码提取缓存装饰器"""
         @wraps(func)
-        def wrapper(content: str, lottery_category: str, play_method: str = None):
+        def wrapper(instance, content: str, lottery_category: str, play_method: str = None):
             key = self._make_key(content, lottery_category, play_method)
             
             if key in self.number_cache:
                 return self.number_cache[key]
             
-            result = func(content, lottery_category, play_method)
+            result = func(instance, content, lottery_category, play_method)
             
             # 缓存管理
             if len(self.number_cache) >= self.maxsize:
@@ -356,13 +356,13 @@ class CacheManager:
     def cached_extract_amount(self, func):
         """金额提取缓存装饰器"""
         @wraps(func)
-        def wrapper(amount_text: str):
+        def wrapper(instance, amount_text: str):
             key = self._make_key(amount_text)
             
             if key in self.amount_cache:
                 return self.amount_cache[key]
             
-            result = func(amount_text)
+            result = func(instance, amount_text)
             
             if len(self.amount_cache) >= self.maxsize:
                 oldest_key = next(iter(self.amount_cache))
@@ -379,7 +379,7 @@ class BaseExtractor(ABC):
     
     def __init__(self, config_manager: ConfigManager):
         self.config = config_manager
-        self.cache_manager = CacheManager()
+        self.cache_manager = CacheManager()  # 每个提取器实例有自己的缓存管理器
         self.logger = LogManager.setup_logger(self.__class__.__name__)
     
     @abstractmethod
@@ -393,7 +393,9 @@ class NumberExtractor(BaseExtractor):
     
     def __init__(self, config_manager: ConfigManager):
         super().__init__(config_manager)
-        
+        # 使用实例的缓存管理器创建装饰器
+        self.cached_extract = self.cache_manager.cached_extract_numbers
+    
     def _clean_content(self, content: str) -> str:
         """清理内容"""
         if not content:
@@ -492,9 +494,19 @@ class NumberExtractor(BaseExtractor):
         
         return numbers
     
-    @CacheManager.cached_extract_numbers
-    def extract(self, content: str, lottery_category: str, play_method: str = None) -> List[int]:
-        """提取号码（主方法）"""
+    @property
+    def extract(self):
+        """动态创建装饰器方法"""
+        # 创建装饰器
+        def decorated_extract(content: str, lottery_category: str, play_method: str = None) -> List[int]:
+            return self._extract_impl(content, lottery_category, play_method)
+        
+        # 应用缓存装饰器
+        cached_method = self.cache_manager.cached_extract_numbers(self._extract_impl)
+        return cached_method
+    
+    def _extract_impl(self, content: str, lottery_category: str, play_method: str = None) -> List[int]:
+        """提取号码（实际实现）"""
         try:
             if not content or pd.isna(content):
                 return []
@@ -568,9 +580,19 @@ class AmountExtractor(BaseExtractor):
     def __init__(self, config_manager: ConfigManager):
         super().__init__(config_manager)
     
-    @CacheManager.cached_extract_amount
-    def extract(self, amount_text: str) -> float:
-        """提取金额"""
+    @property
+    def extract(self):
+        """动态创建装饰器方法"""
+        # 创建装饰器
+        def decorated_extract(amount_text: str) -> float:
+            return self._extract_impl(amount_text)
+        
+        # 应用缓存装饰器
+        cached_method = self.cache_manager.cached_extract_amount(self._extract_impl)
+        return cached_method
+    
+    def _extract_impl(self, amount_text: str) -> float:
+        """提取金额（实际实现）"""
         try:
             if pd.isna(amount_text) or amount_text is None:
                 return 0.0
@@ -918,9 +940,10 @@ class DataPreprocessor:
                 axis=1
             )
             
-            # 6. 提取号码
+            # 6. 提取号码（使用提取器的提取方法）
             df['提取号码'] = df.apply(
                 lambda row: self.number_extractor.extract(
+                    self.number_extractor,  # 传入实例作为第一个参数
                     row['内容'], 
                     row['彩种类型'] if not pd.isna(row['彩种类型']) else 'six_mark',
                     row['玩法']
@@ -933,7 +956,9 @@ class DataPreprocessor:
             
             # 8. 提取金额（如果存在金额列）
             if '金额' in df.columns:
-                df['投注金额'] = df['金额'].apply(self.amount_extractor.extract)
+                df['投注金额'] = df['金额'].apply(
+                    lambda x: self.amount_extractor.extract(self.amount_extractor, x)
+                )
             
             # 9. 过滤非号码投注
             df = self._filter_number_bets(df)
@@ -1802,7 +1827,7 @@ class ResultPresenter:
         # 按账户组合分组
         account_pair_groups = defaultdict(lambda: defaultdict(list))
         
-        for result_key, result in all_period_results.items():
+        for result_key, result in all_results.items():
             lottery = result['lottery']
             position = result.get('position', None)
             
