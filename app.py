@@ -1052,9 +1052,26 @@ class DataPreprocessor:
         st.write(f"📋 映射结果: {rename_dict}")
         
         if rename_dict:
+            # 重命名列
             df = df.rename(columns=rename_dict)
-            # 保持原始列名顺序
-            df = df.reindex(columns=[rename_dict.get(col, col) for col in actual_columns if col in df.columns])
+            
+            # 构建新的列顺序 - 修复版本
+            new_columns = []
+            for col in actual_columns:
+                # 如果这个列被重命名了，使用新列名，否则保持原样
+                if col in rename_dict:
+                    new_col = rename_dict[col]
+                    if new_col not in new_columns:  # 避免重复
+                        new_columns.append(new_col)
+                else:
+                    if col not in new_columns:  # 避免重复
+                        new_columns.append(col)
+            
+            # 重新排序列
+            df = df[new_columns]
+            
+            # 确保所有必要的列都存在
+            st.write(f"🔄 最终列名顺序: {list(df.columns)}")
         
         return df
     
