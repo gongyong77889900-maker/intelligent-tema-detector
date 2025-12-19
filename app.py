@@ -894,7 +894,6 @@ class MultiLotteryCoverageAnalyzer:
 
     def analyze_pk10_group_plays(self, df_target, period, lottery, play_method, min_number_count, min_avg_amount):
         """专门分析PK10分组玩法（1-5名, 6-10名）"""
-        logger.info(f"🎯 开始分析分组玩法: {period} {lottery} {play_method}")
         
         # 筛选指定期号、彩种和玩法的数据
         group_data = df_target[
@@ -904,10 +903,7 @@ class MultiLotteryCoverageAnalyzer:
         ]
         
         if len(group_data) < 2:
-            logger.info(f"⚠️ 分组玩法 {play_method} 只有 {len(group_data)} 条记录，跳过")
             return None
-        
-        logger.info(f"📊 分组玩法 {play_method} 发现 {len(group_data)} 条记录，涉及账户: {group_data['会员账号'].unique()}")
         
         # 分析每个账户
         account_numbers = {}
@@ -946,21 +942,16 @@ class MultiLotteryCoverageAnalyzer:
                     'total_amount': total_amount,
                     'avg_amount_per_number': avg_amount_per_number
                 }
-                
-                logger.info(f"📊 账户 {account}: {number_count}个号码 ({account_numbers[account]})，总金额: {total_amount:.2f}")
         
         # 检查是否有足够的账户
         if len(account_numbers) < 2:
-            logger.info(f"⚠️ 分组玩法 {play_method} 只有 {len(account_numbers)} 个有号码的账户，跳过")
             return None
         
-        # 🆕 关键修复：对于分组玩法，需要覆盖1-10所有号码
+        # 分组玩法需要覆盖1-10所有号码
         total_numbers = 10
         
-        # 寻找完美组合 - 修改逻辑，专门处理分组玩法
+        # 寻找完美组合
         perfect_combinations = []
-        
-        # 对于分组玩法，我们期望两个账户的号码合并后覆盖1-10
         accounts = list(account_numbers.keys())
         
         # 尝试所有可能的2账户组合
@@ -973,13 +964,8 @@ class MultiLotteryCoverageAnalyzer:
                 set2 = set(account_numbers[acc2])
                 combined_set = set1 | set2
                 
-                # 检查是否覆盖1-10
+                # 检查是否覆盖1-10且没有重复号码
                 if len(combined_set) == total_numbers and set1.isdisjoint(set2):
-                    logger.info(f"🎯 发现完美覆盖组合: {acc1} + {acc2}")
-                    logger.info(f"   {acc1}: {sorted(set1)}")
-                    logger.info(f"   {acc2}: {sorted(set2)}")
-                    logger.info(f"   合并: {sorted(combined_set)}")
-                    
                     # 计算金额匹配度
                     avg1 = account_amount_stats[acc1]['avg_amount_per_number']
                     avg2 = account_amount_stats[acc2]['avg_amount_per_number']
@@ -1010,12 +996,8 @@ class MultiLotteryCoverageAnalyzer:
                         }
                         
                         perfect_combinations.append(result_data)
-                    else:
-                        logger.info(f"⚠️ 组合 {acc1}+{acc2} 金额不满足阈值: {avg1:.2f}, {avg2:.2f} (阈值: {min_avg_amount})")
         
         if perfect_combinations:
-            logger.info(f"✅ 分组玩法 {play_method} 找到 {len(perfect_combinations)} 个完美组合")
-            
             # 排序：相似度高的在前
             perfect_combinations.sort(key=lambda x: -x['similarity'])
             
@@ -1030,22 +1012,6 @@ class MultiLotteryCoverageAnalyzer:
                 'total_numbers': total_numbers,
                 'is_group_play': True
             }
-        else:
-            logger.info(f"📊 分组玩法 {play_method} 未发现完美覆盖组合")
-            
-            # 如果有账户但没有完美组合，显示诊断信息
-            if len(account_numbers) >= 2:
-                logger.info("🔍 诊断信息:")
-                for acc, numbers in account_numbers.items():
-                    logger.info(f"  账户 {acc}: 号码 {numbers} (共{len(numbers)}个)")
-                for i in range(len(accounts)):
-                    for j in range(i+1, len(accounts)):
-                        acc1 = accounts[i]
-                        acc2 = accounts[j]
-                        set1 = set(account_numbers[acc1])
-                        set2 = set(account_numbers[acc2])
-                        combined_set = set1 | set2
-                        logger.info(f"  组合 {acc1}+{acc2}: 合并号码 {sorted(combined_set)} (共{len(combined_set)}个)")
         
         return None
 
@@ -2573,8 +2539,6 @@ class MultiLotteryCoverageAnalyzer:
         if len(period_data) < 2:
             return None
         
-        logger.info(f"🎯 开始按期号合并分析: {period} {lottery}")
-        
         # 按账户分组，合并所有号码（不考虑位置）
         account_numbers = {}
         account_amount_stats = {}
@@ -2595,9 +2559,10 @@ class MultiLotteryCoverageAnalyzer:
                     amount = row['投注金额']
                 elif '金额' in row:
                     amount = self.extract_bet_amount(row['金额'])
+                    total_amount += amount
                 else:
                     amount = 0
-                total_amount += amount
+                    total_amount += amount
             
             if all_numbers:
                 account_numbers[account] = sorted(all_numbers)
@@ -2611,13 +2576,9 @@ class MultiLotteryCoverageAnalyzer:
                     'total_amount': total_amount,
                     'avg_amount_per_number': avg_amount_per_number
                 }
-                
-                st.info(f"📊 账户 {account}: {number_count}个号码 ({account_numbers[account]})，总金额: {total_amount:.2f}，平均每号: {avg_amount_per_number:.2f}")
         
         if len(account_numbers) < 2:
             return None
-        
-        st.success(f"✅ 期号 {period}: {len(account_numbers)} 个有效账户")
         
         # 尝试所有可能的2账户组合
         all_accounts = list(account_numbers.keys())
@@ -2634,11 +2595,6 @@ class MultiLotteryCoverageAnalyzer:
                 
                 # 检查是否覆盖1-10
                 if len(combined_set) == 10 and set1.isdisjoint(set2):
-                    st.success(f"🎯 发现完美覆盖组合: {acc1} + {acc2}")
-                    st.info(f"   {acc1}: {sorted(set1)}")
-                    st.info(f"   {acc2}: {sorted(set2)}")
-                    st.info(f"   合并: {sorted(combined_set)}")
-                    
                     # 检查金额匹配度
                     avg1 = account_amount_stats[acc1]['avg_amount_per_number']
                     avg2 = account_amount_stats[acc2]['avg_amount_per_number']
@@ -2677,8 +2633,6 @@ class MultiLotteryCoverageAnalyzer:
             filtered_combinations = [combo for combo in perfect_combinations if combo['meets_amount_threshold']]
             
             if filtered_combinations:
-                st.success(f"🎉 期号 {period} 发现 {len(filtered_combinations)} 个完美覆盖组合")
-                
                 # 移除临时字段
                 for combo in filtered_combinations:
                     del combo['meets_amount_threshold']
